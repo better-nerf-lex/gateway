@@ -1,12 +1,12 @@
 package com.bntech.lexai.gateway.service;
 
-import com.bntech.lexai.gateway.data.entity.User;
+import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.mapper.UserMapper;
-import com.bntech.lexai.gateway.rest.dto.LoginRequest;
-import com.bntech.lexai.gateway.rest.dto.LoginResponse;
-import com.bntech.lexai.gateway.rest.dto.RefreshTokenResponse;
-import com.bntech.lexai.gateway.rest.dto.UserDto;
+import com.bntech.lexai.gateway.rest.dto.security.LoginRequest;
+import com.bntech.lexai.gateway.rest.dto.security.LoginResponse;
+import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenResponse;
+import com.bntech.lexai.gateway.rest.dto.security.UserDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;

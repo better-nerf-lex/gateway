@@ -1,4 +1,4 @@
-package com.bntech.lexai.gateway.data.entity;
+package com.bntech.lexai.gateway.data.entity.security;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -10,15 +10,21 @@ import org.springframework.data.relational.core.mapping.Table;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table("user_roles")
-public class UserRole {
+@Table("users")
+public class User {
 
     @Id
     private Long id;
 
-    @Column("user_id")
-    private Long userId;
+    @Column("username")
+    private String username;
 
-    @Column("role")
-    private String role;
+    @Column("password")
+    private String password;
+
+    @Column("email")
+    private String email;
+
+    @Column("enabled")
+    private boolean enabled;
 }

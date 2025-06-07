@@ -1,4 +1,4 @@
-package com.bntech.lexai.gateway.rest.dto;
+package com.bntech.lexai.gateway.rest.dto.security;
 
 import lombok.Data;
 import lombok.Builder;

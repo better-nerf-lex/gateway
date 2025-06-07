@@ -1,7 +1,7 @@
 package com.bntech.lexai.gateway.mapper;
 
-import com.bntech.lexai.gateway.data.entity.User;
-import com.bntech.lexai.gateway.rest.dto.UserDto;
+import com.bntech.lexai.gateway.data.entity.security.User;
+import com.bntech.lexai.gateway.rest.dto.security.UserDto;
 import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")

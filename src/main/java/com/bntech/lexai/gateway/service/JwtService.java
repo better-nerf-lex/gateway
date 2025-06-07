@@ -1,7 +1,7 @@
 package com.bntech.lexai.gateway.service;
 
 
-import com.bntech.lexai.gateway.data.entity.User;
+import com.bntech.lexai.gateway.data.entity.security.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;

@@ -1,9 +1,9 @@
 package com.bntech.lexai.gateway.rest.controller;
 
-import com.bntech.lexai.gateway.rest.dto.LoginRequest;
-import com.bntech.lexai.gateway.rest.dto.LoginResponse;
-import com.bntech.lexai.gateway.rest.dto.RefreshTokenResponse;
-import com.bntech.lexai.gateway.rest.dto.UserDto;
+import com.bntech.lexai.gateway.rest.dto.security.LoginRequest;
+import com.bntech.lexai.gateway.rest.dto.security.LoginResponse;
+import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenResponse;
+import com.bntech.lexai.gateway.rest.dto.security.UserDto;
 import com.bntech.lexai.gateway.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

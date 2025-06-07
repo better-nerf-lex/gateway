@@ -1,7 +1,7 @@
 package com.bntech.lexai.gateway.data.repository;
 
 
-import com.bntech.lexai.gateway.data.entity.User;
+import com.bntech.lexai.gateway.data.entity.security.User;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Mono;
