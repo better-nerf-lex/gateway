@@ -1,12 +1,12 @@
 package com.bntech.lexai.gateway.service;
 
-
 import com.bntech.lexai.gateway.data.entity.security.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -25,9 +25,11 @@ public class JwtService {
     @Value("${jwt.expiration:86400}")
     private Long expiration;
 
+    @Value("${jwt.refresh-expiration:604800}")
+    private Long refreshExpiration;
+
     private SecretKey getSigningKey() {
         byte[] keyBytes = Base64.getDecoder().decode(secret);
-
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
@@ -35,10 +37,41 @@ public class JwtService {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId());
         claims.put("email", user.getEmail());
-        return createToken(claims, user.getUsername());
+        claims.put("type", "access");
+        return createToken(claims, user.getUsername(), expiration);
     }
 
-    private String createToken(Map<String, Object> claims, String subject) {
+    public String generateTokenFromOAuth2User(OAuth2User oauth2User, String username) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("email", oauth2User.getAttribute("email"));
+        claims.put("name", oauth2User.getAttribute("name"));
+        claims.put("provider", "google");
+        claims.put("type", "access");
+        return createToken(claims, username, expiration);
+    }
+
+    public String generateRefreshToken(User user) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", user.getId());
+        claims.put("type", "refresh");
+        return createToken(claims, user.getUsername(), refreshExpiration);
+    }
+
+    public String generateRefreshTokenFromOAuth2User(OAuth2User oauth2User, String username) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("email", oauth2User.getAttribute("email"));
+        claims.put("provider", "google");
+        claims.put("type", "refresh");
+        return createToken(claims, username, refreshExpiration);
+    }
+
+    public String generateAuthorizationCode() {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("type", "authorization_code");
+        return createToken(claims, "auth_code", 600L); // 10 minutes
+    }
+
+    private String createToken(Map<String, Object> claims, String subject, Long expiration) {
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(subject)
@@ -64,6 +97,30 @@ public class JwtService {
         } catch (Exception e) {
             return Mono.error(new RuntimeException("Invalid token"));
         }
+    }
+
+    public Mono<Claims> validateAndGetClaims(String token) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+
+            if (claims.getExpiration().before(new Date())) {
+                return Mono.error(new RuntimeException("Token expired"));
+            }
+
+            return Mono.just(claims);
+        } catch (Exception e) {
+            return Mono.error(new RuntimeException("Invalid token"));
+        }
+    }
+
+    public Mono<Boolean> isRefreshToken(String token) {
+        return validateAndGetClaims(token)
+                .map(claims -> "refresh".equals(claims.get("type")))
+                .onErrorReturn(false);
     }
 
     public Mono<Void> invalidateToken(String token) {

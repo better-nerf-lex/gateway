@@ -14,6 +14,7 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.authentication.RedirectServerAuthenticationSuccessHandler;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -41,11 +42,16 @@ public class SecurityConfig {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/auth/login", "/auth/refresh").permitAll()
+                        .pathMatchers("/auth/**", "/oauth2/**", "/login", "/.well-known/**").permitAll()
                         .anyExchange().authenticated()
                 )
                 .addFilterAfter(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHORIZATION)
                 .authenticationManager(authenticationManager())
+                .oauth2Login(oauth2Login ->
+                        oauth2Login.authenticationSuccessHandler(
+                                new RedirectServerAuthenticationSuccessHandler("/auth/oauth2/success")
+                        )
+                )
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .build();
