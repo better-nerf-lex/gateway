@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS document_step_data
     FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS activities
+CREATE TABLE IF NOT EXISTS activity
 (
     id     VARCHAR(36) PRIMARY KEY,
     action VARCHAR(255) NOT NULL,
@@ -61,4 +61,4 @@ CREATE TABLE IF NOT EXISTS authorization_codes
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents (status);
 CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents (created_at);
 CREATE INDEX IF NOT EXISTS idx_document_step_data_document_id ON document_step_data (document_id);
-CREATE INDEX IF NOT EXISTS idx_activities_date ON activities (date);
+CREATE INDEX IF NOT EXISTS idx_activity_date ON activity (date);

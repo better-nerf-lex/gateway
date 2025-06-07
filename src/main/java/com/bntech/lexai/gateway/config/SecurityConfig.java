@@ -1,26 +1,21 @@
 package com.bntech.lexai.gateway.config;
 
+import com.bntech.lexai.gateway.security.JwtAuthenticationFilter;
 import com.bntech.lexai.gateway.service.DatabaseUserDetailsService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UserDetailsRepositoryReactiveAuthenticationManager;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
-import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.HttpStatusServerEntryPoint;
 import org.springframework.security.web.server.authentication.RedirectServerAuthenticationSuccessHandler;
-
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-import java.util.Base64;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -28,9 +23,7 @@ import java.util.Base64;
 public class SecurityConfig {
 
     private final DatabaseUserDetailsService userDetailsService;
-
-    @Value("${jwt.secret}")
-    private String jwtSecret;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -46,13 +39,6 @@ public class SecurityConfig {
     }
 
     @Bean
-    public ReactiveJwtDecoder jwtDecoder() {
-        byte[] keyBytes = Base64.getDecoder().decode(jwtSecret);
-        SecretKey key = new SecretKeySpec(keyBytes, "HmacSHA256");
-        return NimbusReactiveJwtDecoder.withSecretKey(key).build();
-    }
-
-    @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
@@ -60,11 +46,9 @@ public class SecurityConfig {
                         .pathMatchers("/auth/**", "/oauth2/**", "/login", "/.well-known/**").permitAll()
                         .anyExchange().authenticated()
                 )
-                // Configure OAuth2 Resource Server for JWT validation
-                .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt.jwtDecoder(jwtDecoder()))
-                )
-                // Configure OAuth2 Login for Google authentication
+                // Add your custom JWT filter
+                .addFilterBefore(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+                // Configure OAuth2 Login for Google authentication only
                 .oauth2Login(oauth2Login ->
                         oauth2Login.authenticationSuccessHandler(
                                 new RedirectServerAuthenticationSuccessHandler("/auth/oauth2/success")
