@@ -57,7 +57,7 @@ public class AuthService {
 
     public Mono<RefreshTokenResponse> refreshToken(String token) {
         return jwtService.validateToken(token)
-                .flatMap(username -> userRepository.findByUsername(username))
+                .flatMap(userRepository::findByUsername)
                 .filter(User::isEnabled)
                 .map(user -> {
                     String newToken = jwtService.generateToken(user);

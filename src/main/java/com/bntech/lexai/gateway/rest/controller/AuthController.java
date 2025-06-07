@@ -42,6 +42,13 @@ public class AuthController {
                 .then(Mono.just(ResponseEntity.ok().build()));
     }
 
+    @GetMapping("/google")
+    public Mono<Void> redirectToGoogle() {
+        // This will redirect to /oauth2/authorization/google
+        return Mono.empty();
+    }
+
+
     @GetMapping("/me")
     public Mono<ResponseEntity<UserDto>> getCurrentUser(Authentication authentication) {
         return authService.getCurrentUser(authentication)
