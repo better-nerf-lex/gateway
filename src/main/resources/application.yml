@@ -28,3 +28,6 @@ spring:
               - email
               - profile
             provider: google
+jwt:
+  secret: dummy-key
+  expiration: 86400
