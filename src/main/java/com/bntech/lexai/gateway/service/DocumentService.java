@@ -5,6 +5,7 @@ import com.bntech.lexai.gateway.data.repository.DocumentRepository;
 import com.bntech.lexai.gateway.data.repository.ActivityRepository;
 import com.bntech.lexai.gateway.mapper.DocumentMapper;
 import com.bntech.lexai.gateway.rest.dto.document.ActivityDto;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentStatsDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,12 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final ActivityRepository activityRepository;
     private final DocumentMapper documentMapper;
+
+    public Flux<DocumentDto> getDocuments() {
+        return documentRepository.findAllByOrderByCreatedAtDesc()
+                .map(documentMapper::toDto)
+                .doOnError(error -> log.error("Error retrieving documents", error));
+    }
 
     public Mono<DocumentStatsDto> getDocumentStats() {
         LocalDateTime startOfMonth = YearMonth.now().atDay(1).atStartOfDay();

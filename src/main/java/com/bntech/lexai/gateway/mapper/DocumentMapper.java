@@ -16,7 +16,6 @@ public interface DocumentMapper {
     DocumentDto toDto(Document entity);
 
     @Mapping(target = "status", source = "status")
-    @Mapping(target = "stepData", ignore = true)
     Document toEntity(DocumentDto dto);
 
     @Mapping(target = "questionType", source = "questionType")

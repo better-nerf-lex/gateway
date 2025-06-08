@@ -1,12 +1,19 @@
 package com.bntech.lexai.gateway.data.entity.document;
 
 import com.bntech.lexai.gateway.data.object.QuestionType;
-import jakarta.persistence.*;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Id;
 import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.Id;
-
+import org.springframework.data.relational.core.mapping.Table;
+import org.springframework.data.relational.core.mapping.Column;
 
 @Data
 @NoArgsConstructor
@@ -23,9 +30,9 @@ public class DocumentStepData {
     private Document document;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "question_type", nullable = false)
+    @Column()
     private QuestionType questionType;
 
-    @Column(columnDefinition = "TEXT")
+    @Column()
     private String answer;
 }

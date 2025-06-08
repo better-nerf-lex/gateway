@@ -1,24 +1,22 @@
 package com.bntech.lexai.gateway.data.entity.document;
 
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
+import com.bntech.lexai.gateway.data.object.DocumentType;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import org.springframework.data.relational.core.mapping.Table;
+import org.springframework.data.relational.core.mapping.Column;
+
 import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -34,7 +32,7 @@ public class Document {
     private String title;
 
     @Column()
-    private String type;
+    private DocumentType type;
 
     @Enumerated(EnumType.STRING)
     @Column()
@@ -45,9 +43,6 @@ public class Document {
 
     @Column()
     private LocalDateTime updatedAt;
-
-    @OneToMany(mappedBy = "document", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<DocumentStepData> stepData;
 
     @PrePersist
     protected void onCreate() {

@@ -10,6 +10,10 @@ spring:
     url: r2dbc:postgresql://localhost:5432/lex-users
     username: root
     password: root
+  data:
+    r2dbc:
+      repositories:
+        enabled: true
 
   ai:
     anthropic:
