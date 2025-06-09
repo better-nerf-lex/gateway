@@ -44,6 +44,9 @@ public class Document {
     @Column()
     private LocalDateTime updatedAt;
 
+    @Column()
+    private String prompt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

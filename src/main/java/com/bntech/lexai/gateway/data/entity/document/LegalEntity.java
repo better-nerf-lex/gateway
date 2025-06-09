@@ -1,6 +1,5 @@
 package com.bntech.lexai.gateway.data.entity.document;
 
-import com.bntech.lexai.gateway.data.object.QuestionType;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
@@ -18,8 +17,8 @@ import org.springframework.data.relational.core.mapping.Column;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "document_step_data")
-public class DocumentStepData {
+@Table(name = "legal_entities")
+public class LegalEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -31,8 +30,8 @@ public class DocumentStepData {
 
     @Enumerated(EnumType.STRING)
     @Column()
-    private QuestionType questionType;
+    private String name;
 
     @Column()
-    private String answer;
+    private String relevance;
 }

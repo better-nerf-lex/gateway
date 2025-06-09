@@ -1,18 +1,16 @@
 package com.bntech.lexai.gateway.rest.dto.document;
-import lombok.Data;
-import lombok.Builder;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ActivityDto {
+public class LegalEntityDto {
     private String id;
-    private String action;
-    private LocalDateTime date;
-    private String status;
+    private String name;
+    private String relevance;
 }

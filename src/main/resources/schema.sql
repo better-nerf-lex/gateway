@@ -6,15 +6,16 @@ CREATE TABLE IF NOT EXISTS documents
     type       VARCHAR(100),
     status     VARCHAR(20) CHECK (status IN ('PENDING', 'COMPLETED', 'ERROR')),
     created_at TIMESTAMP,
-    updated_at TIMESTAMP
+    updated_at TIMESTAMP,
+    prompt     TEXT
 );
 
-CREATE TABLE IF NOT EXISTS document_step_data
+CREATE TABLE IF NOT EXISTS legal_entities
 (
-    id            VARCHAR(36) PRIMARY KEY,
-    document_id   VARCHAR(36) NOT NULL,
-    question_type VARCHAR(20) CHECK (question_type IN ('INTRO', 'OCCASIONS', 'PEOPLE', 'TIME')),
-    answer        TEXT,
+    id          VARCHAR(36) PRIMARY KEY,
+    document_id VARCHAR(36) NOT NULL,
+    name        VARCHAR(255),
+    relevance   VARCHAR(255),
     FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
 );
 
@@ -60,5 +61,5 @@ CREATE TABLE IF NOT EXISTS authorization_codes
 
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents (status);
 CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents (created_at);
-CREATE INDEX IF NOT EXISTS idx_document_step_data_document_id ON document_step_data (document_id);
+CREATE INDEX IF NOT EXISTS idx_legal_entities_document_id ON legal_entities (document_id);
 CREATE INDEX IF NOT EXISTS idx_activity_date ON activity (date);

@@ -2,10 +2,10 @@ package com.bntech.lexai.gateway.mapper;
 
 import com.bntech.lexai.gateway.data.entity.document.Activity;
 import com.bntech.lexai.gateway.data.entity.document.Document;
-import com.bntech.lexai.gateway.data.entity.document.DocumentStepData;
-import com.bntech.lexai.gateway.rest.dto.document.ActivityDto;
+import com.bntech.lexai.gateway.data.entity.document.LegalEntity;
+import com.bntech.lexai.gateway.rest.dto.ActivityDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
-import com.bntech.lexai.gateway.rest.dto.document.DocumentStepDataDto;
+import com.bntech.lexai.gateway.rest.dto.document.LegalEntityDto;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -18,11 +18,10 @@ public interface DocumentMapper {
     @Mapping(target = "status", source = "status")
     Document toEntity(DocumentDto dto);
 
-    @Mapping(target = "questionType", source = "questionType")
-    DocumentStepDataDto toDto(DocumentStepData entity);
+    LegalEntityDto toDto(LegalEntity entity);
 
     @Mapping(target = "document", ignore = true)
-    DocumentStepData toEntity(DocumentStepDataDto dto);
+    LegalEntity toEntity(LegalEntityDto dto);
 
     ActivityDto toDto(Activity entity);
 

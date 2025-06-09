@@ -4,9 +4,10 @@ package com.bntech.lexai.gateway.service;
 import com.bntech.lexai.gateway.data.repository.DocumentRepository;
 import com.bntech.lexai.gateway.data.repository.ActivityRepository;
 import com.bntech.lexai.gateway.mapper.DocumentMapper;
-import com.bntech.lexai.gateway.rest.dto.document.ActivityDto;
+import com.bntech.lexai.gateway.rest.dto.ActivityDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentStatsDto;
+import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -53,4 +55,9 @@ public class DocumentService {
                 .map(documentMapper::toDto)
                 .doOnError(error -> log.error("Error retrieving activities", error));
     }
+
+    public Mono<Void> generateDocument(List<GenerateDocumentRequest> documentSteps) {
+        return Mono.empty();
+    }
+
 }
