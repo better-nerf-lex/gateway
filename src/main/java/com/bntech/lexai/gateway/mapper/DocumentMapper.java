@@ -9,6 +9,8 @@ import com.bntech.lexai.gateway.rest.dto.document.LegalEntityDto;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
+import java.util.List;
+
 @Mapper(componentModel = "spring")
 public interface DocumentMapper {
 
@@ -20,8 +22,11 @@ public interface DocumentMapper {
 
     LegalEntityDto toDto(LegalEntity entity);
 
-    @Mapping(target = "document", ignore = true)
+    @Mapping(target = "documentId", ignore = true)
     LegalEntity toEntity(LegalEntityDto dto);
+
+    @Mapping(target = "document", ignore = true)
+    List<LegalEntity> toEntity(List<LegalEntityDto> dto);
 
     ActivityDto toDto(Activity entity);
 

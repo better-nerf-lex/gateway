@@ -24,11 +24,56 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final UserMapper mapper;
 
+
     public Mono<LoginResponse> authenticate(LoginRequest loginRequest) {
         return findUserByUsernameOrEmail(loginRequest.getUsername())
+                .doOnNext(user -> log.info("Found user: {} with enabled: {}", user.getUsername(), user.isEnabled()))
+                .doOnError(error -> log.error("Error finding user: ", error))
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.warn("No user found for username/email: {}", loginRequest.getUsername());
+                    return Mono.error(new RuntimeException("User not found"));
+                }))
                 .filter(User::isEnabled)
-                .filter(user -> passwordEncoder.matches(loginRequest.getPassword(), user.getPassword()))
-                .switchIfEmpty(Mono.error(new RuntimeException("Invalid credentials")))
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.warn("User is disabled: {}", loginRequest.getUsername());
+                    return Mono.error(new RuntimeException("User is disabled"));
+                }))
+                .filter(user -> {
+                    String providedPassword = loginRequest.getPassword();
+                    String storedHash = user.getPassword();
+
+                    log.info("=== PASSWORD DEBUGGING ===");
+                    log.info("Username: {}", user.getUsername());
+                    log.info("Provided password: '{}'", providedPassword);
+                    log.info("Provided password length: {}", providedPassword.length());
+                    log.info("Stored hash: '{}'", storedHash);
+                    log.info("Stored hash length: {}", storedHash.length());
+                    log.info("Password encoder class: {}", passwordEncoder.getClass().getName());
+
+                    boolean testPassword = passwordEncoder.matches("password", storedHash);
+                    boolean testPassword123 = passwordEncoder.matches("password123", storedHash);
+                    boolean testEmpty = passwordEncoder.matches("", storedHash);
+
+                    log.info("Test 'password' against stored hash: {}", testPassword);
+                    log.info("Test 'password123' against stored hash: {}", testPassword123);
+                    log.info("Test empty string against stored hash: {}", testEmpty);
+
+                    boolean matches = passwordEncoder.matches(providedPassword, storedHash);
+                    log.info("Actual password matches: {}", matches);
+
+                    String newHash = passwordEncoder.encode(providedPassword);
+                    log.info("New hash for provided password: {}", newHash);
+                    boolean newHashMatches = passwordEncoder.matches(providedPassword, newHash);
+                    log.info("New hash matches provided password: {}", newHashMatches);
+
+                    log.info("=== END PASSWORD DEBUGGING ===");
+
+                    return matches;
+                })
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.warn("Password mismatch for user: {}", loginRequest.getUsername());
+                    return Mono.error(new RuntimeException("Invalid password"));
+                }))
                 .map(user -> {
                     String token = jwtService.generateToken(user);
                     return LoginResponse.builder()

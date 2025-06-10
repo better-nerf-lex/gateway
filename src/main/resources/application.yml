@@ -1,6 +1,7 @@
 server:
   port: 8081
 
+
 spring:
   application:
     name: lexai-gateway
@@ -14,15 +15,14 @@ spring:
     r2dbc:
       repositories:
         enabled: true
-
   ai:
     anthropic:
-      version: 2023-06-01
-      api-key: token
+      api-key: dummy-key
       chat:
         options:
+          model: claude-3-opus-20240229
           temperature: 0.2
-          max-tokens: 8192
+          max-tokens: 4096
 
   security:
     oauth2:
@@ -46,7 +46,7 @@ jwt:
   refresh-expiration: 604800
 
 logging:
-  level:
-    org.springframework.security: DEBUG
-    org.springframework.security.oauth2: DEBUG
+#  level:
+#    org.springframework.security: DEBUG
+#    org.springframework.security.oauth2: DEBUG
 

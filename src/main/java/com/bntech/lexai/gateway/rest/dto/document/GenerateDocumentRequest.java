@@ -13,7 +13,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class GenerateDocumentRequest {
-    private String id;
     private String title;
     private DocumentType type;
     private String prompt;

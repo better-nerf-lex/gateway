@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
 
 @RestController
 @RequestMapping("/documents")
@@ -26,7 +25,7 @@ public class DocumentController {
 
     @GetMapping("/activity")
     public Flux<ActivityDto> getActivity() {
-        return documentService.getRecentActivities();
+        return null;
     }
 
     @GetMapping("/stats")
@@ -34,8 +33,8 @@ public class DocumentController {
         return documentService.getDocumentStats();
     }
 
-    @PostMapping("/generate")
-    public Mono<Void> generateDocument(@RequestBody List<GenerateDocumentRequest> documentSteps) {
+    @PostMapping()
+    public Mono<Void> generateDocument(@RequestBody GenerateDocumentRequest documentSteps) {
         return documentService.generateDocument(documentSteps);
     }
 
