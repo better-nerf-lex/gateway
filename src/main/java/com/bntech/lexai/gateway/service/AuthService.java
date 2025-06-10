@@ -7,6 +7,7 @@ import com.bntech.lexai.gateway.rest.dto.security.LoginRequest;
 import com.bntech.lexai.gateway.rest.dto.security.LoginResponse;
 import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenResponse;
 import com.bntech.lexai.gateway.rest.dto.security.UserDto;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -31,7 +32,7 @@ public class AuthService {
                 .doOnError(error -> log.error("Error finding user: ", error))
                 .switchIfEmpty(Mono.defer(() -> {
                     log.warn("No user found for username/email: {}", loginRequest.getUsername());
-                    return Mono.error(new RuntimeException("User not found"));
+                    return Mono.error(new EntityNotFoundException("User not found"));
                 }))
                 .filter(User::isEnabled)
                 .switchIfEmpty(Mono.defer(() -> {

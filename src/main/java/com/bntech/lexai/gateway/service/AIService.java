@@ -1,3 +1,4 @@
+
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.object.DocumentType;
@@ -5,6 +6,7 @@ import com.bntech.lexai.gateway.rest.dto.document.LegalEntityDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.anthropic.AnthropicChatModel;
+import org.springframework.ai.anthropic.AnthropicChatOptions;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -12,6 +14,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
@@ -19,6 +22,7 @@ import reactor.util.retry.Retry;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,14 +46,12 @@ public class AIService {
 
                     Prompt prompt = new Prompt(messages);
                     ChatResponse response = anthropicChatModel.call(prompt);
-
+                    log.debug("Generated response for {}: {}", title, response.getResult().getOutput().toString());
                     return response.getResult().getOutput().toString();
                 })
                 .subscribeOn(Schedulers.boundedElastic())
-                .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
-                        .maxBackoff(Duration.ofSeconds(10))
-                        .doBeforeRetry(retrySignal ->
-                                log.warn("Retrying AI call for document: {} (attempt {})", title, retrySignal.totalRetries() + 1)))
+                .timeout(Duration.ofMinutes(5)) // Reduced timeout
+                .retryWhen(buildRetrySpec(title))
                 .doOnSuccess(result -> log.info("✅ Document generated successfully for: {}", title))
                 .doOnError(error -> log.error("❌ Error generating document for: {}", title, error));
     }
@@ -59,7 +61,6 @@ public class AIService {
 
         return Mono.fromCallable(() -> {
                     String templateText = getTemplateForDocumentType(type);
-
                     PromptTemplate promptTemplate = new PromptTemplate(templateText);
                     Map<String, Object> variables = Map.of(
                             "title", title,
@@ -68,22 +69,21 @@ public class AIService {
                             "documentType", type.getValue()
                     );
 
-                    Prompt prompt = promptTemplate.create(variables);
-                    log.debug("Generated prompt for {}: {}", title, prompt.getContents());
+                    // More conservative options
+                    Prompt prompt = promptTemplate.create(variables, AnthropicChatOptions.builder()
+                            .maxTokens(3000)  // Reduced from 4096
+                            .model("claude-3-7-sonnet-20250219")
+                            .temperature(0.2)
+                            .build());
 
+                    log.debug("Sending request to Anthropic API for: {}", title);
                     ChatResponse response = anthropicChatModel.call(prompt);
-
+                    log.debug("Received response from Anthropic API for: {}", title);
                     return response.getResult().getOutput().toString();
                 })
                 .subscribeOn(Schedulers.boundedElastic())
-                .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
-                        .maxBackoff(Duration.ofSeconds(10))
-                        .filter(throwable -> {
-                            return throwable instanceof java.io.IOException
-                                    || throwable.getCause() instanceof io.netty.handler.timeout.ReadTimeoutException;
-                        })
-                        .doBeforeRetry(retrySignal ->
-                                log.warn("Retrying AI template call for document: {} (attempt {})", title, retrySignal.totalRetries() + 1)))
+                .timeout(Duration.ofMinutes(5)) // Consistent timeout
+                .retryWhen(buildRetrySpec(title))
                 .doOnSuccess(result -> log.info("✅ Document generated with template for: {}", title))
                 .doOnError(error -> log.error("❌ Error generating document with template for: {}", title, error));
     }
@@ -109,15 +109,46 @@ public class AIService {
                         anthropicChatModel.stream(prompt)
                                 .map(chatResponse -> chatResponse.getResult().getOutput().toString())
                                 .collect(Collectors.joining())
-                                .retryWhen(Retry.backoff(2, Duration.ofSeconds(3))
-                                        .maxBackoff(Duration.ofSeconds(10))
-                                        .doBeforeRetry(retrySignal ->
-                                                log.warn("Retrying streaming call for document: {} (attempt {})", title, retrySignal.totalRetries() + 1)))
+                                .timeout(Duration.ofMinutes(5))
+                                .retryWhen(buildRetrySpec(title))
                 )
                 .doOnSuccess(result -> log.info("✅ Streaming document generation completed for: {}", title))
                 .doOnError(error -> log.error("❌ Error in streaming document generation for: {}", title, error));
     }
 
+    private Retry buildRetrySpec(String title) {
+        return Retry.backoff(3, Duration.ofSeconds(2)) // Reduced retries and backoff
+                .maxBackoff(Duration.ofSeconds(15))
+                .jitter(0.2) // Increased jitter
+                .filter(this::isRetryableException)
+                .doBeforeRetry(retrySignal -> {
+                    Throwable exception = retrySignal.failure();
+                    log.warn("Retrying AI call for document: {} (attempt {}) due to: {}",
+                            title, retrySignal.totalRetries() + 1, exception.getMessage());
+                })
+                .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) -> {
+                    log.error("Retry exhausted for document: {} after {} attempts", title, retrySignal.totalRetries());
+                    return new RuntimeException("AI service unavailable after " + retrySignal.totalRetries() + " attempts", retrySignal.failure());
+                });
+    }
+
+    private boolean isRetryableException(Throwable throwable) {
+        return throwable instanceof ResourceAccessException
+                || throwable instanceof TimeoutException
+                || throwable instanceof java.io.IOException
+                || (throwable.getCause() instanceof io.netty.handler.timeout.ReadTimeoutException)
+                || (throwable.getCause() instanceof io.netty.handler.timeout.WriteTimeoutException)
+                || (throwable.getCause() instanceof java.net.SocketTimeoutException)
+                || (throwable.getCause() instanceof java.net.ConnectException)
+                || (throwable.getMessage() != null && (
+                throwable.getMessage().contains("timeout") ||
+                        throwable.getMessage().contains("connection") ||
+                        throwable.getMessage().contains("503") ||
+                        throwable.getMessage().contains("502")
+        ));
+    }
+
+    // ... rest of your methods remain the same
     private String buildSystemPrompt(DocumentType type) {
         return switch (type) {
             case CONTRACT -> """
