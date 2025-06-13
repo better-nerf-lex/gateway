@@ -61,7 +61,7 @@ public class DocumentService {
                 .doOnError(error -> log.error("❌ Error analyzing prompt", error));
     }
 
-    public Mono<Void> generateDocument(GenerateDocumentRequest request) {
+    public Mono<DocumentDto> generateDocument(GenerateDocumentRequest request) {
         log.info("Generating document with request: {}", request);
 
         Document document = documentMapper.toEntity(DocumentDto.builder()
@@ -71,7 +71,7 @@ public class DocumentService {
                 .status(DocumentStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
-                .prompt(request.getPrompt())
+                .text("")
                 .build());
 
         return documentRepository.save(document)
@@ -79,7 +79,7 @@ public class DocumentService {
                 .flatMap(savedDocument -> processAIGeneration(savedDocument, request));
     }
 
-    private Mono<Void> processAIGeneration(Document document, GenerateDocumentRequest request) {
+    private Mono<DocumentDto> processAIGeneration(Document document, GenerateDocumentRequest request) {
         return aiService.generateDocumentWithAnswers(
                         request.getTitle(),
                         request.getPrompt(),
@@ -94,28 +94,30 @@ public class DocumentService {
                 .flatMap(content -> updateDocumentWithContent(document, content))
                 .doOnSuccess(result -> log.info("✅ AI generation completed for: {}", document.getTitle()))
                 .doOnError(error -> log.error("❌ AI generation failed for: {}", document.getTitle(), error))
-                .onErrorResume(error -> failDocument(document))
-                .then();
+                .onErrorResume(error -> failDocument(document));  // Remove documentMapper.toDto() here
     }
 
-    private Mono<Document> updateDocumentWithContent(Document document, String content) {
+    private Mono<DocumentDto> updateDocumentWithContent(Document document, String content) {
         return documentRepository.findById(document.getId())
                 .map(existingDoc -> {
                     existingDoc.setStatus(DocumentStatus.COMPLETED);
                     existingDoc.setUpdatedAt(LocalDateTime.now());
                     existingDoc.setNotNew();
+                    existingDoc.setText(content);
                     return existingDoc;
                 })
                 .switchIfEmpty(Mono.just(document)
                         .map(doc -> {
                             doc.setStatus(DocumentStatus.COMPLETED);
                             doc.setUpdatedAt(LocalDateTime.now());
+                            doc.setText(content);
                             return doc;
                         }))
-                .flatMap(documentRepository::save);
+                .flatMap(documentRepository::save)
+                .map(documentMapper::toDto);
     }
 
-    private Mono<Document> failDocument(Document document) {
+    private Mono<DocumentDto> failDocument(Document document) {
         log.error("Failing document: {}", document.getTitle());
         return documentRepository.findById(document.getId())
                 .map(existingDoc -> {
@@ -130,6 +132,7 @@ public class DocumentService {
                             doc.setUpdatedAt(LocalDateTime.now());
                             return doc;
                         }))
-                .flatMap(documentRepository::save);
+                .flatMap(documentRepository::save)
+                .map(documentMapper::toDto);
     }
 }

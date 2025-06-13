@@ -20,5 +20,5 @@ public class DocumentDto {
     private DocumentStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private String prompt;
+    private String text;
 }

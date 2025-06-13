@@ -39,7 +39,7 @@ public class DocumentController {
     }
 
     @PostMapping("/generate")
-    public Mono<Void> generateDocument(@RequestBody GenerateDocumentRequest request) {
+    public Mono<DocumentDto> generateDocument(@RequestBody GenerateDocumentRequest request) {
         return documentService.generateDocument(request);
     }
 }

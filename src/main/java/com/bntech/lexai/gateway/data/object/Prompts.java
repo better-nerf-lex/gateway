@@ -24,6 +24,8 @@ public class Prompts {
                 6. W `requirements` wpisz, jakie załączniki lub dokumenty muszą zostać dostarczone.
             
                 Odpowiedź musi zawierać wyłącznie dane w formacie JSON. Nie dodawaj żadnego innego tekstu ani komentarzy.
+                Pamiętaj, że dane takie jak szczegóły wnioskodawcy, data sporządzenia dokumentu oraz organ do którego kierowany jest wniosek są wymagane.
+                Miejsca na podpis nie trzeba
             """;
 
     public static final String PL_GENERATE_DOCUMENT = """
@@ -77,5 +79,7 @@ public class Prompts {
                 6. In `requirements`, list the necessary supporting documents or attachments.
             
                 Return only the JSON data. Do not include any explanations, comments, or additional content.
+                Remember that data like applicant, date it was created and legal entity to which the application is directed must be provided.
+                There is no need to signature space.
             """;
 }

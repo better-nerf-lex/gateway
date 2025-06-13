@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS documents
     status     VARCHAR(20) CHECK (status IN ('PENDING', 'COMPLETED', 'ERROR')),
     created_at TIMESTAMP,
     updated_at TIMESTAMP,
-    prompt     TEXT
+    text     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS legal_entities

@@ -43,7 +43,7 @@ public class Document implements Persistable<String> {
     private LocalDateTime updatedAt;
 
     @Column()
-    private String prompt;
+    private String text;
 
     @Transient
     private boolean isNew = true;

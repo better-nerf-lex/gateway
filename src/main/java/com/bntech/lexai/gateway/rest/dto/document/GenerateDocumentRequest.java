@@ -1,6 +1,5 @@
 package com.bntech.lexai.gateway.rest.dto.document;
 
-import com.bntech.lexai.gateway.data.object.DocumentType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
