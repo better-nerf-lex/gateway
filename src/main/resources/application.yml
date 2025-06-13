@@ -19,9 +19,10 @@ spring:
       api-key: dummy-key
       chat:
         options:
-          model: claude-3-7-sonnet-20250219
+          model: claude-3-7-sonnet-latest
           temperature: 0.2
           max-tokens: 4096
+      version: 2023-06-01
 
   security:
     oauth2:

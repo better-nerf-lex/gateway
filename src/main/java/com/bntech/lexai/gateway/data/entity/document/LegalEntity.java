@@ -24,6 +24,7 @@ public class LegalEntity implements Persistable<String> {
     @Column("document_id")
     private String documentId;
 
+    //todo: map<str, str> name/maiden name/etc
     @Enumerated(EnumType.STRING)
     @Column()
     private String name;

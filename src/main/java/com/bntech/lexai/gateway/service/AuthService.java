@@ -43,33 +43,7 @@ public class AuthService {
                     String providedPassword = loginRequest.getPassword();
                     String storedHash = user.getPassword();
 
-                    log.info("=== PASSWORD DEBUGGING ===");
-                    log.info("Username: {}", user.getUsername());
-                    log.info("Provided password: '{}'", providedPassword);
-                    log.info("Provided password length: {}", providedPassword.length());
-                    log.info("Stored hash: '{}'", storedHash);
-                    log.info("Stored hash length: {}", storedHash.length());
-                    log.info("Password encoder class: {}", passwordEncoder.getClass().getName());
-
-                    boolean testPassword = passwordEncoder.matches("password", storedHash);
-                    boolean testPassword123 = passwordEncoder.matches("password123", storedHash);
-                    boolean testEmpty = passwordEncoder.matches("", storedHash);
-
-                    log.info("Test 'password' against stored hash: {}", testPassword);
-                    log.info("Test 'password123' against stored hash: {}", testPassword123);
-                    log.info("Test empty string against stored hash: {}", testEmpty);
-
-                    boolean matches = passwordEncoder.matches(providedPassword, storedHash);
-                    log.info("Actual password matches: {}", matches);
-
-                    String newHash = passwordEncoder.encode(providedPassword);
-                    log.info("New hash for provided password: {}", newHash);
-                    boolean newHashMatches = passwordEncoder.matches(providedPassword, newHash);
-                    log.info("New hash matches provided password: {}", newHashMatches);
-
-                    log.info("=== END PASSWORD DEBUGGING ===");
-
-                    return matches;
+                    return passwordEncoder.matches(providedPassword, storedHash);
                 })
                 .switchIfEmpty(Mono.defer(() -> {
                     log.warn("Password mismatch for user: {}", loginRequest.getUsername());

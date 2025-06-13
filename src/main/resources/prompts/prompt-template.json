@@ -1,0 +1,35 @@
+{
+  "questions": [
+    "Jakie jest pełne oznaczenie sądu właściwego miejscowo (Sąd Rejonowy w ...)?",
+    "Jakie są pełne dane osobowe wnioskodawcy/powoda (imię, nazwisko, PESEL, adres zamieszkania)?",
+    "Czy występuje Pan/Pani we własnym imieniu, czy w imieniu dziecka jako przedstawiciel ustawowy?",
+    "Jakie są pełne dane osobowe pozwanego/zobowiązanego do alimentów (imię, nazwisko, PESEL, adres zamieszkania)?",
+    "Jeśli sprawa dotyczy dziecka - jakie są pełne dane dziecka (imię, nazwisko, data urodzenia, PESEL)?",
+    "Jaka kwota miesięcznych alimentów jest żądana?",
+    "Od jakiej daty mają być płacone alimenty?",
+    "Jakie są usprawiedliwione potrzeby osoby uprawnionej do alimentów?",
+    "Jakie są możliwości zarobkowe i sytuacja majątkowa zobowiązanego?",
+    "Czy podjęto próbę pozasądowego rozwiązania sporu alimentacyjnego?",
+    "Czy posiada Pan/Pani pełnomocnika procesowego (jeśli tak - jego dane)?",
+    "Jakie dokumenty załącza Pan/Pani do pozwu?"
+  ],
+  "base": [
+    "Art. 126 KPC - wymogi formalne pisma procesowego",
+    "Art. 187 KPC - wymogi pozwu",
+    "Art. 32 KPC - właściwość sądu w sprawach o alimenty",
+    "Art. 128 KPC - brak obowiązku uiszczania opłaty sądowej od pozwu o alimenty",
+    "Art. 133 i 135 Kodeksu rodzinnego i opiekuńczego - obowiązek alimentacyjny"
+  ],
+  "name": "Pozew o alimenty",
+  "requirements": [
+    "Oznaczenie sądu, do którego pozew jest skierowany",
+    "Imiona i nazwiska stron, ich przedstawicieli ustawowych i pełnomocników",
+    "Oznaczenie rodzaju pisma (pozew)",
+    "Żądanie pozwu z określeniem kwoty alimentów i okresu płatności",
+    "Przytoczenie okoliczności faktycznych uzasadniających żądanie",
+    "Wskazanie dowodów na poparcie twierdzeń",
+    "Podpis strony lub pełnomocnika",
+    "Wymienienie załączników",
+    "Oświadczenie o podjęciu lub niepodjęciu próby pozasądowego rozwiązania sporu"
+  ]
+}
