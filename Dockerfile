@@ -1,21 +1,24 @@
-FROM public.ecr.aws/amazoncorretto/amazoncorretto:21.0.3-al2023-headless AS builder
+FROM public.ecr.aws/amazoncorretto/amazoncorretto:21-al2023-headless AS builder
 WORKDIR /app
-
-# Install tar and gzip required for mvnw
 RUN yum update -y && yum install -y tar gzip
-
-# Copy project files and run Maven
-COPY src ./src
-COPY .mvn/ .mvn
+COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
-RUN ./mvnw clean package -DskipTests
+RUN ./mvnw dependency:go-offline -B
+COPY src ./src
+RUN ./mvnw clean package -DskipTests -B
 
-#Runtime
-FROM public.ecr.aws/amazoncorretto/amazoncorretto:21.0.3-al2023-headless
-ENV JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto
+FROM public.ecr.aws/amazoncorretto/amazoncorretto:21-al2023-headless
 WORKDIR /app
-COPY --from=builder /app/target/market-intelligence-service-*.jar ./app.jar
-ENV SPRING_PROFILES_ACTIVE=cloud
-CMD ["java", "-jar", "app.jar"]
+RUN yum update -y && \
+    yum install -y shadow-utils && \
+    groupadd -r appuser && \
+    useradd -r -g appuser appuser && \
+    yum clean all
 
-
+COPY --from=builder /app/target/gateway-*.jar ./app.jar
+RUN chown appuser:appuser /app/app.jar
+USER appuser
+EXPOSE 8080
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+ENV SPRING_PROFILES_ACTIVE=docker
+CMD ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

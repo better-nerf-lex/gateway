@@ -1,0 +1,49 @@
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gateway-postgres
+    environment:
+      POSTGRES_DB: gateway
+      POSTGRES_USER: gateway_user
+      POSTGRES_PASSWORD: gateway_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gateway_user -d gateway"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gateway-network
+#
+#  gateway:
+#    build: .
+#    container_name: gateway-app
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#    environment:
+#      SPRING_PROFILES_ACTIVE: docker
+#      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/gateway
+#      SPRING_R2DBC_USERNAME: gateway_user
+#      SPRING_R2DBC_PASSWORD: gateway_password
+#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gateway
+#      SPRING_DATASOURCE_USERNAME: gateway_user
+#      SPRING_DATASOURCE_PASSWORD: gateway_password
+#    ports:
+#      - "8080:8080"
+#    networks:
+#      - gateway-network
+
+volumes:
+  postgres_data:
+
+networks:
+  gateway-network:
+    driver: bridge

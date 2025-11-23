@@ -10,6 +10,17 @@ CREATE TABLE IF NOT EXISTS documents
     text     TEXT
 );
 
+CREATE TABLE IF NOT EXISTS document_history
+(
+    id           VARCHAR(36) PRIMARY KEY,
+    document_id  VARCHAR(36) NOT NULL,
+    content      TEXT,
+    version      INTEGER NOT NULL,
+    created_at   TIMESTAMP NOT NULL,
+    created_by   VARCHAR(255),
+    FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS legal_entities
 (
     id          VARCHAR(36) PRIMARY KEY,
@@ -61,5 +72,7 @@ CREATE TABLE IF NOT EXISTS authorization_codes
 
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents (status);
 CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents (created_at);
+CREATE INDEX IF NOT EXISTS idx_document_history_document_id ON document_history (document_id);
+CREATE INDEX IF NOT EXISTS idx_document_history_version ON document_history (document_id, version);
 CREATE INDEX IF NOT EXISTS idx_legal_entities_document_id ON legal_entities (document_id);
 CREATE INDEX IF NOT EXISTS idx_activity_date ON activity (date);

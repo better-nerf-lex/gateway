@@ -50,12 +50,12 @@ public class AIService {
         log.info("Analyzing prompt: {}", prompt);
 
         return Mono.fromCallable(() -> {
-                    String systemPrompt = Prompts.PL_GENERATE_QUESTIONS;
+                    String systemPrompt = Prompts.EN_GENERATE_QUESTIONS;
 
                     MessageCreateParams params = MessageCreateParams.builder()
                             .maxTokens(4096L)
                             .system(systemPrompt)
-                            .addUserMessage(Prompts.PL_USER_MESSAGE + prompt)
+                            .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
                             .model(Model.CLAUDE_3_7_SONNET_LATEST)
                             .temperature(0.3)
                             .build();
@@ -84,7 +84,7 @@ public class AIService {
 
                     MessageCreateParams params = MessageCreateParams.builder()
                             .maxTokens(8192L)
-                            .system(Prompts.PL_GENERATE_DOCUMENT)
+                            .system(Prompts.EN_GENERATE_DOCUMENT)
                             .addUserMessage(jsonData)
                             .model(Model.CLAUDE_3_7_SONNET_LATEST)
                             .temperature(0.2)

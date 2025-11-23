@@ -1,3 +1,4 @@
+
 package com.bntech.lexai.gateway.mapper;
 
 import com.bntech.lexai.gateway.data.entity.document.Activity;
@@ -18,14 +19,17 @@ public interface DocumentMapper {
     DocumentDto toDto(Document entity);
 
     @Mapping(target = "status", source = "status")
+    @Mapping(target = "new", ignore = true)
     Document toEntity(DocumentDto dto);
 
     LegalEntityDto toDto(LegalEntity entity);
 
     @Mapping(target = "documentId", ignore = true)
+    @Mapping(target = "new", ignore = true)
     LegalEntity toEntity(LegalEntityDto dto);
 
     @Mapping(target = "document", ignore = true)
+    @Mapping(target = "new", ignore = true)
     List<LegalEntity> toEntity(List<LegalEntityDto> dto);
 
     ActivityDto toDto(Activity entity);

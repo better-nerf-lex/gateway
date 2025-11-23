@@ -1,10 +1,13 @@
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.Document;
+import com.bntech.lexai.gateway.data.entity.document.DocumentHistory;
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
+import com.bntech.lexai.gateway.data.repository.DocumentHistoryRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentRepository;
 import com.bntech.lexai.gateway.mapper.DocumentMapper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentHistoryDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentStatsDto;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
@@ -24,6 +27,7 @@ import java.util.UUID;
 @Slf4j
 public class DocumentService {
     private final DocumentRepository documentRepository;
+    private final DocumentHistoryRepository documentHistoryRepository;
     private final DocumentMapper documentMapper;
     private final AIService aiService;
 
@@ -37,16 +41,16 @@ public class DocumentService {
         LocalDateTime startOfMonth = YearMonth.now().atDay(1).atStartOfDay();
 
         return Mono.zip(
-                        documentRepository.countAll(),
-                        documentRepository.countThisMonth(startOfMonth),
-                        documentRepository.countPending(),
-                        documentRepository.countCompleted()
-                ).map(tuple -> DocumentStatsDto.builder()
-                        .totalDocuments(tuple.getT1().intValue())
-                        .thisMonth(tuple.getT2().intValue())
-                        .pending(tuple.getT3().intValue())
-                        .completed(tuple.getT4().intValue())
-                        .build())
+                documentRepository.countAll(),
+                documentRepository.countThisMonth(startOfMonth),
+                documentRepository.countPending(),
+                documentRepository.countCompleted()).map(
+                        tuple -> DocumentStatsDto.builder()
+                                .totalDocuments(tuple.getT1().intValue())
+                                .thisMonth(tuple.getT2().intValue())
+                                .pending(tuple.getT3().intValue())
+                                .completed(tuple.getT4().intValue())
+                                .build())
                 .doOnError(error -> log.error("Error retrieving document stats", error));
     }
 
@@ -56,7 +60,7 @@ public class DocumentService {
         return aiService.analyzePrompt(request.getPrompt())
                 .doOnSuccess(response -> {
                     log.info("✅ Prompt analysis completed {}", response);
-                    //send response to front
+                    // send response to front
                 })
                 .doOnError(error -> log.error("❌ Error analyzing prompt", error));
     }
@@ -81,12 +85,11 @@ public class DocumentService {
 
     private Mono<DocumentDto> processAIGeneration(Document document, GenerateDocumentRequest request) {
         return aiService.generateDocumentWithAnswers(
-                        request.getTitle(),
-                        request.getPrompt(),
-                        request.getAnswers(),
-                        request.getRequirements(),
-                        request.getBase()
-                )
+                request.getTitle(),
+                request.getPrompt(),
+                request.getAnswers(),
+                request.getRequirements(),
+                request.getBase())
                 .map(content -> {
                     log.info("Generated document content: {}", content);
                     return content;
@@ -94,7 +97,7 @@ public class DocumentService {
                 .flatMap(content -> updateDocumentWithContent(document, content))
                 .doOnSuccess(result -> log.info("✅ AI generation completed for: {}", document.getTitle()))
                 .doOnError(error -> log.error("❌ AI generation failed for: {}", document.getTitle(), error))
-                .onErrorResume(error -> failDocument(document));  // Remove documentMapper.toDto() here
+                .onErrorResume(error -> failDocument(document)); // Remove documentMapper.toDto() here
     }
 
     private Mono<DocumentDto> updateDocumentWithContent(Document document, String content) {
@@ -134,5 +137,71 @@ public class DocumentService {
                         }))
                 .flatMap(documentRepository::save)
                 .map(documentMapper::toDto);
+    }
+
+    public Mono<DocumentDto> updateDocument(String id, String content) {
+        log.info("Updating document: {}", id);
+
+        return documentRepository.findById(id)
+                .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
+                .flatMap(document -> {
+                    // Create history entry before updating
+                    return createHistoryEntry(document)
+                            .then(Mono.just(document));
+                })
+                .flatMap(document -> {
+                    // Update document with new content
+                    document.setText(content);
+                    document.setUpdatedAt(LocalDateTime.now());
+                    document.setNotNew();
+                    return documentRepository.save(document);
+                })
+                .map(documentMapper::toDto)
+                .doOnSuccess(result -> log.info("✅ Document updated: {}", id))
+                .doOnError(error -> log.error("❌ Error updating document: {}", id, error));
+    }
+
+    public Flux<DocumentHistoryDto> getDocumentHistory(String documentId) {
+        log.info("Fetching history for document: {}", documentId);
+
+        return documentHistoryRepository.findByDocumentIdOrderByVersionDesc(documentId)
+                .map(this::toHistoryDto)
+                .doOnError(error -> log.error("Error fetching document history", error));
+    }
+
+    public Mono<DocumentDto> restoreDocumentVersion(String documentId, String versionId) {
+        log.info("Restoring document {} to version {}", documentId, versionId);
+
+        return documentHistoryRepository.findById(versionId)
+                .switchIfEmpty(Mono.error(new RuntimeException("Version not found: " + versionId)))
+                .flatMap(history -> updateDocument(documentId, history.getContent()))
+                .doOnSuccess(result -> log.info("✅ Document restored to version: {}", versionId))
+                .doOnError(error -> log.error("❌ Error restoring document version", error));
+    }
+
+    private Mono<DocumentHistory> createHistoryEntry(Document document) {
+        return documentHistoryRepository.findMaxVersionByDocumentId(document.getId())
+                .defaultIfEmpty(0)
+                .map(maxVersion -> DocumentHistory.builder()
+                        .id(UUID.randomUUID().toString())
+                        .documentId(document.getId())
+                        .content(document.getText())
+                        .version(maxVersion + 1)
+                        .createdAt(LocalDateTime.now())
+                        .createdBy("system") // TODO: Get from security context
+                        .build())
+                .flatMap(documentHistoryRepository::save)
+                .doOnNext(DocumentHistory::setNotNew);
+    }
+
+    private DocumentHistoryDto toHistoryDto(DocumentHistory entity) {
+        return DocumentHistoryDto.builder()
+                .id(entity.getId())
+                .documentId(entity.getDocumentId())
+                .content(entity.getContent())
+                .version(entity.getVersion())
+                .createdAt(entity.getCreatedAt())
+                .createdBy(entity.getCreatedBy())
+                .build();
     }
 }

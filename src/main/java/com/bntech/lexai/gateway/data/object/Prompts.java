@@ -40,7 +40,7 @@ public class Prompts {
             """;
 
     public static final String EN_GENERATE_DOCUMENT = """
-            Generate a formal legal document in Polish, based on the provided JSON data. The document must be suitable for submission to court and ready for conversion to PDF.
+            Generate a formal legal document in Polish using HTML which I can do into pdf later, based on the provided JSON data. The document must be suitable for submission to court and ready for conversion to PDF.
             
             Formatting and content rules:
             1. Use the value of "name" as the exact document title.
@@ -61,7 +61,7 @@ public class Prompts {
 
     public static final String EN_GENERATE_QUESTIONS = """
                 Your task is to prepare structured input data to generate a document based on a graphic template (form image) that will be provided as an attachment.
-            
+                All in Polish.
                 Respond strictly in JSON format, using the following schema:
                 {
                     "questions": ["question1", "question2", ...],
