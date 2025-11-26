@@ -31,6 +31,11 @@ public class DocumentController {
         return documentService.getDocuments();
     }
 
+    @GetMapping("/{id}")
+    public Mono<DocumentDto> getDocument(@PathVariable String id) {
+        return documentService.getDocument(id);
+    }
+
     @GetMapping("/stats")
     public Mono<DocumentStatsDto> getStats() {
         return documentService.getDocumentStats();

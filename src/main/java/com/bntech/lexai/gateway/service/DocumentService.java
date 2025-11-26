@@ -37,6 +37,13 @@ public class DocumentService {
                 .doOnError(error -> log.error("Error retrieving documents", error));
     }
 
+    public Mono<DocumentDto> getDocument(String id) {
+        return documentRepository.findById(id)
+                .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
+                .map(documentMapper::toDto)
+                .doOnError(error -> log.error("Error retrieving document: {}", id, error));
+    }
+
     public Mono<DocumentStatsDto> getDocumentStats() {
         LocalDateTime startOfMonth = YearMonth.now().atDay(1).atStartOfDay();
 
