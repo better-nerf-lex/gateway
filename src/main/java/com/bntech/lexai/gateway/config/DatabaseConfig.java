@@ -1,12 +1,22 @@
 package com.bntech.lexai.gateway.config;
 
+import com.bntech.lexai.gateway.config.converter.EntityDetailsToJsonConverter;
+import com.bntech.lexai.gateway.config.converter.JsonToEntityDetailsConverter;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.r2dbc.spi.ConnectionFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.convert.CustomConversions;
+import org.springframework.data.r2dbc.convert.R2dbcCustomConversions;
+import org.springframework.data.r2dbc.dialect.PostgresDialect;
 import org.springframework.r2dbc.connection.init.CompositeDatabasePopulator;
 import org.springframework.r2dbc.connection.init.ConnectionFactoryInitializer;
 import org.springframework.r2dbc.connection.init.ResourceDatabasePopulator;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Configuration
 public class DatabaseConfig {
@@ -22,4 +32,14 @@ public class DatabaseConfig {
 
         return initializer;
     }
+
+    @Bean
+    public R2dbcCustomConversions customConversions(ObjectMapper objectMapper) {
+        List<Converter<?, ?>> converters = new ArrayList<>();
+        converters.add(new EntityDetailsToJsonConverter(objectMapper));
+        converters.add(new JsonToEntityDetailsConverter(objectMapper));
+        return new R2dbcCustomConversions(CustomConversions.StoreConversions
+                .of(PostgresDialect.INSTANCE.getSimpleTypeHolder()), converters);
+    }
+
 }

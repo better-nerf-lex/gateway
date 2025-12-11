@@ -1,6 +1,8 @@
 
 package com.bntech.lexai.gateway.data.entity.document;
 
+import com.bntech.lexai.gateway.data.object.RelevanceType;
+import com.bntech.lexai.gateway.data.object.details.EntityDetails;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import lombok.Data;
@@ -24,13 +26,11 @@ public class LegalEntity implements Persistable<String> {
     @Column("document_id")
     private String documentId;
 
-    //todo: map<str, str> name/maiden name/etc
-    @Enumerated(EnumType.STRING)
     @Column()
-    private String name;
+    private EntityDetails details;
 
-    @Column()
-    private String relevance;
+    @Enumerated(EnumType.STRING)
+    private RelevanceType relevance;
 
     @Transient
     private boolean isNew = true;
