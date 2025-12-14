@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS document_history
 CREATE TABLE IF NOT EXISTS legal_entities
 (
     id          VARCHAR(36) PRIMARY KEY,
-    document_id VARCHAR(36) NOT NULL,
+    document_id VARCHAR(36),
     details     JSONB,
     relevance   VARCHAR(255),
     FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
