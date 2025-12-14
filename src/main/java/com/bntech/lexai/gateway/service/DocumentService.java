@@ -3,6 +3,7 @@ package com.bntech.lexai.gateway.service;
 import com.bntech.lexai.gateway.data.entity.document.Document;
 import com.bntech.lexai.gateway.data.entity.document.DocumentHistory;
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
+import com.bntech.lexai.gateway.data.repository.DocumentAggregateRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentHistoryRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentRepository;
 import com.bntech.lexai.gateway.mapper.DocumentMapper;
@@ -26,21 +27,22 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class DocumentService {
-    private final DocumentRepository documentRepository;
-    private final DocumentHistoryRepository documentHistoryRepository;
-    private final DocumentMapper documentMapper;
+    private final DocumentRepository documents;
+    private final DocumentAggregateRepository aggregates;
+    private final DocumentHistoryRepository documentsHistory;
+    private final DocumentMapper mapper;
     private final AIService aiService;
 
     public Flux<DocumentDto> getDocuments() {
-        return documentRepository.findAllByOrderByCreatedAtDesc()
-                .map(documentMapper::toDto)
+        return documents.findAllByOrderByCreatedAtDesc()
+                .map(mapper::toDto)
                 .doOnError(error -> log.error("Error retrieving documents", error));
     }
 
     public Mono<DocumentDto> getDocument(String id) {
-        return documentRepository.findById(id)
+        return documents.findById(id)
                 .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
-                .map(documentMapper::toDto)
+                .map(mapper::toDto)
                 .doOnError(error -> log.error("Error retrieving document: {}", id, error));
     }
 
@@ -48,10 +50,10 @@ public class DocumentService {
         LocalDateTime startOfMonth = YearMonth.now().atDay(1).atStartOfDay();
 
         return Mono.zip(
-                documentRepository.countAll(),
-                documentRepository.countThisMonth(startOfMonth),
-                documentRepository.countPending(),
-                documentRepository.countCompleted()).map(
+                aggregates.countAll(),
+                aggregates.countThisMonth(startOfMonth),
+                aggregates.countPending(),
+                aggregates.countCompleted()).map(
                         tuple -> DocumentStatsDto.builder()
                                 .totalDocuments(tuple.getT1().intValue())
                                 .thisMonth(tuple.getT2().intValue())
@@ -75,7 +77,7 @@ public class DocumentService {
     public Mono<DocumentDto> generateDocument(GenerateDocumentRequest request) {
         log.info("Generating document with request: {}", request);
 
-        Document document = documentMapper.toEntity(DocumentDto.builder()
+        Document document = mapper.toEntity(DocumentDto.builder()
                 .id(UUID.randomUUID().toString())
                 .title(request.getTitle())
                 .type(null) // No predefined type, it's prompt-based
@@ -85,7 +87,7 @@ public class DocumentService {
                 .text("")
                 .build());
 
-        return documentRepository.save(document)
+        return documents.save(document)
                 .doOnNext(Document::setNotNew)
                 .flatMap(savedDocument -> processAIGeneration(savedDocument, request));
     }
@@ -108,7 +110,7 @@ public class DocumentService {
     }
 
     private Mono<DocumentDto> updateDocumentWithContent(Document document, String content) {
-        return documentRepository.findById(document.getId())
+        return documents.findById(document.getId())
                 .map(existingDoc -> {
                     existingDoc.setStatus(DocumentStatus.COMPLETED);
                     existingDoc.setUpdatedAt(LocalDateTime.now());
@@ -123,13 +125,13 @@ public class DocumentService {
                             doc.setText(content);
                             return doc;
                         }))
-                .flatMap(documentRepository::save)
-                .map(documentMapper::toDto);
+                .flatMap(documents::save)
+                .map(mapper::toDto);
     }
 
     private Mono<DocumentDto> failDocument(Document document) {
         log.error("Failing document: {}", document.getTitle());
-        return documentRepository.findById(document.getId())
+        return documents.findById(document.getId())
                 .map(existingDoc -> {
                     existingDoc.setStatus(DocumentStatus.ERROR);
                     existingDoc.setUpdatedAt(LocalDateTime.now());
@@ -142,14 +144,14 @@ public class DocumentService {
                             doc.setUpdatedAt(LocalDateTime.now());
                             return doc;
                         }))
-                .flatMap(documentRepository::save)
-                .map(documentMapper::toDto);
+                .flatMap(documents::save)
+                .map(mapper::toDto);
     }
 
     public Mono<DocumentDto> updateDocument(String id, String content) {
         log.info("Updating document: {}", id);
 
-        return documentRepository.findById(id)
+        return documents.findById(id)
                 .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
                 .flatMap(document -> {
                     // Create history entry before updating
@@ -161,9 +163,9 @@ public class DocumentService {
                     document.setText(content);
                     document.setUpdatedAt(LocalDateTime.now());
                     document.setNotNew();
-                    return documentRepository.save(document);
+                    return documents.save(document);
                 })
-                .map(documentMapper::toDto)
+                .map(mapper::toDto)
                 .doOnSuccess(result -> log.info("✅ Document updated: {}", id))
                 .doOnError(error -> log.error("❌ Error updating document: {}", id, error));
     }
@@ -171,7 +173,7 @@ public class DocumentService {
     public Flux<DocumentHistoryDto> getDocumentHistory(String documentId) {
         log.info("Fetching history for document: {}", documentId);
 
-        return documentHistoryRepository.findByDocumentIdOrderByVersionDesc(documentId)
+        return documentsHistory.findByDocumentIdOrderByVersionDesc(documentId)
                 .map(this::toHistoryDto)
                 .doOnError(error -> log.error("Error fetching document history", error));
     }
@@ -179,7 +181,7 @@ public class DocumentService {
     public Mono<DocumentDto> restoreDocumentVersion(String documentId, String versionId) {
         log.info("Restoring document {} to version {}", documentId, versionId);
 
-        return documentHistoryRepository.findById(versionId)
+        return documentsHistory.findById(versionId)
                 .switchIfEmpty(Mono.error(new RuntimeException("Version not found: " + versionId)))
                 .flatMap(history -> updateDocument(documentId, history.getContent()))
                 .doOnSuccess(result -> log.info("✅ Document restored to version: {}", versionId))
@@ -187,7 +189,7 @@ public class DocumentService {
     }
 
     private Mono<DocumentHistory> createHistoryEntry(Document document) {
-        return documentHistoryRepository.findMaxVersionByDocumentId(document.getId())
+        return documentsHistory.findMaxVersionByDocumentId(document.getId())
                 .defaultIfEmpty(0)
                 .map(maxVersion -> DocumentHistory.builder()
                         .id(UUID.randomUUID().toString())
@@ -197,7 +199,7 @@ public class DocumentService {
                         .createdAt(LocalDateTime.now())
                         .createdBy("system") // TODO: Get from security context
                         .build())
-                .flatMap(documentHistoryRepository::save)
+                .flatMap(documentsHistory::save)
                 .doOnNext(DocumentHistory::setNotNew);
     }
 

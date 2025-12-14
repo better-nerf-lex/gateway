@@ -23,9 +23,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OAuth2AuthService {
 
-    private final JwtService jwtService;
-    private final UserRepository userRepository;
-    private final AuthorizationCodeRepository authorizationCodeRepository;
+    private final JwtService jwts;
+    private final UserRepository users;
+    private final AuthorizationCodeRepository authCodes;
 
     private final Map<String, ClientInfo> clients = Map.of(
             "web-app", new ClientInfo("web-app", "web-secret", "http://localhost:3000/callback,http://localhost:8080/callback"),
@@ -38,8 +38,8 @@ public class OAuth2AuthService {
 
         return findOrCreateUserFromOAuth2(oauth2User, email, name)
                 .flatMap(user -> {
-                    String accessToken = jwtService.generateTokenFromOAuth2User(oauth2User, user.getUsername());
-                    String refreshToken = jwtService.generateRefreshTokenFromOAuth2User(oauth2User, user.getUsername());
+                    String accessToken = jwts.generateTokenFromOAuth2User(oauth2User, user.getUsername());
+                    String refreshToken = jwts.generateRefreshTokenFromOAuth2User(oauth2User, user.getUsername());
 
                     UserDto userDto = UserDto.builder()
                             .id(user.getId())
@@ -57,7 +57,7 @@ public class OAuth2AuthService {
     }
 
     private Mono<User> findOrCreateUserFromOAuth2(OAuth2User oauth2User, String email, String name) {
-        return userRepository.findByEmail(email)
+        return users.findByEmail(email)
                 .switchIfEmpty(createUserFromOAuth2(oauth2User, email, name));
     }
 
@@ -68,7 +68,7 @@ public class OAuth2AuthService {
         user.setPassword(""); // OAuth2 users don't have passwords
         user.setEnabled(true);
 
-        return userRepository.save(user);
+        return users.save(user);
     }
 
     public Mono<String> authorize(String clientId, String redirectUri, String responseType,
@@ -87,7 +87,7 @@ public class OAuth2AuthService {
             return Mono.error(new IllegalArgumentException("Invalid redirect_uri"));
         }
 
-        return userRepository.findByUsername(authentication.getName())
+        return users.findByUsername(authentication.getName())
                 .flatMap(user -> generateAuthorizationCode(clientId, user.getId(), redirectUri, scope))
                 .map(authCode -> {
                     String redirectUrl = redirectUri + "?code=" + authCode.getCode();
@@ -111,7 +111,7 @@ public class OAuth2AuthService {
         authCode.setCreatedAt(Instant.now());
         authCode.setUsed(false);
 
-        return authorizationCodeRepository.save(authCode);
+        return authCodes.save(authCode);
     }
 
     public Mono<TokenResponse> token(String grantType, String code, String refreshToken,
@@ -127,7 +127,7 @@ public class OAuth2AuthService {
     }
 
     private Mono<TokenResponse> handleAuthorizationCodeGrant(String code, String clientId, String redirectUri) {
-        return authorizationCodeRepository.findByCodeAndUsedFalse(code)
+        return authCodes.findByCodeAndUsedFalse(code)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("Invalid or expired authorization code")))
                 .filter(authCode -> authCode.getExpiresAt().isAfter(Instant.now()))
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("Authorization code expired")))
@@ -136,12 +136,12 @@ public class OAuth2AuthService {
                 .flatMap(authCode -> {
                     // Mark code as used
                     authCode.setUsed(true);
-                    return authorizationCodeRepository.save(authCode)
-                            .then(userRepository.findById(authCode.getUserId()));
+                    return authCodes.save(authCode)
+                            .then(users.findById(authCode.getUserId()));
                 })
                 .flatMap(user -> {
-                    String accessToken = jwtService.generateToken(user);
-                    String newRefreshToken = jwtService.generateRefreshToken(user);
+                    String accessToken = jwts.generateToken(user);
+                    String newRefreshToken = jwts.generateRefreshToken(user);
 
                     return Mono.just(TokenResponse.builder()
                             .accessToken(accessToken)
@@ -154,15 +154,15 @@ public class OAuth2AuthService {
     }
 
     private Mono<TokenResponse> handleRefreshTokenGrant(String refreshToken) {
-        return jwtService.validateAndGetClaims(refreshToken)
+        return jwts.validateAndGetClaims(refreshToken)
                 .filter(claims -> "refresh".equals(claims.get("type")))
                 .flatMap(claims -> {
                     String username = claims.getSubject();
-                    return userRepository.findByUsername(username);
+                    return users.findByUsername(username);
                 })
                 .flatMap(user -> {
-                    String newAccessToken = jwtService.generateToken(user);
-                    String newRefreshToken = jwtService.generateRefreshToken(user);
+                    String newAccessToken = jwts.generateToken(user);
+                    String newRefreshToken = jwts.generateRefreshToken(user);
 
                     return Mono.just(TokenResponse.builder()
                             .accessToken(newAccessToken)

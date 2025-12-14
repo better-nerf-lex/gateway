@@ -5,20 +5,20 @@ import com.bntech.lexai.gateway.data.object.RelevanceType;
 import com.bntech.lexai.gateway.data.object.details.EntityDetails;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import lombok.Data;
 import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.domain.Persistable;
-import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "legal_entities")
-public class LegalEntity implements Persistable<String> {
+public class LegalEntity<T extends EntityDetails> implements Persistable<String> {
 
     @Id
     private String id;
@@ -27,7 +27,7 @@ public class LegalEntity implements Persistable<String> {
     private String documentId;
 
     @Column()
-    private EntityDetails details;
+    private T details;
 
     @Enumerated(EnumType.STRING)
     private RelevanceType relevance;

@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.rest.dto.document;
 
+import com.bntech.lexai.gateway.rest.dto.document.details.EntityDetailsDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,4 +14,5 @@ public class LegalEntityDto {
     private String id;
     private String name;
     private String relevance;
+    private EntityDetailsDto details;
 }

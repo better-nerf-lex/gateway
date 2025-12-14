@@ -20,10 +20,10 @@ import reactor.core.publisher.Mono;
 @Slf4j
 public class AuthService {
 
-    private final JwtService jwtService;
-    private final UserRepository userRepository;
+    private final JwtService jwts;
+    private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
-    private final UserMapper mapper;
+    private final UserMapper userMapper;
 
 
     public Mono<LoginResponse> authenticate(LoginRequest loginRequest) {
@@ -50,7 +50,7 @@ public class AuthService {
                     return Mono.error(new RuntimeException("Invalid password"));
                 }))
                 .map(user -> {
-                    String token = jwtService.generateToken(user);
+                    String token = jwts.generateToken(user);
                     return LoginResponse.builder()
                             .token(token)
                             .user(mapToUserDto(user))
@@ -59,28 +59,28 @@ public class AuthService {
     }
 
     private Mono<User> findUserByUsernameOrEmail(String usernameOrEmail) {
-        return userRepository.findByUsername(usernameOrEmail)
+        return users.findByUsername(usernameOrEmail)
                 .switchIfEmpty(
-                        userRepository.findByEmail(usernameOrEmail)
+                        users.findByEmail(usernameOrEmail)
                 );
     }
 
     public Mono<Void> logout(Authentication authentication) {
-        return jwtService.invalidateToken(authentication.getCredentials().toString());
+        return jwts.invalidateToken(authentication.getCredentials().toString());
     }
 
     public Mono<UserDto> getCurrentUser(Authentication authentication) {
         String username = authentication.getName();
-        return userRepository.findByUsername(username)
+        return users.findByUsername(username)
                 .map(this::mapToUserDto);
     }
 
     public Mono<RefreshTokenResponse> refreshToken(String token) {
-        return jwtService.validateToken(token)
-                .flatMap(userRepository::findByUsername)
+        return jwts.validateToken(token)
+                .flatMap(users::findByUsername)
                 .filter(User::isEnabled)
                 .map(user -> {
-                    String newToken = jwtService.generateToken(user);
+                    String newToken = jwts.generateToken(user);
                     return RefreshTokenResponse.builder()
                             .token(newToken)
                             .build();
@@ -88,6 +88,6 @@ public class AuthService {
     }
 
     private UserDto mapToUserDto(User user) {
-        return mapper.toDto(user);
+        return userMapper.toDto(user);
     }
 }
