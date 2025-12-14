@@ -19,6 +19,9 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.UUID;
@@ -223,5 +226,25 @@ public class DocumentService {
                         .then(documents.deleteById(id)))
                 .doOnSuccess(result -> log.info("✅ Document deleted: {}", id))
                 .doOnError(error -> log.error("❌ Error deleting document: {}", id, error));
+    }
+
+    public Flux<DocumentDto> searchDocuments(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return getDocuments();
+        }
+
+        // Preprocess query for prefix matching:
+        // 1. Split by spaces
+        // 2. Add :* to each word for prefix matching (e.g., "poz" becomes "poz:*")
+        // 3. Join with & for AND search
+        String processedQuery = Arrays.stream(query.trim().split("\\s+"))
+                .map(word -> word + ":*")
+                .collect(Collectors.joining(" & "));
+
+        log.info("Searching documents with query: {}", processedQuery);
+
+        return documents.searchDocuments(processedQuery)
+                .map(mapper::toDto)
+                .doOnError(error -> log.error("❌ Error searching documents", error));
     }
 }
