@@ -213,4 +213,15 @@ public class DocumentService {
                 .createdBy(entity.getCreatedBy())
                 .build();
     }
+
+    public Mono<Void> deleteDocument(String id) {
+        log.info("Deleting document: {}", id);
+
+        return documents.findById(id)
+                .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
+                .flatMap(document -> documentsHistory.deleteByDocumentId(id)
+                        .then(documents.deleteById(id)))
+                .doOnSuccess(result -> log.info("✅ Document deleted: {}", id))
+                .doOnError(error -> log.error("❌ Error deleting document: {}", id, error));
+    }
 }

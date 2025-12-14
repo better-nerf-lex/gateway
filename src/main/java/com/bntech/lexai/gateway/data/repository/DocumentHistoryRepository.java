@@ -15,4 +15,7 @@ public interface DocumentHistoryRepository extends ReactiveCrudRepository<Docume
 
     @Query("SELECT MAX(version) FROM document_history WHERE document_id = :documentId")
     Mono<Integer> findMaxVersionByDocumentId(String documentId);
+
+    @Query("DELETE FROM document_history WHERE document_id = :documentId")
+    Mono<Void> deleteByDocumentId(String documentId);
 }

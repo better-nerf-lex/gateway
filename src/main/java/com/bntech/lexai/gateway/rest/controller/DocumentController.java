@@ -9,6 +9,7 @@ import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import com.bntech.lexai.gateway.rest.dto.document.UpdateDocumentRequest;
 import com.bntech.lexai.gateway.service.DocumentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -64,5 +65,10 @@ public class DocumentController {
     @PostMapping("/{id}/restore/{versionId}")
     public Mono<DocumentDto> restoreDocumentVersion(@PathVariable String id, @PathVariable String versionId) {
         return documentService.restoreDocumentVersion(id, versionId);
+    }
+
+    @DeleteMapping("/{id}")
+    public Mono<Void> deleteDocument(@PathVariable String id) {
+        return documentService.deleteDocument(id);
     }
 }
