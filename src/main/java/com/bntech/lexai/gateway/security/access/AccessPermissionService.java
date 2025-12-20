@@ -9,14 +9,13 @@ import com.bntech.lexai.gateway.data.repository.LegalEntityRepository;
 import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
-import java.time.Duration;
-import java.util.Optional;
-
+@Slf4j
 @Component("access")
 @RequiredArgsConstructor
 public class AccessPermissionService {
@@ -26,79 +25,120 @@ public class AccessPermissionService {
     private final DocumentRepository documentRepository;
     private final LegalEntityRepository legalEntityRepository;
 
-    public boolean canListDocuments(Authentication authentication, String teamId) {
-        if (authentication == null || !authentication.isAuthenticated()) return false;
-        if (teamId == null || teamId.isBlank()) return true;
+    public Mono<Boolean> canListDocuments(Authentication authentication, String teamId) {
+        if (authentication == null || !authentication.isAuthenticated()) return Mono.just(false);
+        if (isBlankTeamId(teamId)) return Mono.just(true);
         return hasTeamAccess(authentication, teamId, AccessLevel.READ.name());
     }
 
-    public boolean canListLegalEntities(Authentication authentication, String teamId) {
-        if (authentication == null || !authentication.isAuthenticated()) return false;
-        if (teamId == null || teamId.isBlank()) return true;
-        return hasTeamAccess(authentication, teamId, AccessLevel.READ.name());
+    public Mono<Boolean> canListLegalEntities(Authentication authentication, String teamId) {
+        log.debug("canListLegalEntities called - auth: {}, teamId: {}",
+                authentication != null ? authentication.getName() : "null", teamId);
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            log.debug("canListLegalEntities: authentication is null or not authenticated");
+            return Mono.just(false);
+        }
+
+        if (isBlankTeamId(teamId)) {
+            log.debug("canListLegalEntities: teamId is blank, allowing access");
+            return Mono.just(true);
+        }
+
+        return hasTeamAccess(authentication, teamId, AccessLevel.READ.name())
+                .doOnNext(hasAccess -> log.debug("canListLegalEntities: hasTeamAccess returned {}", hasAccess));
     }
 
-    public boolean hasTeamAccess(Authentication authentication, String teamId, String level) {
-        if (authentication == null || !authentication.isAuthenticated()) return false;
-        if (teamId == null || teamId.isBlank()) return false;
+    public Mono<Boolean> hasTeamAccess(Authentication authentication, String teamId, String level) {
+        log.debug("hasTeamAccess called - user: {}, teamId: {}, level: {}",
+                authentication != null ? authentication.getName() : "null", teamId, level);
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            log.debug("hasTeamAccess: authentication is null or not authenticated");
+            return Mono.just(false);
+        }
+
+        if (isBlankTeamId(teamId)) {
+            log.debug("hasTeamAccess: teamId is blank");
+            return Mono.just(false);
+        }
 
         AccessLevel required = parseLevel(level);
-        if (isAdmin(authentication) && required == AccessLevel.ADMIN) return true;
+        log.debug("hasTeamAccess: required access level: {}", required);
 
-        Optional<User> userOpt = userRepository.findByUsername(authentication.getName())
-                .blockOptional(Duration.ofSeconds(2));
-        if (userOpt.isEmpty()) return false;
+        if (isAdmin(authentication) && required == AccessLevel.ADMIN) {
+            log.debug("hasTeamAccess: user is admin, granting access");
+            return Mono.just(true);
+        }
 
-        return teamMemberRepository.findByUserIdAndTeamId(userOpt.get().getId(), teamId)
-                .map(tm -> tm.getAccessLevel().ordinal() >= required.ordinal())
+        return userRepository.findByUsername(authentication.getName())
+                .doOnNext(user -> log.debug("hasTeamAccess: found user with id: {}", user.getId()))
+                .flatMap(user -> teamMemberRepository.findByUserIdAndTeamId(user.getId(), teamId)
+                        .doOnNext(tm -> log.debug("hasTeamAccess: team member found with access level: {} (ordinal: {}), required: {} (ordinal: {})",
+                                tm.getAccessLevel(), tm.getAccessLevel().ordinal(), required, required.ordinal()))
+                        .map(tm -> {
+                            boolean hasAccess = tm.getAccessLevel().ordinal() >= required.ordinal();
+                            log.debug("hasTeamAccess: hasAccess result: {}", hasAccess);
+                            return hasAccess;
+                        })
+                        .defaultIfEmpty(false)
+                        .doOnNext(hasAccess -> {
+                            if (!hasAccess) {
+                                log.debug("hasTeamAccess: no team membership found for userId: {} and teamId: {}", user.getId(), teamId);
+                            }
+                        })
+                )
                 .defaultIfEmpty(false)
-                .block(Duration.ofSeconds(2));
+                .doOnError(e -> log.error("hasTeamAccess: exception occurred", e))
+                .onErrorReturn(false);
     }
 
-    public boolean hasTeamAccessByDocument(Authentication authentication, String id, String level) {
-        if (id == null || id.isBlank()) return false;
-        Optional<Document> doc = documentRepository.findById(id).blockOptional(Duration.ofSeconds(2));
-        String teamId = doc.map(Document::getTeamId).orElse(null);
-        if (teamId == null || teamId.isBlank()) return false;
-        return hasTeamAccess(authentication, teamId, level);
-    }
-
-    public boolean hasTeamAccessByLegalEntity(Authentication authentication, String id, String level) {
-        if (id == null || id.isBlank()) return false;
-        Optional<LegalEntity> le = legalEntityRepository.findById(id).blockOptional(Duration.ofSeconds(2));
-        String teamId = le.map(LegalEntity::getTeamId).orElse(null);
-        if (teamId == null || teamId.isBlank()) return false;
-        return hasTeamAccess(authentication, teamId, level);
-    }
-
-    public boolean isOwnerOrAdminOfDocument(Authentication authentication, String id) {
-        if (authentication == null || !authentication.isAuthenticated()) return false;
-        if (id == null || id.isBlank()) return false;
-        if (isAdmin(authentication)) return true;
-
-        Optional<User> userOpt = userRepository.findByUsername(authentication.getName())
-                .blockOptional(Duration.ofSeconds(2));
-        if (userOpt.isEmpty()) return false;
-        Long uid = userOpt.get().getId();
+    public Mono<Boolean> hasTeamAccessByDocument(Authentication authentication, String id, String level) {
+        if (id == null || id.isBlank()) return Mono.just(false);
         return documentRepository.findById(id)
-                .map(doc -> String.valueOf(uid).equals(doc.getUserId()))
+                .map(Document::getTeamId)
+                .filter(teamId -> !isBlankTeamId(teamId))
+                .flatMap(teamId -> hasTeamAccess(authentication, teamId, level))
                 .defaultIfEmpty(false)
-                .block(Duration.ofSeconds(2));
+                .onErrorReturn(false);
     }
 
-    public boolean isOwnerOrAdminOfLegalEntity(Authentication authentication, String id) {
-        if (authentication == null || !authentication.isAuthenticated()) return false;
-        if (id == null || id.isBlank()) return false;
-        if (isAdmin(authentication)) return true;
-
-        Optional<User> userOpt = userRepository.findByUsername(authentication.getName())
-                .blockOptional(Duration.ofSeconds(2));
-        if (userOpt.isEmpty()) return false;
-        Long uid = userOpt.get().getId();
+    public Mono<Boolean> hasTeamAccessByLegalEntity(Authentication authentication, String id, String level) {
+        if (id == null || id.isBlank()) return Mono.just(false);
         return legalEntityRepository.findById(id)
-                .map(e -> String.valueOf(uid).equals(e.getUserId()))
+                .map(LegalEntity::getTeamId)
+                .filter(teamId -> !isBlankTeamId(teamId))
+                .flatMap(teamId -> hasTeamAccess(authentication, teamId, level))
                 .defaultIfEmpty(false)
-                .block(Duration.ofSeconds(2));
+                .onErrorReturn(false);
+    }
+
+    public Mono<Boolean> isOwnerOrAdminOfDocument(Authentication authentication, String id) {
+        if (authentication == null || !authentication.isAuthenticated()) return Mono.just(false);
+        if (id == null || id.isBlank()) return Mono.just(false);
+        if (isAdmin(authentication)) return Mono.just(true);
+
+        return userRepository.findByUsername(authentication.getName())
+                .flatMap(user -> documentRepository.findById(id)
+                        .map(doc -> String.valueOf(user.getId()).equals(doc.getUserId()))
+                        .defaultIfEmpty(false)
+                )
+                .defaultIfEmpty(false)
+                .onErrorReturn(false);
+    }
+
+    public Mono<Boolean> isOwnerOrAdminOfLegalEntity(Authentication authentication, String id) {
+        if (authentication == null || !authentication.isAuthenticated()) return Mono.just(false);
+        if (id == null || id.isBlank()) return Mono.just(false);
+        if (isAdmin(authentication)) return Mono.just(true);
+
+        return userRepository.findByUsername(authentication.getName())
+                .flatMap(user -> legalEntityRepository.findById(id)
+                        .map(e -> String.valueOf(user.getId()).equals(e.getUserId()))
+                        .defaultIfEmpty(false)
+                )
+                .defaultIfEmpty(false)
+                .onErrorReturn(false);
     }
 
     private boolean isAdmin(Authentication authentication) {
@@ -113,5 +153,11 @@ public class AccessPermissionService {
         } catch (Exception e) {
             return AccessLevel.READ;
         }
+    }
+
+    private boolean isBlankTeamId(String teamId) {
+        if (teamId == null) return true;
+        String v = teamId.trim();
+        return v.isEmpty() || v.equalsIgnoreCase("null") || v.equalsIgnoreCase("undefined");
     }
 }

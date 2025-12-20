@@ -54,6 +54,7 @@ app:
 logging:
   level:
     com.bntech.lexai.gateway.service.AIService: DEBUG
+    com.bntech.lexai.gateway.security: DEBUG
     org.springframework.ai: DEBUG
     reactor.netty.http.client: DEBUG
 #  level:

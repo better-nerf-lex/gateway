@@ -94,6 +94,7 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS team_id VARCHAR(255);
 ALTER TABLE legal_entities ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);
 ALTER TABLE legal_entities ADD COLUMN IF NOT EXISTS team_id VARCHAR(255);
+ALTER TABLE legal_entities ALTER COLUMN document_id DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents (status);
 CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents (created_at);
