@@ -18,4 +18,5 @@ public class GenerateDocumentRequest {
     private Map<String, String> answers;
     private List<String> requirements;
     private List<String> base;
+    private String teamId;
 }

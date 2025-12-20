@@ -1,4 +1,3 @@
-
 package com.bntech.lexai.gateway.data.repository;
 
 import com.bntech.lexai.gateway.data.entity.document.LegalEntity;
@@ -31,4 +30,10 @@ public interface LegalEntityRepository extends R2dbcRepository<LegalEntity, Stri
 
     @Query("SELECT COUNT(*) FROM legal_entities")
     Mono<Long> countAll();
+
+    @Query("SELECT * FROM legal_entities WHERE user_id = :userId ORDER BY relevance")
+    Flux<LegalEntity> findByUserId(String userId);
+
+    @Query("SELECT * FROM legal_entities WHERE team_id = :teamId ORDER BY relevance")
+    Flux<LegalEntity> findByTeamId(String teamId);
 }

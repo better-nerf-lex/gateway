@@ -1,6 +1,7 @@
 
 package com.bntech.lexai.gateway.data.entity.document;
 
+import com.bntech.lexai.gateway.data.entity.OwnableEntity;
 import com.bntech.lexai.gateway.data.object.RelevanceType;
 import com.bntech.lexai.gateway.data.object.details.EntityDetails;
 import jakarta.persistence.EnumType;
@@ -18,7 +19,7 @@ import org.springframework.data.relational.core.mapping.Table;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "legal_entities")
-public class LegalEntity<T extends EntityDetails> implements Persistable<String> {
+public class LegalEntity<T extends EntityDetails> implements Persistable<String>, OwnableEntity {
 
     @Id
     private String id;
@@ -39,6 +40,12 @@ public class LegalEntity<T extends EntityDetails> implements Persistable<String>
     public boolean isNew() {
         return isNew;
     }
+
+    @Column()
+    private String userId;
+
+    @Column()
+    private String teamId;
 
     public void setNotNew() {
         this.isNew = false;

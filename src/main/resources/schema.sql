@@ -7,7 +7,9 @@ CREATE TABLE IF NOT EXISTS documents
     status     VARCHAR(20) CHECK (status IN ('PENDING', 'COMPLETED', 'ERROR')),
     created_at TIMESTAMP,
     updated_at TIMESTAMP,
-    text     TEXT
+    text       TEXT,
+    user_id    VARCHAR(255),
+    team_id    VARCHAR(255)
 );
 
 CREATE TABLE IF NOT EXISTS document_history
@@ -27,6 +29,8 @@ CREATE TABLE IF NOT EXISTS legal_entities
     document_id VARCHAR(36),
     details     JSONB,
     relevance   VARCHAR(255),
+    user_id     VARCHAR(255),
+    team_id     VARCHAR(255),
     FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
 );
 
@@ -57,6 +61,22 @@ CREATE TABLE IF NOT EXISTS user_roles
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS team_members
+(
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      BIGINT       NOT NULL REFERENCES users (id),
+    team_id      VARCHAR(255) NOT NULL,
+    access_level VARCHAR(50)  NOT NULL,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS teams
+(
+    id         VARCHAR(255) PRIMARY KEY,
+    name       VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS authorization_codes
 (
     id           VARCHAR(255) PRIMARY KEY,
@@ -70,12 +90,24 @@ CREATE TABLE IF NOT EXISTS authorization_codes
     used         BOOLEAN   DEFAULT FALSE
 );
 
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS team_id VARCHAR(255);
+ALTER TABLE legal_entities ADD COLUMN IF NOT EXISTS user_id VARCHAR(255);
+ALTER TABLE legal_entities ADD COLUMN IF NOT EXISTS team_id VARCHAR(255);
+
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents (status);
 CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents (created_at);
 CREATE INDEX IF NOT EXISTS idx_document_history_document_id ON document_history (document_id);
 CREATE INDEX IF NOT EXISTS idx_document_history_version ON document_history (document_id, version);
 CREATE INDEX IF NOT EXISTS idx_legal_entities_document_id ON legal_entities (document_id);
 CREATE INDEX IF NOT EXISTS idx_activity_date ON activity (date);
+CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents (user_id);
+CREATE INDEX IF NOT EXISTS idx_documents_team_id ON documents (team_id);
+CREATE INDEX IF NOT EXISTS idx_legal_entities_user_id ON legal_entities (user_id);
+CREATE INDEX IF NOT EXISTS idx_legal_entities_team_id ON legal_entities (team_id);
+CREATE INDEX IF NOT EXISTS idx_legal_entities_team_id ON legal_entities (team_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members (user_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members (team_id);
 
 -- Add full-text search support
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS search_vector tsvector;

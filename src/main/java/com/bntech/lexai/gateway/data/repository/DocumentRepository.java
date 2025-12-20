@@ -13,4 +13,10 @@ public interface DocumentRepository extends R2dbcRepository<Document, String> {
 
     @Query("SELECT * FROM documents WHERE search_vector @@ to_tsquery('english', :query) ORDER BY ts_rank(search_vector, to_tsquery('english', :query)) DESC, created_at DESC")
     Flux<Document> searchDocuments(String query);
+
+    @Query("SELECT * FROM documents WHERE team_id = :teamId ORDER BY created_at DESC")
+    Flux<Document> findByTeamIdOrderByCreatedAtDesc(String teamId);
+
+    @Query("SELECT * FROM documents WHERE user_id = :userId ORDER BY created_at DESC")
+    Flux<Document> findByUserIdOrderByCreatedAtDesc(String userId);
 }

@@ -16,6 +16,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.HttpStatusServerEntryPoint;
 import org.springframework.security.web.server.authentication.RedirectServerAuthenticationSuccessHandler;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.reactive.CorsConfigurationSource;
+import org.springframework.web.server.ServerWebExchange;
+
+import java.util.List;
+import org.springframework.http.HttpMethod;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -42,7 +48,9 @@ public class SecurityConfig {
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .cors(cors -> cors.configurationSource(this.corsConfigurationSource()))
                 .authorizeExchange(exchanges -> exchanges
+                        .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .pathMatchers("/auth/**", "/oauth2/**", "/login", "/.well-known/**").permitAll()
                         .anyExchange().authenticated()
                 )
@@ -60,5 +68,21 @@ public class SecurityConfig {
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        return new CorsConfigurationSource() {
+            @Override
+            public CorsConfiguration getCorsConfiguration(ServerWebExchange exchange) {
+                CorsConfiguration cfg = new CorsConfiguration();
+                cfg.setAllowedOrigins(List.of("http://localhost:8080"));
+                cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+                cfg.setAllowedHeaders(List.of("*"));
+                cfg.setAllowCredentials(true);
+                cfg.setMaxAge(3600L);
+                return cfg;
+            }
+        };
     }
 }

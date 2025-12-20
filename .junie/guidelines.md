@@ -32,7 +32,7 @@ As a coding agent, you MUST follow these interaction principles:
 1. **Write production-ready code** - no placeholders or pseudo-code
 2. **Follow existing patterns** - observe and replicate patterns already in the codebase
 3. **Complete implementations** - provide full, working solutions
-4. **Include necessary imports** - ensure all dependencies are properly imported
+4. **Include necessary imports** - ensure all dependencies are properly imported, use import before class declaration. Never import in class.
 5. **Add type hints** - all new code must be fully typed
 6. **Avoid comments** - no need to explain self explainatory code, use comments only when necessary.
 

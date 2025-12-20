@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.data.entity.document;
 
+import com.bntech.lexai.gateway.data.entity.OwnableEntity;
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
 import com.bntech.lexai.gateway.data.object.DocumentType;
 import jakarta.persistence.EnumType;
@@ -21,7 +22,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "documents")
-public class Document implements Persistable<String> {
+public class Document implements Persistable<String>, OwnableEntity {
 
     @Id
     private String id;
@@ -45,6 +46,12 @@ public class Document implements Persistable<String> {
     @Column()
     private String text;
 
+    @Column()
+    private String userId;
+
+    @Column()
+    private String teamId;
+
     @Transient
     private boolean isNew = true;
 
@@ -62,6 +69,7 @@ public class Document implements Persistable<String> {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
+
 
     @PreUpdate
     protected void onUpdate() {
