@@ -3,9 +3,7 @@ package com.bntech.lexai.gateway.rest.controller;
 import com.bntech.lexai.gateway.rest.dto.team.CreateTeamRequest;
 import com.bntech.lexai.gateway.rest.dto.team.TeamDto;
 import com.bntech.lexai.gateway.service.TeamService;
-import com.bntech.lexai.gateway.security.access.TeamAccess;
-import static com.bntech.lexai.gateway.security.access.AccessLevel.READ;
-import static com.bntech.lexai.gateway.security.access.AccessLevel.ADMIN;
+import org.springframework.security.access.prepost.PreAuthorize;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -29,20 +27,20 @@ public class TeamController {
     }
 
     @GetMapping("/{id}/members")
-    @TeamAccess(level = READ)
+    @PreAuthorize("@access.hasTeamAccess(authentication, #id, 'READ')")
     public Flux<com.bntech.lexai.gateway.rest.dto.team.TeamMemberDto> getTeamMembers(@PathVariable String id) {
         return teamService.getTeamMembers(id);
     }
 
     @PutMapping("/{id}/members/{userId}")
-    @TeamAccess(level = ADMIN)
+    @PreAuthorize("@access.hasTeamAccess(authentication, #id, 'ADMIN')")
     public Mono<Void> updateMemberRole(@PathVariable String id, @PathVariable Long userId,
             @RequestBody com.bntech.lexai.gateway.security.access.AccessLevel newLevel) {
         return teamService.updateMemberRole(id, userId, newLevel);
     }
 
     @DeleteMapping("/{id}/members/{userId}")
-    @TeamAccess(level = ADMIN)
+    @PreAuthorize("@access.hasTeamAccess(authentication, #id, 'ADMIN')")
     public Mono<Void> removeMember(@PathVariable String id, @PathVariable Long userId) {
         return teamService.removeMember(id, userId);
     }

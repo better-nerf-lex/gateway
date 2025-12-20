@@ -7,8 +7,7 @@ import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import com.bntech.lexai.gateway.rest.dto.document.UpdateDocumentRequest;
-import com.bntech.lexai.gateway.security.access.TeamAccess;
-import com.bntech.lexai.gateway.security.access.UserAccess;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.bntech.lexai.gateway.service.DocumentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,9 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import static com.bntech.lexai.gateway.security.access.AccessLevel.READ;
-import static com.bntech.lexai.gateway.security.access.AccessLevel.WRITE;
-
 @RestController
 @RequestMapping("/documents")
 @RequiredArgsConstructor
@@ -34,14 +30,14 @@ public class DocumentController {
     private final DocumentService documentService;
 
     @GetMapping()
-    @TeamAccess(level = READ)
+    @PreAuthorize("@access.canListDocuments(authentication, #teamId)")
     public Flux<DocumentDto> getDocuments(@RequestParam(required = false) String teamId) {
         return documentService.getDocuments(teamId);
     }
 
     @GetMapping("/{id}")
-    @TeamAccess(level = READ)
-    @UserAccess(level = READ)
+    @PreAuthorize("@access.hasTeamAccessByDocument(authentication, #id, 'READ') " +
+            "or @access.isOwnerOrAdminOfDocument(authentication, #id)")
     public Mono<DocumentDto> getDocument(@PathVariable String id) {
         return documentService.getDocument(id);
     }
@@ -62,29 +58,29 @@ public class DocumentController {
     }
 
     @PatchMapping("/{id}")
-    @TeamAccess(level = WRITE)
-    @UserAccess(level = WRITE)
+    @PreAuthorize("@access.hasTeamAccessByDocument(authentication, #id, 'WRITE') " +
+            "or @access.isOwnerOrAdminOfDocument(authentication, #id)")
     public Mono<DocumentDto> updateDocument(@PathVariable String id, @RequestBody UpdateDocumentRequest request) {
         return documentService.updateDocument(id, request.getContent());
     }
 
     @GetMapping("/{id}/history")
-    @TeamAccess(level = READ)
-    @UserAccess(level = READ)
+    @PreAuthorize("@access.hasTeamAccessByDocument(authentication, #id, 'READ') " +
+            "or @access.isOwnerOrAdminOfDocument(authentication, #id)")
     public Flux<DocumentHistoryDto> getDocumentHistory(@PathVariable String id) {
         return documentService.getDocumentHistory(id);
     }
 
     @PostMapping("/{id}/restore/{versionId}")
-    @TeamAccess(level = WRITE)
-    @UserAccess(level = WRITE)
+    @PreAuthorize("@access.hasTeamAccessByDocument(authentication, #id, 'WRITE') " +
+            "or @access.isOwnerOrAdminOfDocument(authentication, #id)")
     public Mono<DocumentDto> restoreDocumentVersion(@PathVariable String id, @PathVariable String versionId) {
         return documentService.restoreDocumentVersion(id, versionId);
     }
 
     @DeleteMapping("/{id}")
-    @TeamAccess(level = WRITE)
-    @UserAccess(level = WRITE)
+    @PreAuthorize("@access.hasTeamAccessByDocument(authentication, #id, 'WRITE') " +
+            "or @access.isOwnerOrAdminOfDocument(authentication, #id)")
     public Mono<Void> deleteDocument(@PathVariable String id) {
         return documentService.deleteDocument(id);
     }

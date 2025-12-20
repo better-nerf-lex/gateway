@@ -33,14 +33,9 @@ public class LegalEntityService {
     }
 
     public Flux<LegalEntityDto> getAllLegalEntities(String teamId) {
-        switch (teamId) {
-            case "me":
-            {
-
-            }
-        }
         if (teamId != null && !teamId.isBlank()) {
-            return legalEntityRepository.findByTeamId(teamId)
+            return teamAccessService.requireAccess(teamId, com.bntech.lexai.gateway.security.access.AccessLevel.READ)
+                    .thenMany(legalEntityRepository.findByTeamId(teamId))
                     .map(legalEntityMapper::toDto);
         }
         return ReactiveSecurityContextHolder.getContext()
