@@ -15,4 +15,5 @@ public class LegalEntityDto {
     private String name;
     private String relevance;
     private EntityDetailsDto details;
+    private String teamId;
 }

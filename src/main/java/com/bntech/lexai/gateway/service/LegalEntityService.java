@@ -66,10 +66,25 @@ public class LegalEntityService {
                     String username = auth.getName();
                     return userRepository.findByUsername(username)
                             .flatMap(user -> teamMemberRepository.findByUserId(user.getId())
-                                    .next()
-                                    .map(member -> member.getTeamId())
-                                    .defaultIfEmpty("")
-                                    .flatMap(teamId -> {
+                                    .collectList()
+                                    .flatMap(members -> {
+                                        String targetTeamId = "";
+
+                                        // Use requested teamId if user is a member of that team
+                                        if (legalEntityDto.getTeamId() != null
+                                                && !legalEntityDto.getTeamId().isBlank()) {
+                                            boolean isMember = members.stream()
+                                                    .anyMatch(m -> m.getTeamId().equals(legalEntityDto.getTeamId()));
+                                            if (isMember) {
+                                                targetTeamId = legalEntityDto.getTeamId();
+                                            }
+                                        }
+
+                                        // Fallback to first team if no specific team requested or not a member
+                                        if (targetTeamId.isEmpty() && !members.isEmpty()) {
+                                            targetTeamId = members.get(0).getTeamId();
+                                        }
+
                                         LegalEntity<EntityDetails> legalEntity = legalEntityMapper
                                                 .toEntity(legalEntityDto);
                                         if (legalEntity.getId() == null) {
@@ -77,8 +92,8 @@ public class LegalEntityService {
                                         }
                                         legalEntity.setNew(true);
                                         legalEntity.setUserId(String.valueOf(user.getId()));
-                                        if (!teamId.isEmpty()) {
-                                            legalEntity.setTeamId(teamId);
+                                        if (!targetTeamId.isEmpty()) {
+                                            legalEntity.setTeamId(targetTeamId);
                                         }
 
                                         return legalEntityRepository.save(legalEntity)
