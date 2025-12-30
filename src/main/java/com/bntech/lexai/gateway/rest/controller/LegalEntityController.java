@@ -22,7 +22,7 @@ public class LegalEntityController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@access.hasTeamAccessByLegalEntity(authentication, #id, 'READ') or @access.isOwnerOrAdminOfLegalEntity(authentication, #id)")
+    @PreAuthorize("@access.canViewLegalEntity(authentication, #id)")
     public Mono<LegalEntityDto> getLegalEntity(@PathVariable String id) {
         return legalEntityService.getLegalEntity(id);
     }
@@ -33,13 +33,13 @@ public class LegalEntityController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("@access.hasTeamAccessByLegalEntity(authentication, #id, 'WRITE') or @access.isOwnerOrAdminOfLegalEntity(authentication, #id)")
+    @PreAuthorize("@access.canUpdateLegalEntity(authentication, #id)")
     public Mono<LegalEntityDto> updateLegalEntity(@PathVariable String id, @RequestBody LegalEntityDto legalEntityDto) {
         return legalEntityService.updateLegalEntity(id, legalEntityDto);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("@access.hasTeamAccessByLegalEntity(authentication, #id, 'WRITE') or @access.isOwnerOrAdminOfLegalEntity(authentication, #id)")
+    @PreAuthorize("@access.canDeleteLegalEntity(authentication, #id)")
     public Mono<Void> deleteLegalEntity(@PathVariable String id) {
         return legalEntityService.deleteLegalEntity(id);
     }

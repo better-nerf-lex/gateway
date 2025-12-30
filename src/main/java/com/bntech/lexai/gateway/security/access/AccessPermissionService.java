@@ -141,6 +141,30 @@ public class AccessPermissionService {
                 .onErrorReturn(false);
     }
 
+    public Mono<Boolean> canUpdateLegalEntity(Authentication authentication, String id) {
+        return hasTeamAccessByLegalEntity(authentication, id, AccessLevel.WRITE.name())
+                .flatMap(hasTeamAccess -> {
+                    if (hasTeamAccess) return Mono.just(true);
+                    return isOwnerOrAdminOfLegalEntity(authentication, id);
+                });
+    }
+
+    public Mono<Boolean> canViewLegalEntity(Authentication authentication, String id) {
+        return hasTeamAccessByLegalEntity(authentication, id, AccessLevel.READ.name())
+                .flatMap(hasAccess -> {
+                    if (hasAccess) return Mono.just(true);
+                    return isOwnerOrAdminOfLegalEntity(authentication, id);
+                });
+    }
+
+    public Mono<Boolean> canDeleteLegalEntity(Authentication authentication, String id) {
+        return hasTeamAccessByLegalEntity(authentication, id, AccessLevel.WRITE.name())
+                .flatMap(hasTeamAccess -> {
+                    if (hasTeamAccess) return Mono.just(true);
+                    return isOwnerOrAdminOfLegalEntity(authentication, id);
+                });
+    }
+
     private boolean isAdmin(Authentication authentication) {
         return authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)

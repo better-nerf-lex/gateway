@@ -57,7 +57,7 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public Mono<ResponseEntity<RefreshTokenResponse>> refreshToken(@RequestHeader("Authorization") String authHeader) {
-        String token = authHeader.substring(7); // Remove "Bearer " prefix
+        String token = authHeader.substring(7);
         return authService.refreshToken(token)
                 .map(ResponseEntity::ok);
     }
