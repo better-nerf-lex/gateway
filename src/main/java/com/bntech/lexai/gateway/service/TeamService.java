@@ -43,7 +43,7 @@ public class TeamService {
                                 .flatMap(auth -> userRepository.findByUsername(auth.getName())
                                                 .flatMap(user -> {
                                                         Team team = new Team();
-                                                        team.setId(UUID.randomUUID().toString());
+                                                        team.setId(UUID.randomUUID());
                                                         team.setName(request.getName());
                                                         team.setCreatedAt(LocalDateTime.now());
                                                         team.setNew(true);
@@ -51,6 +51,7 @@ public class TeamService {
                                                         return teamRepository.save(team)
                                                                         .flatMap(savedTeam -> {
                                                                                 TeamMember member = new TeamMember();
+                                                                                member.setId(UUID.randomUUID());
                                                                                 member.setUserId(user.getId());
                                                                                 member.setTeamId(savedTeam.getId());
                                                                                 member.setAccessLevel(
@@ -62,7 +63,7 @@ public class TeamService {
                                                 }));
         }
 
-        public Flux<TeamMemberDto> getTeamMembers(String teamId) {
+        public Flux<TeamMemberDto> getTeamMembers(UUID teamId) {
                 return teamMemberRepository.findByTeamId(teamId)
                                 .flatMap(member -> userRepository.findById(member.getUserId())
                                                 .map(user -> TeamMemberDto
@@ -76,7 +77,7 @@ public class TeamService {
                                                         .build()));
         }
 
-        public Mono<Void> updateMemberRole(String teamId, Long userId, AccessLevel newLevel) {
+        public Mono<Void> updateMemberRole(UUID teamId, Long userId, AccessLevel newLevel) {
                 return teamMemberRepository.findByUserIdAndTeamId(userId, teamId)
                                 .flatMap(member -> {
                                         member.setAccessLevel(newLevel);
@@ -85,7 +86,7 @@ public class TeamService {
                                 .then();
         }
 
-        public Mono<Void> removeMember(String teamId, Long userId) {
+        public Mono<Void> removeMember(UUID teamId, Long userId) {
                 return teamMemberRepository.findByUserIdAndTeamId(userId, teamId)
                                 .flatMap(teamMemberRepository::delete);
         }

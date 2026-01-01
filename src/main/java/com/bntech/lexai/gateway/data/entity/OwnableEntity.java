@@ -1,7 +1,9 @@
 package com.bntech.lexai.gateway.data.entity;
 
-public interface OwnableEntity {
-    String getUserId();
+import java.util.UUID;
 
-    String getTeamId();
+public interface OwnableEntity {
+    Long getUserId();
+
+    UUID getTeamId();
 }

@@ -1,22 +1,25 @@
 package com.bntech.lexai.gateway.data.entity.security;
 
+import com.bntech.lexai.gateway.data.entity.BaseEntity;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Table("authorization_codes")
-public class AuthorizationCode {
-
-    @Id
-    private String id;
+public class AuthorizationCode extends BaseEntity<UUID> {
 
     @Column("code")
     private String code;
@@ -34,11 +37,13 @@ public class AuthorizationCode {
     private String scopes;
 
     @Column("expires_at")
-    private Instant expiresAt;
-
-    @Column("created_at")
-    private Instant createdAt;
+    private LocalDateTime expiresAt;
 
     @Column("used")
     private boolean used;
+
+    @Override
+    public boolean isNew() {
+        return false;
+    }
 }

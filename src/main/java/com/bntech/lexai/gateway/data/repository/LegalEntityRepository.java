@@ -7,23 +7,25 @@ import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 @Repository
-public interface LegalEntityRepository extends R2dbcRepository<LegalEntity, String> {
+public interface LegalEntityRepository extends R2dbcRepository<LegalEntity, UUID> {
 
     @Query("SELECT * FROM legal_entities WHERE document_id = :documentId")
-    Flux<LegalEntity> findByDocumentId(String documentId);
+    Flux<LegalEntity> findByDocumentId(UUID documentId);
 
     @Query("SELECT * FROM legal_entities WHERE relevance = :relevance")
     Flux<LegalEntity> findByRelevance(String relevance);
 
     @Query("SELECT * FROM legal_entities WHERE document_id = :documentId AND relevance = :relevance")
-    Flux<LegalEntity> findByDocumentIdAndRelevance(String documentId, String relevance);
+    Flux<LegalEntity> findByDocumentIdAndRelevance(UUID documentId, String relevance);
 
     @Query("SELECT COUNT(*) FROM legal_entities WHERE document_id = :documentId")
-    Mono<Long> countByDocumentId(String documentId);
+    Mono<Long> countByDocumentId(UUID documentId);
 
     @Query("DELETE FROM legal_entities WHERE document_id = :documentId")
-    Mono<Void> deleteByDocumentId(String documentId);
+    Mono<Void> deleteByDocumentId(UUID documentId);
 
     @Query("SELECT * FROM legal_entities ORDER BY relevance")
     Flux<LegalEntity> findAllByOrderByRelevance();
@@ -32,8 +34,8 @@ public interface LegalEntityRepository extends R2dbcRepository<LegalEntity, Stri
     Mono<Long> countAll();
 
     @Query("SELECT * FROM legal_entities WHERE user_id = :userId ORDER BY relevance")
-    Flux<LegalEntity> findByUserId(String userId);
+    Flux<LegalEntity> findByUserId(Long userId);
 
     @Query("SELECT * FROM legal_entities WHERE team_id = :teamId ORDER BY relevance")
-    Flux<LegalEntity> findByTeamId(String teamId);
+    Flux<LegalEntity> findByTeamId(UUID teamId);
 }

@@ -7,15 +7,17 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+import java.util.UUID;
+
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class DocumentHistoryDto {
-    private String id;
-    private String documentId;
+    private UUID id;
+    private UUID documentId;
     private String content;
     private Integer version;
     private LocalDateTime createdAt;
-    private String createdBy;
+    private Long createdBy;
 }

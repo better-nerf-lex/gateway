@@ -1,40 +1,28 @@
 package com.bntech.lexai.gateway.data.entity.document;
 
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
+import com.bntech.lexai.gateway.data.entity.BaseEntity;
+import com.bntech.lexai.gateway.data.object.ActionType;
 import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.data.relational.core.mapping.Column;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "activity")
-public class Activity {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+public class Activity extends BaseEntity<UUID> {
 
     @Column()
-    private String action;
+    private ActionType action;
 
-    @Column()
-    private LocalDateTime date;
-
-    @Column()
-    private String status;
-
-    @PrePersist
-    protected void onCreate() {
-        if (date == null) {
-            date = LocalDateTime.now();
-        }
+    public boolean isNew() {
+        return true;
     }
 }

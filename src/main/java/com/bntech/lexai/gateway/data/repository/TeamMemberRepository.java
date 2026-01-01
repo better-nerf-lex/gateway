@@ -7,15 +7,17 @@ import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 @Repository
-public interface TeamMemberRepository extends R2dbcRepository<TeamMember, Long> {
+public interface TeamMemberRepository extends R2dbcRepository<TeamMember, UUID> {
 
     @Query("SELECT * FROM team_members WHERE user_id = :userId")
     Flux<TeamMember> findByUserId(Long userId);
 
     @Query("SELECT * FROM team_members WHERE user_id = :userId AND team_id = :teamId")
-    Mono<TeamMember> findByUserIdAndTeamId(Long userId, String teamId);
+    Mono<TeamMember> findByUserIdAndTeamId(Long userId, UUID teamId);
 
     @Query("SELECT * FROM team_members WHERE team_id = :teamId")
-    Flux<TeamMember> findByTeamId(String teamId);
+    Flux<TeamMember> findByTeamId(UUID teamId);
 }

@@ -1,6 +1,8 @@
 package com.bntech.lexai.gateway.data.entity.security;
 
+import com.bntech.lexai.gateway.data.entity.Auditable;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
@@ -10,21 +12,17 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Table("teams")
-public class Team implements Persistable<String> {
-
-    @Id
-    private String id;
+public class Team extends Auditable<UUID> {
 
     @Column("name")
     private String name;
-
-    @Column("created_at")
-    private LocalDateTime createdAt;
 
     @Transient
     private boolean isNew = true;

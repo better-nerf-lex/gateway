@@ -7,6 +7,7 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.TextBlock;
 import com.bntech.lexai.gateway.data.object.Prompts;
+import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -73,6 +74,15 @@ public class AIService {
                 .timeout(Duration.ofMinutes(2))
                 .retryWhen(buildRetrySpec("prompt analysis"))
                 .doOnError(error -> log.error("❌ Error analyzing prompt", error));
+    }
+
+    public Mono<String> generateDocumentWithAnswers(GenerateDocumentRequest request) {
+        return generateDocumentWithAnswers(
+                request.getTitle(),
+                request.getPrompt(),
+                request.getAnswers(),
+                request.getRequirements(),
+                request.getBase());
     }
 
     public Mono<String> generateDocumentWithAnswers(String title, String originalPrompt,

@@ -7,7 +7,7 @@ import com.bntech.lexai.gateway.data.repository.LegalEntityRepository;
 import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.rest.dto.document.LegalEntityDto;
-import com.bntech.lexai.gateway.rest.mapper.LegalEntityMapper;
+import com.bntech.lexai.gateway.mapper.LegalEntityMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
@@ -33,17 +33,17 @@ public class LegalEntityService {
     }
 
     public Flux<LegalEntityDto> getAllLegalEntities(String teamId) {
-        if (teamId != null && !teamId.isBlank()) {
-            return legalEntityRepository.findByTeamId(teamId)
+        if (teamId != null && !teamId.isBlank() && !teamId.equals("null")) {
+            return legalEntityRepository.findByTeamId(UUID.fromString(teamId))
                     .map(legalEntityMapper::toDto);
         }
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
                 .flatMapMany(auth -> userRepository.findByUsername(auth.getName())
                         .flatMapMany(user -> {
-                            Flux<LegalEntity> byUser = legalEntityRepository.findByUserId(String.valueOf(user.getId()));
+                            Flux<LegalEntity> byUser = legalEntityRepository.findByUserId(user.getId());
 
-                            Flux<String> teamIds = teamMemberRepository.findByUserId(user.getId())
+                            Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
                                     .map(TeamMember::getTeamId);
 
                             Flux<LegalEntity> byTeams = teamIds.flatMap(legalEntityRepository::findByTeamId);
@@ -55,7 +55,7 @@ public class LegalEntityService {
     }
 
     public Mono<LegalEntityDto> getLegalEntity(String id) {
-        return legalEntityRepository.findById(id)
+        return legalEntityRepository.findById(UUID.fromString(id))
                 .map(legalEntityMapper::toDto);
     }
 
@@ -68,31 +68,33 @@ public class LegalEntityService {
                             .flatMap(user -> teamMemberRepository.findByUserId(user.getId())
                                     .collectList()
                                     .flatMap(members -> {
-                                        String targetTeamId = "";
+                                        UUID targetTeamId = null;
 
                                         // Use requested teamId if user is a member of that team
                                         if (legalEntityDto.getTeamId() != null
-                                                && !legalEntityDto.getTeamId().isBlank()) {
+                                                && !legalEntityDto.getTeamId().isBlank()
+                                                && !legalEntityDto.getTeamId().equals("null")) {
+                                            UUID requestedTeamId = UUID.fromString(legalEntityDto.getTeamId());
                                             boolean isMember = members.stream()
-                                                    .anyMatch(m -> m.getTeamId().equals(legalEntityDto.getTeamId()));
+                                                    .anyMatch(m -> m.getTeamId().equals(requestedTeamId));
                                             if (isMember) {
-                                                targetTeamId = legalEntityDto.getTeamId();
+                                                targetTeamId = requestedTeamId;
                                             }
                                         }
 
                                         // Fallback to first team if no specific team requested or not a member
-                                        if (targetTeamId.isEmpty() && !members.isEmpty()) {
+                                        if (targetTeamId == null && !members.isEmpty()) {
                                             targetTeamId = members.get(0).getTeamId();
                                         }
 
                                         LegalEntity<EntityDetails> legalEntity = legalEntityMapper
                                                 .toEntity(legalEntityDto);
                                         if (legalEntity.getId() == null) {
-                                            legalEntity.setId(UUID.randomUUID().toString());
+                                            legalEntity.setId(UUID.randomUUID());
                                         }
                                         legalEntity.setNew(true);
-                                        legalEntity.setUserId(String.valueOf(user.getId()));
-                                        if (!targetTeamId.isEmpty()) {
+                                        // legalEntity.setUserId(String.valueOf(user.getId()));
+                                        if (targetTeamId != null) {
                                             legalEntity.setTeamId(targetTeamId);
                                         }
 
@@ -103,10 +105,11 @@ public class LegalEntityService {
     }
 
     public Mono<LegalEntityDto> updateLegalEntity(String id, LegalEntityDto legalEntityDto) {
-        return legalEntityRepository.findById(id)
+        UUID uuid = UUID.fromString(id);
+        return legalEntityRepository.findById(uuid)
                 .flatMap(existingEntity -> {
                     LegalEntity<EntityDetails> updatedEntity = legalEntityMapper.toEntity(legalEntityDto);
-                    updatedEntity.setId(id);
+                    updatedEntity.setId(uuid);
                     updatedEntity.setNew(false);
                     if (updatedEntity.getDocumentId() == null) {
                         updatedEntity.setDocumentId(existingEntity.getDocumentId());
@@ -117,6 +120,6 @@ public class LegalEntityService {
     }
 
     public Mono<Void> deleteLegalEntity(String id) {
-        return legalEntityRepository.deleteById(id);
+        return legalEntityRepository.deleteById(UUID.fromString(id));
     }
 }

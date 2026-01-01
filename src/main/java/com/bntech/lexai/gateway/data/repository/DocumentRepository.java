@@ -6,8 +6,10 @@ import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 
+import java.util.UUID;
+
 @Repository
-public interface DocumentRepository extends R2dbcRepository<Document, String> {
+public interface DocumentRepository extends R2dbcRepository<Document, UUID> {
 
     Flux<Document> findAllByOrderByCreatedAtDesc();
 
@@ -15,8 +17,8 @@ public interface DocumentRepository extends R2dbcRepository<Document, String> {
     Flux<Document> searchDocuments(String query);
 
     @Query("SELECT * FROM documents WHERE team_id = :teamId ORDER BY created_at DESC")
-    Flux<Document> findByTeamIdOrderByCreatedAtDesc(String teamId);
+    Flux<Document> findByTeamIdOrderByCreatedAtDesc(UUID teamId);
 
     @Query("SELECT * FROM documents WHERE user_id = :userId ORDER BY created_at DESC")
-    Flux<Document> findByUserIdOrderByCreatedAtDesc(String userId);
+    Flux<Document> findByUserIdOrderByCreatedAtDesc(Long userId);
 }

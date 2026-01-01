@@ -7,15 +7,17 @@ import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 @Repository
-public interface DocumentHistoryRepository extends ReactiveCrudRepository<DocumentHistory, String> {
+public interface DocumentHistoryRepository extends ReactiveCrudRepository<DocumentHistory, UUID> {
 
     @Query("SELECT * FROM document_history WHERE document_id = :documentId ORDER BY version DESC")
-    Flux<DocumentHistory> findByDocumentIdOrderByVersionDesc(String documentId);
+    Flux<DocumentHistory> findByDocumentIdOrderByVersionDesc(UUID documentId);
 
     @Query("SELECT MAX(version) FROM document_history WHERE document_id = :documentId")
-    Mono<Integer> findMaxVersionByDocumentId(String documentId);
+    Mono<Integer> findMaxVersionByDocumentId(UUID documentId);
 
     @Query("DELETE FROM document_history WHERE document_id = :documentId")
-    Mono<Void> deleteByDocumentId(String documentId);
+    Mono<Void> deleteByDocumentId(UUID documentId);
 }

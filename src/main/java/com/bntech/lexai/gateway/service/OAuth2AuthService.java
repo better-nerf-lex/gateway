@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
@@ -101,14 +102,14 @@ public class OAuth2AuthService {
     private Mono<AuthorizationCode> generateAuthorizationCode(String clientId, Long userId,
                                                               String redirectUri, String scope) {
         AuthorizationCode authCode = new AuthorizationCode();
-        authCode.setId(UUID.randomUUID().toString());
+        authCode.setId(UUID.randomUUID());
         authCode.setCode(UUID.randomUUID().toString());
         authCode.setClientId(clientId);
         authCode.setUserId(userId);
         authCode.setRedirectUri(redirectUri);
         authCode.setScopes(scope != null ? scope : "read");
-        authCode.setExpiresAt(Instant.now().plus(10, ChronoUnit.MINUTES));
-        authCode.setCreatedAt(Instant.now());
+        authCode.setExpiresAt(LocalDateTime.now().plusMinutes(10));
+        authCode.setCreatedAt(LocalDateTime.now());
         authCode.setUsed(false);
 
         return authCodes.save(authCode);
@@ -129,7 +130,7 @@ public class OAuth2AuthService {
     private Mono<TokenResponse> handleAuthorizationCodeGrant(String code, String clientId, String redirectUri) {
         return authCodes.findByCodeAndUsedFalse(code)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("Invalid or expired authorization code")))
-                .filter(authCode -> authCode.getExpiresAt().isAfter(Instant.now()))
+                .filter(authCode -> authCode.getExpiresAt().isAfter(LocalDateTime.now()))
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("Authorization code expired")))
                 .filter(authCode -> authCode.getClientId().equals(clientId))
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("Client ID mismatch")))

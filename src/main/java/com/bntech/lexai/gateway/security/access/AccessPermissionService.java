@@ -15,6 +15,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 @Slf4j
 @Component("access")
 @RequiredArgsConstructor
@@ -28,7 +30,7 @@ public class AccessPermissionService {
     public Mono<Boolean> canListDocuments(Authentication authentication, String teamId) {
         if (authentication == null || !authentication.isAuthenticated()) return Mono.just(false);
         if (isBlankTeamId(teamId)) return Mono.just(true);
-        return hasTeamAccess(authentication, teamId, AccessLevel.READ.name());
+        return hasTeamAccess(authentication, UUID.fromString(teamId), AccessLevel.READ.name());
     }
 
     public Mono<Boolean> canListLegalEntities(Authentication authentication, String teamId) {
@@ -45,11 +47,11 @@ public class AccessPermissionService {
             return Mono.just(true);
         }
 
-        return hasTeamAccess(authentication, teamId, AccessLevel.READ.name())
+        return hasTeamAccess(authentication, UUID.fromString(teamId), AccessLevel.READ.name())
                 .doOnNext(hasAccess -> log.debug("canListLegalEntities: hasTeamAccess returned {}", hasAccess));
     }
 
-    public Mono<Boolean> hasTeamAccess(Authentication authentication, String teamId, String level) {
+    public Mono<Boolean> hasTeamAccess(Authentication authentication, UUID teamId, String level) {
         log.debug("hasTeamAccess called - user: {}, teamId: {}, level: {}",
                 authentication != null ? authentication.getName() : "null", teamId, level);
 
@@ -58,8 +60,8 @@ public class AccessPermissionService {
             return Mono.just(false);
         }
 
-        if (isBlankTeamId(teamId)) {
-            log.debug("hasTeamAccess: teamId is blank");
+        if (teamId == null) {
+            log.debug("hasTeamAccess: teamId is null");
             return Mono.just(false);
         }
 
@@ -94,20 +96,20 @@ public class AccessPermissionService {
     }
 
     public Mono<Boolean> hasTeamAccessByDocument(Authentication authentication, String id, String level) {
-        if (id == null || id.isBlank()) return Mono.just(false);
-        return documentRepository.findById(id)
+        if (id == null || id.isBlank() || isBlankId(id)) return Mono.just(false);
+        return documentRepository.findById(UUID.fromString(id))
                 .map(Document::getTeamId)
-                .filter(teamId -> !isBlankTeamId(teamId))
+                .filter(teamId -> teamId != null)
                 .flatMap(teamId -> hasTeamAccess(authentication, teamId, level))
                 .defaultIfEmpty(false)
                 .onErrorReturn(false);
     }
 
     public Mono<Boolean> hasTeamAccessByLegalEntity(Authentication authentication, String id, String level) {
-        if (id == null || id.isBlank()) return Mono.just(false);
-        return legalEntityRepository.findById(id)
+        if (id == null || id.isBlank() || isBlankId(id)) return Mono.just(false);
+        return legalEntityRepository.findById(UUID.fromString(id))
                 .map(LegalEntity::getTeamId)
-                .filter(teamId -> !isBlankTeamId(teamId))
+                .filter(teamId -> teamId != null)
                 .flatMap(teamId -> hasTeamAccess(authentication, teamId, level))
                 .defaultIfEmpty(false)
                 .onErrorReturn(false);
@@ -115,12 +117,12 @@ public class AccessPermissionService {
 
     public Mono<Boolean> isOwnerOrAdminOfDocument(Authentication authentication, String id) {
         if (authentication == null || !authentication.isAuthenticated()) return Mono.just(false);
-        if (id == null || id.isBlank()) return Mono.just(false);
+        if (id == null || id.isBlank() || isBlankId(id)) return Mono.just(false);
         if (isAdmin(authentication)) return Mono.just(true);
 
         return userRepository.findByUsername(authentication.getName())
-                .flatMap(user -> documentRepository.findById(id)
-                        .map(doc -> String.valueOf(user.getId()).equals(doc.getUserId()))
+                .flatMap(user -> documentRepository.findById(UUID.fromString(id))
+                        .map(doc -> user.getId().equals(doc.getUserId()))
                         .defaultIfEmpty(false)
                 )
                 .defaultIfEmpty(false)
@@ -129,12 +131,12 @@ public class AccessPermissionService {
 
     public Mono<Boolean> isOwnerOrAdminOfLegalEntity(Authentication authentication, String id) {
         if (authentication == null || !authentication.isAuthenticated()) return Mono.just(false);
-        if (id == null || id.isBlank()) return Mono.just(false);
+        if (id == null || id.isBlank() || isBlankId(id)) return Mono.just(false);
         if (isAdmin(authentication)) return Mono.just(true);
 
         return userRepository.findByUsername(authentication.getName())
-                .flatMap(user -> legalEntityRepository.findById(id)
-                        .map(e -> String.valueOf(user.getId()).equals(e.getUserId()))
+                .flatMap(user -> legalEntityRepository.findById(UUID.fromString(id))
+                        .map(e -> user.getId().equals(e.getUserId()))
                         .defaultIfEmpty(false)
                 )
                 .defaultIfEmpty(false)
@@ -177,6 +179,12 @@ public class AccessPermissionService {
         } catch (Exception e) {
             return AccessLevel.READ;
         }
+    }
+
+    private boolean isBlankId(String id) {
+        if (id == null) return true;
+        String v = id.trim();
+        return v.isEmpty() || v.equalsIgnoreCase("null") || v.equalsIgnoreCase("undefined");
     }
 
     private boolean isBlankTeamId(String teamId) {

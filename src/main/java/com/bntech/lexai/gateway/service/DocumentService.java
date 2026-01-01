@@ -42,8 +42,8 @@ public class DocumentService {
     }
 
     public Flux<DocumentDto> getDocuments(String teamId) {
-        if (teamId != null && !teamId.isBlank()) {
-            return documents.findByTeamIdOrderByCreatedAtDesc(teamId)
+        if (teamId != null && !teamId.isBlank() && !teamId.equals("null")) {
+            return documents.findByTeamIdOrderByCreatedAtDesc(UUID.fromString(teamId))
                     .map(mapper::toDto)
                     .doOnError(error -> log.error("Error retrieving team documents for {}", teamId, error));
         }
@@ -53,9 +53,9 @@ public class DocumentService {
                 .flatMapMany(auth -> userRepository.findByUsername(auth.getName())
                         .flatMapMany(user -> {
                             reactor.core.publisher.Flux<Document> byUser =
-                                    documents.findByUserIdOrderByCreatedAtDesc(String.valueOf(user.getId()));
+                                    documents.findByUserIdOrderByCreatedAtDesc(user.getId());
 
-                            reactor.core.publisher.Flux<String> teamIds = teamMemberRepository.findByUserId(user.getId())
+                            reactor.core.publisher.Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
                                     .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId);
 
                             reactor.core.publisher.Flux<Document> byTeams =
@@ -69,7 +69,7 @@ public class DocumentService {
     }
 
     public Mono<DocumentDto> getDocument(String id) {
-        return documents.findById(id)
+        return documents.findById(UUID.fromString(id))
                 .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
                 .map(mapper::toDto)
                 .doOnError(error -> log.error("Error retrieving document: {}", id, error));
@@ -113,16 +113,15 @@ public class DocumentService {
                     return userRepository.findByUsername(username)
                             .flatMap(user -> {
                                 String requestedTeamId = request.getTeamId();
-                                Mono<String> teamIdMono;
-                                if (requestedTeamId != null && !requestedTeamId.isBlank()) {
-                                    teamIdMono = teamMemberRepository.findByUserIdAndTeamId(user.getId(), requestedTeamId)
+                                Mono<UUID> teamIdMono;
+                                if (requestedTeamId != null && !requestedTeamId.isBlank() && !requestedTeamId.equals("null")) {
+                                    teamIdMono = teamMemberRepository.findByUserIdAndTeamId(user.getId(), UUID.fromString(requestedTeamId))
                                             .switchIfEmpty(Mono.error(new AccessDeniedException("Insufficient team access")))
                                             .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId);
                                 } else {
                                     teamIdMono = teamMemberRepository.findByUserId(user.getId())
                                             .next()
-                                            .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId)
-                                            .defaultIfEmpty("");
+                                            .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId);
                                 }
 
                                 return teamIdMono.flatMap(teamId -> {
@@ -135,13 +134,16 @@ public class DocumentService {
                                                 .updatedAt(LocalDateTime.now())
                                                 .text("")
                                                 .build());
-                                        document.setUserId(String.valueOf(user.getId()));
-                                        if (!teamId.isEmpty()) {
+                                        document.setUserId(user.getId());
+                                        if (teamId != null) {
                                             document.setTeamId(teamId);
                                         }
 
                                         return documents.save(document)
-                                                .doOnNext(Document::setNotNew)
+                                                .map(doc -> {
+                                                    doc.setNotNew();
+                                                    return doc;
+                                                })
                                                 .flatMap(savedDocument -> processAIGeneration(savedDocument, request));
                                 });
                             });
@@ -149,12 +151,7 @@ public class DocumentService {
     }
 
     private Mono<DocumentDto> processAIGeneration(Document document, GenerateDocumentRequest request) {
-        return aiService.generateDocumentWithAnswers(
-                request.getTitle(),
-                request.getPrompt(),
-                request.getAnswers(),
-                request.getRequirements(),
-                request.getBase())
+        return aiService.generateDocumentWithAnswers(request)
                 .map(content -> {
                     log.info("Generated document content: {}", content);
                     return content;
@@ -207,7 +204,7 @@ public class DocumentService {
     public Mono<DocumentDto> updateDocument(String id, String content) {
         log.info("Updating document: {}", id);
 
-        return documents.findById(id)
+        return documents.findById(UUID.fromString(id))
                 .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
                 .flatMap(document -> {
                     // Create history entry before updating
@@ -229,7 +226,7 @@ public class DocumentService {
     public Flux<DocumentHistoryDto> getDocumentHistory(String documentId) {
         log.info("Fetching history for document: {}", documentId);
 
-        return documentsHistory.findByDocumentIdOrderByVersionDesc(documentId)
+        return documentsHistory.findByDocumentIdOrderByVersionDesc(UUID.fromString(documentId))
                 .map(this::toHistoryDto)
                 .doOnError(error -> log.error("Error fetching document history", error));
     }
@@ -237,7 +234,7 @@ public class DocumentService {
     public Mono<DocumentDto> restoreDocumentVersion(String documentId, String versionId) {
         log.info("Restoring document {} to version {}", documentId, versionId);
 
-        return documentsHistory.findById(versionId)
+        return documentsHistory.findById(UUID.fromString(versionId))
                 .switchIfEmpty(Mono.error(new RuntimeException("Version not found: " + versionId)))
                 .flatMap(history -> updateDocument(documentId, history.getContent()))
                 .doOnSuccess(result -> log.info("✅ Document restored to version: {}", versionId))
@@ -248,15 +245,18 @@ public class DocumentService {
         return documentsHistory.findMaxVersionByDocumentId(document.getId())
                 .defaultIfEmpty(0)
                 .map(maxVersion -> DocumentHistory.builder()
-                        .id(UUID.randomUUID().toString())
+                        .id(UUID.randomUUID())
                         .documentId(document.getId())
                         .content(document.getText())
                         .version(maxVersion + 1)
                         .createdAt(LocalDateTime.now())
-                        .createdBy("system") // TODO: Get from security context
+                        .isNew(true)
                         .build())
                 .flatMap(documentsHistory::save)
-                .doOnNext(DocumentHistory::setNotNew);
+                .map(history -> {
+                    history.setNotNew();
+                    return history;
+                });
     }
 
     private DocumentHistoryDto toHistoryDto(DocumentHistory entity) {
@@ -272,11 +272,12 @@ public class DocumentService {
 
     public Mono<Void> deleteDocument(String id) {
         log.info("Deleting document: {}", id);
+        UUID uuid = UUID.fromString(id);
 
-        return documents.findById(id)
+        return documents.findById(uuid)
                 .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
-                .flatMap(document -> documentsHistory.deleteByDocumentId(id)
-                        .then(documents.deleteById(id)))
+                .flatMap(document -> documentsHistory.deleteByDocumentId(uuid)
+                        .then(documents.deleteById(uuid)))
                 .doOnSuccess(result -> log.info("✅ Document deleted: {}", id))
                 .doOnError(error -> log.error("❌ Error deleting document: {}", id, error));
     }
