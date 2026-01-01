@@ -30,7 +30,11 @@ public class AccessPermissionService {
     public Mono<Boolean> canListDocuments(Authentication authentication, String teamId) {
         if (authentication == null || !authentication.isAuthenticated()) return Mono.just(false);
         if (isBlankTeamId(teamId)) return Mono.just(true);
-        return hasTeamAccess(authentication, UUID.fromString(teamId), AccessLevel.READ.name());
+        try {
+            return hasTeamAccess(authentication, UUID.fromString(teamId), AccessLevel.READ.name());
+        } catch (IllegalArgumentException e) {
+            return Mono.just(false);
+        }
     }
 
     public Mono<Boolean> canListLegalEntities(Authentication authentication, String teamId) {
@@ -47,8 +51,14 @@ public class AccessPermissionService {
             return Mono.just(true);
         }
 
-        return hasTeamAccess(authentication, UUID.fromString(teamId), AccessLevel.READ.name())
-                .doOnNext(hasAccess -> log.debug("canListLegalEntities: hasTeamAccess returned {}", hasAccess));
+        try {
+            UUID uuid = UUID.fromString(teamId);
+            return hasTeamAccess(authentication, uuid, AccessLevel.READ.name())
+                    .doOnNext(hasAccess -> log.debug("canListLegalEntities: hasTeamAccess returned {}", hasAccess));
+        } catch (IllegalArgumentException e) {
+            log.error("canListLegalEntities: invalid teamId format: {}", teamId);
+            return Mono.just(false);
+        }
     }
 
     public Mono<Boolean> hasTeamAccess(Authentication authentication, UUID teamId, String level) {
@@ -65,13 +75,13 @@ public class AccessPermissionService {
             return Mono.just(false);
         }
 
-        AccessLevel required = parseLevel(level);
-        log.debug("hasTeamAccess: required access level: {}", required);
-
-        if (isAdmin(authentication) && required == AccessLevel.ADMIN) {
+        if (isAdmin(authentication)) {
             log.debug("hasTeamAccess: user is admin, granting access");
             return Mono.just(true);
         }
+
+        AccessLevel required = parseLevel(level);
+        log.debug("hasTeamAccess: required access level: {}", required);
 
         return userRepository.findByUsername(authentication.getName())
                 .doOnNext(user -> log.debug("hasTeamAccess: found user with id: {}", user.getId()))
@@ -97,22 +107,30 @@ public class AccessPermissionService {
 
     public Mono<Boolean> hasTeamAccessByDocument(Authentication authentication, String id, String level) {
         if (id == null || id.isBlank() || isBlankId(id)) return Mono.just(false);
-        return documentRepository.findById(UUID.fromString(id))
-                .map(Document::getTeamId)
-                .filter(teamId -> teamId != null)
-                .flatMap(teamId -> hasTeamAccess(authentication, teamId, level))
-                .defaultIfEmpty(false)
-                .onErrorReturn(false);
+        try {
+            return documentRepository.findById(UUID.fromString(id))
+                    .map(Document::getTeamId)
+                    .filter(teamId -> teamId != null)
+                    .flatMap(teamId -> hasTeamAccess(authentication, teamId, level))
+                    .defaultIfEmpty(false)
+                    .onErrorReturn(false);
+        } catch (IllegalArgumentException e) {
+            return Mono.just(false);
+        }
     }
 
     public Mono<Boolean> hasTeamAccessByLegalEntity(Authentication authentication, String id, String level) {
         if (id == null || id.isBlank() || isBlankId(id)) return Mono.just(false);
-        return legalEntityRepository.findById(UUID.fromString(id))
-                .map(LegalEntity::getTeamId)
-                .filter(teamId -> teamId != null)
-                .flatMap(teamId -> hasTeamAccess(authentication, teamId, level))
-                .defaultIfEmpty(false)
-                .onErrorReturn(false);
+        try {
+            return legalEntityRepository.findById(UUID.fromString(id))
+                    .map(LegalEntity::getTeamId)
+                    .filter(teamId -> teamId != null)
+                    .flatMap(teamId -> hasTeamAccess(authentication, teamId, level))
+                    .defaultIfEmpty(false)
+                    .onErrorReturn(false);
+        } catch (IllegalArgumentException e) {
+            return Mono.just(false);
+        }
     }
 
     public Mono<Boolean> isOwnerOrAdminOfDocument(Authentication authentication, String id) {
@@ -120,13 +138,17 @@ public class AccessPermissionService {
         if (id == null || id.isBlank() || isBlankId(id)) return Mono.just(false);
         if (isAdmin(authentication)) return Mono.just(true);
 
-        return userRepository.findByUsername(authentication.getName())
-                .flatMap(user -> documentRepository.findById(UUID.fromString(id))
-                        .map(doc -> user.getId().equals(doc.getUserId()))
-                        .defaultIfEmpty(false)
-                )
-                .defaultIfEmpty(false)
-                .onErrorReturn(false);
+        try {
+            return userRepository.findByUsername(authentication.getName())
+                    .flatMap(user -> documentRepository.findById(UUID.fromString(id))
+                            .map(doc -> user.getId().equals(doc.getUserId()))
+                            .defaultIfEmpty(false)
+                    )
+                    .defaultIfEmpty(false)
+                    .onErrorReturn(false);
+        } catch (IllegalArgumentException e) {
+            return Mono.just(false);
+        }
     }
 
     public Mono<Boolean> isOwnerOrAdminOfLegalEntity(Authentication authentication, String id) {
@@ -134,13 +156,17 @@ public class AccessPermissionService {
         if (id == null || id.isBlank() || isBlankId(id)) return Mono.just(false);
         if (isAdmin(authentication)) return Mono.just(true);
 
-        return userRepository.findByUsername(authentication.getName())
-                .flatMap(user -> legalEntityRepository.findById(UUID.fromString(id))
-                        .map(e -> user.getId().equals(e.getUserId()))
-                        .defaultIfEmpty(false)
-                )
-                .defaultIfEmpty(false)
-                .onErrorReturn(false);
+        try {
+            return userRepository.findByUsername(authentication.getName())
+                    .flatMap(user -> legalEntityRepository.findById(UUID.fromString(id))
+                            .map(e -> user.getId().equals(e.getUserId()))
+                            .defaultIfEmpty(false)
+                    )
+                    .defaultIfEmpty(false)
+                    .onErrorReturn(false);
+        } catch (IllegalArgumentException e) {
+            return Mono.just(false);
+        }
     }
 
     public Mono<Boolean> canUpdateLegalEntity(Authentication authentication, String id) {

@@ -115,7 +115,6 @@ CREATE INDEX IF NOT EXISTS idx_documents_status ON documents (status);
 CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents (created_at);
 CREATE INDEX IF NOT EXISTS idx_document_history_document_id ON document_history (document_id);
 CREATE INDEX IF NOT EXISTS idx_document_history_version ON document_history (document_id, version);
-CREATE INDEX IF NOT EXISTS idx_legal_entities_document_id ON legal_entities (document_id);
 CREATE INDEX IF NOT EXISTS idx_activity_date ON activity (created_at);
 CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents (user_id);
 CREATE INDEX IF NOT EXISTS idx_documents_team_id ON documents (team_id);

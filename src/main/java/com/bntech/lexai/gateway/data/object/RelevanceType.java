@@ -4,9 +4,12 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum RelevanceType {
-    REASON("reason"),
-    DEFENDANT("defendant"),
-    NEUTRAL("neutral");
+    HIGH("HIGH"),
+    MEDIUM("MEDIUM"),
+    LOW("LOW"),
+    REASON("REASON"),
+    DEFENDANT("DEFENDANT"),
+    NEUTRAL("NEUTRAL");
 
     private final String value;
 

@@ -24,13 +24,13 @@ import java.util.UUID;
 public interface LegalEntityMapper {
 
     @Mapping(target = "details", expression = "java(mapDetailsToDto(entity.getDetails()))")
-    @Mapping(target = "name", ignore = true)
+    @Mapping(target = "name", expression = "java(mapName(entity.getDetails()))")
     LegalEntityDto toDto(LegalEntity<? extends EntityDetails> entity);
 
     @Mapping(target = "id", expression = "java(dto.getId() != null ? UUID.fromString(dto.getId()) : null)")
-    @Mapping(target = "documentId", ignore = true)
     @Mapping(target = "details", expression = "java(mapDetailsToEntity(dto.getDetails()))")
     @Mapping(target = "relevance", expression = "java(mapRelevance(dto.getRelevance()))")
+    @Mapping(target = "documentId", ignore = true)
     LegalEntity<EntityDetails> toEntity(LegalEntityDto dto);
 
     @Mapping(target = "id", expression = "java(dto.getId() != null ? UUID.fromString(dto.getId()) : null)")
@@ -68,5 +68,18 @@ public interface LegalEntityMapper {
     default RelevanceType mapRelevance(String relevance) {
         if (relevance == null) return null;
         return RelevanceType.fromValue(relevance);
+    }
+
+    default String mapName(EntityDetails details) {
+        if (details == null) return null;
+        if (details instanceof PersonDetails pd) {
+            String first = pd.getFirstName() != null ? pd.getFirstName() : "";
+            String last = pd.getLastName() != null ? pd.getLastName() : "";
+            return (first + " " + last).trim();
+        }
+        if (details instanceof CompanyDetails cd) return cd.getFullName();
+        if (details instanceof CourtDetails cd) return cd.getFullName();
+        if (details instanceof LawFirmDetails lf) return lf.getFullName();
+        return null;
     }
 }

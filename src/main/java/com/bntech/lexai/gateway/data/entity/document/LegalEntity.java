@@ -23,7 +23,7 @@ import java.util.UUID;
 public class LegalEntity<D extends EntityDetails> extends Auditable<UUID> implements OwnableEntity {
 
     @Column("document_id")
-    private String documentId;
+    private UUID documentId;
 
     @Column()
     private D details;

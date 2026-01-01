@@ -33,7 +33,7 @@ public class LegalEntityService {
     }
 
     public Flux<LegalEntityDto> getAllLegalEntities(String teamId) {
-        if (teamId != null && !teamId.isBlank() && !teamId.equals("null")) {
+        if (teamId != null && !teamId.isBlank() && !teamId.equals("null") && !teamId.equals("undefined")) {
             return legalEntityRepository.findByTeamId(UUID.fromString(teamId))
                     .map(legalEntityMapper::toDto);
         }
@@ -73,7 +73,8 @@ public class LegalEntityService {
                                         // Use requested teamId if user is a member of that team
                                         if (legalEntityDto.getTeamId() != null
                                                 && !legalEntityDto.getTeamId().isBlank()
-                                                && !legalEntityDto.getTeamId().equals("null")) {
+                                                && !legalEntityDto.getTeamId().equals("null")
+                                                && !legalEntityDto.getTeamId().equals("undefined")) {
                                             UUID requestedTeamId = UUID.fromString(legalEntityDto.getTeamId());
                                             boolean isMember = members.stream()
                                                     .anyMatch(m -> m.getTeamId().equals(requestedTeamId));
@@ -111,9 +112,7 @@ public class LegalEntityService {
                     LegalEntity<EntityDetails> updatedEntity = legalEntityMapper.toEntity(legalEntityDto);
                     updatedEntity.setId(uuid);
                     updatedEntity.setNew(false);
-                    if (updatedEntity.getDocumentId() == null) {
-                        updatedEntity.setDocumentId(existingEntity.getDocumentId());
-                    }
+
                     return legalEntityRepository.save(updatedEntity);
                 })
                 .map(legalEntityMapper::toDto);

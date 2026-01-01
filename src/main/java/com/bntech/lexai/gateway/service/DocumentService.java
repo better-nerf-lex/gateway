@@ -42,7 +42,7 @@ public class DocumentService {
     }
 
     public Flux<DocumentDto> getDocuments(String teamId) {
-        if (teamId != null && !teamId.isBlank() && !teamId.equals("null")) {
+        if (teamId != null && !teamId.isBlank() && !teamId.equals("null") && !teamId.equals("undefined")) {
             return documents.findByTeamIdOrderByCreatedAtDesc(UUID.fromString(teamId))
                     .map(mapper::toDto)
                     .doOnError(error -> log.error("Error retrieving team documents for {}", teamId, error));
@@ -114,7 +114,7 @@ public class DocumentService {
                             .flatMap(user -> {
                                 String requestedTeamId = request.getTeamId();
                                 Mono<UUID> teamIdMono;
-                                if (requestedTeamId != null && !requestedTeamId.isBlank() && !requestedTeamId.equals("null")) {
+                                if (requestedTeamId != null && !requestedTeamId.isBlank() && !requestedTeamId.equals("null") && !requestedTeamId.equals("undefined")) {
                                     teamIdMono = teamMemberRepository.findByUserIdAndTeamId(user.getId(), UUID.fromString(requestedTeamId))
                                             .switchIfEmpty(Mono.error(new AccessDeniedException("Insufficient team access")))
                                             .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId);
