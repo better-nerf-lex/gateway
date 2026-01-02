@@ -12,8 +12,8 @@ import com.bntech.lexai.gateway.rest.dto.document.DocumentStatsDto;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.r2dbc.core.DatabaseClient;
 import reactor.core.publisher.Flux;
@@ -28,7 +28,6 @@ import java.time.YearMonth;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class DocumentService {
     private final DocumentRepository documents;
@@ -41,6 +40,32 @@ public class DocumentService {
     private final CaseRepository caseRepository;
     private final com.bntech.lexai.gateway.mapper.CaseMapper caseMapper;
     private final DatabaseClient databaseClient;
+    private final DocumentExampleService documentExampleService;
+
+    public DocumentService(
+            DocumentRepository documents,
+            DocumentAggregateRepository aggregates,
+            DocumentHistoryRepository documentsHistory,
+            DocumentMapper mapper,
+            AIService aiService,
+            UserRepository userRepository,
+            TeamMemberRepository teamMemberRepository,
+            CaseRepository caseRepository,
+            com.bntech.lexai.gateway.mapper.CaseMapper caseMapper,
+            DatabaseClient databaseClient,
+            @Autowired(required = false) DocumentExampleService documentExampleService) {
+        this.documents = documents;
+        this.aggregates = aggregates;
+        this.documentsHistory = documentsHistory;
+        this.mapper = mapper;
+        this.aiService = aiService;
+        this.userRepository = userRepository;
+        this.teamMemberRepository = teamMemberRepository;
+        this.caseRepository = caseRepository;
+        this.caseMapper = caseMapper;
+        this.databaseClient = databaseClient;
+        this.documentExampleService = documentExampleService;
+    }
 
     public Flux<DocumentDto> getDocuments() {
         return getDocuments(null);
@@ -116,10 +141,21 @@ public class DocumentService {
     public Mono<SubmitPromptResponse> submitPrompt(SubmitPromptRequest request) {
         log.info("Processing prompt submission: {}", request.getPrompt());
 
-        return aiService.analyzePrompt(request.getPrompt())
+        Mono<SubmitPromptResponse> templateSearch = documentExampleService != null
+                ? documentExampleService.searchTemplates(request.getPrompt())
+                        .next()
+                        .map(template -> SubmitPromptResponse.builder()
+                                .name(template.getTitle())
+                                .questions(template.getQuestions())
+                                .base(template.getBase())
+                                .requirements(template.getRequirements())
+                                .build())
+                : Mono.empty();
+
+        return templateSearch
+                .switchIfEmpty(aiService.analyzePrompt(request.getPrompt()))
                 .doOnSuccess(response -> {
                     log.info("✅ Prompt analysis completed {}", response);
-                    // send response to front
                 })
                 .doOnError(error -> log.error("❌ Error analyzing prompt", error));
     }

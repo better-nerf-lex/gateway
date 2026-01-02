@@ -1,7 +1,6 @@
 package com.bntech.lexai.gateway.config;
 
-import com.bntech.lexai.gateway.config.converter.EntityDetailsToJsonConverter;
-import com.bntech.lexai.gateway.config.converter.JsonToEntityDetailsConverter;
+import com.bntech.lexai.gateway.config.converter.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.r2dbc.spi.ConnectionFactory;
 import org.springframework.context.annotation.Bean;
@@ -38,6 +37,10 @@ public class DatabaseConfig {
         List<Converter<?, ?>> converters = new ArrayList<>();
         converters.add(new EntityDetailsToJsonConverter(objectMapper));
         converters.add(new JsonToEntityDetailsConverter(objectMapper));
+        converters.add(new JsonToQuestionDtoListConverter(objectMapper));
+        converters.add(new QuestionDtoListToJsonConverter(objectMapper));
+        converters.add(new JsonToStringListConverter(objectMapper));
+        converters.add(new StringListToJsonConverter(objectMapper));
         return new R2dbcCustomConversions(CustomConversions.StoreConversions
                 .of(PostgresDialect.INSTANCE.getSimpleTypeHolder()), converters);
     }

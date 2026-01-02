@@ -43,4 +43,9 @@ public class LegalEntityController {
     public Mono<Void> deleteLegalEntity(@PathVariable String id) {
         return legalEntityService.deleteLegalEntity(id);
     }
+
+    @GetMapping("/search")
+    public Flux<LegalEntityDto> searchLegalEntities(@RequestParam String query) {
+        return legalEntityService.searchLegalEntities(query);
+    }
 }

@@ -41,12 +41,12 @@ public class LegalEntityService {
                 .map(SecurityContext::getAuthentication)
                 .flatMapMany(auth -> userRepository.findByUsername(auth.getName())
                         .flatMapMany(user -> {
-                            Flux<LegalEntity> byUser = legalEntityRepository.findByOwnerId(user.getId());
+                            Flux<LegalEntity<?>> byUser = legalEntityRepository.findByOwnerId(user.getId());
 
                             Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
                                     .map(TeamMember::getTeamId);
 
-                            Flux<LegalEntity> byTeams = teamIds.flatMap(legalEntityRepository::findByTeamId);
+                            Flux<LegalEntity<?>> byTeams = teamIds.flatMap(legalEntityRepository::findByTeamId);
 
                             return Flux.merge(byUser, byTeams);
                         }))
@@ -120,5 +120,13 @@ public class LegalEntityService {
 
     public Mono<Void> deleteLegalEntity(String id) {
         return legalEntityRepository.deleteById(UUID.fromString(id));
+    }
+
+    public Flux<LegalEntityDto> searchLegalEntities(String query) {
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .flatMapMany(auth -> userRepository.findByUsername(auth.getName())
+                        .flatMapMany(user -> legalEntityRepository.search(user.getId(), "%" + query + "%")
+                                .map(legalEntityMapper::toDto)));
     }
 }

@@ -14,6 +14,6 @@ import java.util.List;
 public class SubmitPromptResponse {
     private String name;
     private List<String> base;
-    private List<String> questions;
+    private List<QuestionDto> questions;
     private List<String> requirements;
 }

@@ -13,6 +13,7 @@ DROP TABLE IF EXISTS cases CASCADE;
 DROP TABLE IF EXISTS activity CASCADE;
 DROP TABLE IF EXISTS teams CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS document_examples CASCADE;
 
 CREATE TABLE IF NOT EXISTS users
 (
@@ -34,6 +35,19 @@ CREATE TABLE IF NOT EXISTS teams
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by BIGINT,
     version    INTEGER      NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS document_examples
+(
+    id          UUID PRIMARY KEY,
+    title       VARCHAR(255) NOT NULL,
+    description TEXT,
+    questions   JSONB,
+    base        JSONB,
+    requirements JSONB,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    search_vector tsvector
 );
 
 CREATE TABLE IF NOT EXISTS documents
@@ -223,3 +237,36 @@ SET search_vector =
         setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
         setweight(to_tsvector('english', COALESCE(text, '')), 'B')
 WHERE search_vector IS NULL;
+
+-- Create search vector update for document_examples
+CREATE INDEX IF NOT EXISTS idx_document_examples_search ON document_examples USING GIN (search_vector);
+
+CREATE OR REPLACE FUNCTION document_examples_search_vector_update()
+    RETURNS trigger AS
+'
+    BEGIN
+        NEW.search_vector :=
+                setweight(to_tsvector(''english'', COALESCE(NEW.title, '''')), ''A'') ||
+                setweight(to_tsvector(''english'', COALESCE(NEW.description, '''')), ''B'');
+        RETURN NEW;
+    END;
+' LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS document_examples_search_vector_trigger ON document_examples;
+CREATE TRIGGER document_examples_search_vector_trigger
+    BEFORE INSERT OR UPDATE
+    ON document_examples
+    FOR EACH ROW
+EXECUTE FUNCTION document_examples_search_vector_update();
+
+INSERT INTO document_examples (id, title, description, questions, base, requirements)
+VALUES 
+('e50e8400-e29b-41d4-a716-446655440001', 'Request for payment', 'Formal request for payment of outstanding invoices or debts.', 
+ '[{"id": "creditor", "text": "Who is the creditor?", "type": "ENTITY"}, {"id": "debtor", "text": "Who is the debtor?", "type": "ENTITY"}, {"id": "amount", "text": "Amount of debt", "type": "TEXT"}]'::jsonb,
+ '["Art. 476 KC", "Art. 481 KC"]'::jsonb,
+ '["Invoice copy", "Proof of delivery"]'::jsonb),
+('e50e8400-e29b-41d4-a716-446655440002', 'Power of Attorney', 'Authorizing a person or entity to act on behalf of another.',
+ '[{"id": "principal", "text": "Who is granting the power?", "type": "ENTITY"}, {"id": "agent", "text": "Who is receiving the power?", "type": "ENTITY"}, {"id": "scope", "text": "Scope of authorization", "type": "TEXT"}]'::jsonb,
+ '["Art. 98 KC"]'::jsonb,
+ '["Identity verification"]'::jsonb)
+ON CONFLICT (id) DO NOTHING;

@@ -10,16 +10,16 @@ import reactor.core.publisher.Mono;
 import java.util.UUID;
 
 @Repository
-public interface LegalEntityRepository extends R2dbcRepository<LegalEntity, UUID> {
+public interface LegalEntityRepository extends R2dbcRepository<LegalEntity<?>, UUID> {
 
     @Query("SELECT * FROM legal_entities WHERE document_id = :documentId")
-    Flux<LegalEntity> findByDocumentId(UUID documentId);
+    Flux<LegalEntity<?>> findByDocumentId(UUID documentId);
 
     @Query("SELECT * FROM legal_entities WHERE relevance = :relevance")
-    Flux<LegalEntity> findByRelevance(String relevance);
+    Flux<LegalEntity<?>> findByRelevance(String relevance);
 
     @Query("SELECT * FROM legal_entities WHERE document_id = :documentId AND relevance = :relevance")
-    Flux<LegalEntity> findByDocumentIdAndRelevance(UUID documentId, String relevance);
+    Flux<LegalEntity<?>> findByDocumentIdAndRelevance(UUID documentId, String relevance);
 
     @Query("SELECT COUNT(*) FROM legal_entities WHERE document_id = :documentId")
     Mono<Long> countByDocumentId(UUID documentId);
@@ -28,14 +28,21 @@ public interface LegalEntityRepository extends R2dbcRepository<LegalEntity, UUID
     Mono<Void> deleteByDocumentId(UUID documentId);
 
     @Query("SELECT * FROM legal_entities ORDER BY relevance")
-    Flux<LegalEntity> findAllByOrderByRelevance();
+    Flux<LegalEntity<?>> findAllByOrderByRelevance();
 
     @Query("SELECT COUNT(*) FROM legal_entities")
     Mono<Long> countAll();
 
     @Query("SELECT * FROM legal_entities WHERE owner_id = :ownerId ORDER BY relevance")
-    Flux<LegalEntity> findByOwnerId(Long ownerId);
+    Flux<LegalEntity<?>> findByOwnerId(Long ownerId);
 
     @Query("SELECT * FROM legal_entities WHERE team_id = :teamId ORDER BY relevance")
-    Flux<LegalEntity> findByTeamId(UUID teamId);
+    Flux<LegalEntity<?>> findByTeamId(UUID teamId);
+
+    @Query("SELECT * FROM legal_entities WHERE (owner_id = :ownerId OR team_id IN (SELECT team_id FROM team_members WHERE user_id = :ownerId)) "
+            +
+            "AND (details->>'firstName' ILIKE :query OR details->>'lastName' ILIKE :query OR details->>'fullName' ILIKE :query) "
+            +
+            "ORDER BY relevance")
+    Flux<LegalEntity<?>> search(Long ownerId, String query);
 }

@@ -51,25 +51,27 @@ public class AIService {
         log.info("Analyzing prompt: {}", prompt);
 
         return Mono.fromCallable(() -> {
-                    String systemPrompt = Prompts.EN_GENERATE_QUESTIONS;
+            String systemPrompt = Prompts.EN_GENERATE_QUESTIONS;
 
-                    MessageCreateParams params = MessageCreateParams.builder()
-                            .maxTokens(4096L)
-                            .system(systemPrompt)
-                            .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
-                            .model(Model.CLAUDE_3_7_SONNET_LATEST)
-                            .temperature(0.3)
-                            .build();
+            MessageCreateParams params = MessageCreateParams.builder()
+                    .maxTokens(4096L)
+                    .system(systemPrompt)
+                    .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
+                    .model(Model.CLAUDE_3_7_SONNET_LATEST)
+                    .temperature(0.3)
+                    .build();
 
-                    log.debug("Sending prompt analysis request to Anthropic API");
-                    Message message = client.messages().create(params);
-                    String jsonResponse = message.content().getFirst()
-                            .text()
-                            .map(TextBlock::text)
-                            .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+            log.debug("Sending prompt analysis request to Anthropic API");
+            Message message = client.messages().create(params);
+            String jsonResponse = message.content().getFirst()
+                    .text()
+                    .map(TextBlock::text)
+                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
 
-                    return objectMapper.readValue(jsonResponse, SubmitPromptResponse.class);
-                })
+            SubmitPromptResponse response = objectMapper.readValue(jsonResponse, SubmitPromptResponse.class);
+            log.info("✅ Parsed response with {} questions", response.getQuestions().size());
+            return response;
+        })
                 .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofMinutes(2))
                 .retryWhen(buildRetrySpec("prompt analysis"))
@@ -86,29 +88,29 @@ public class AIService {
     }
 
     public Mono<String> generateDocumentWithAnswers(String title, String originalPrompt,
-                                                    Map<String, String> answers, List<String> requirements, List<String> base) {
+            Map<String, String> answers, List<String> requirements, List<String> base) {
         log.info("Generating document for: {}", title);
 
         return Mono.fromCallable(() -> {
-                    String jsonData = buildJsonForGeneration(title, originalPrompt, answers, requirements, base);
+            String jsonData = buildJsonForGeneration(title, originalPrompt, answers, requirements, base);
 
-                    MessageCreateParams params = MessageCreateParams.builder()
-                            .maxTokens(8192L)
-                            .system(Prompts.EN_GENERATE_DOCUMENT)
-                            .addUserMessage(jsonData)
-                            .model(Model.CLAUDE_3_7_SONNET_LATEST)
-                            .temperature(0.2)
-                            .build();
+            MessageCreateParams params = MessageCreateParams.builder()
+                    .maxTokens(8192L)
+                    .system(Prompts.EN_GENERATE_DOCUMENT)
+                    .addUserMessage(jsonData)
+                    .model(Model.CLAUDE_3_7_SONNET_LATEST)
+                    .temperature(0.2)
+                    .build();
 
-                    log.debug("Sending document generation request to Anthropic API for: {}", title);
-                    Message message = client.messages().create(params);
-                    log.debug("Received document generation response from Anthropic API for: {}", title);
+            log.debug("Sending document generation request to Anthropic API for: {}", title);
+            Message message = client.messages().create(params);
+            log.debug("Received document generation response from Anthropic API for: {}", title);
 
-                    return message.content().getFirst()
-                            .text()
-                            .map(TextBlock::text)
-                            .orElseThrow(() -> new IllegalStateException("No text content found in message"));
-                })
+            return message.content().getFirst()
+                    .text()
+                    .map(TextBlock::text)
+                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+        })
                 .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofMinutes(5))
                 .retryWhen(buildRetrySpec(title))
@@ -117,14 +119,13 @@ public class AIService {
     }
 
     private String buildJsonForGeneration(String title, String originalPrompt,
-                                          Map<String, String> answers, List<String> requirements, List<String> base) {
+            Map<String, String> answers, List<String> requirements, List<String> base) {
         try {
             Map<String, Object> jsonData = Map.of(
                     "name", title,
                     "questions", answers != null ? answers : Map.of(),
                     "requirements", requirements != null ? requirements : List.of(),
-                    "base", base
-            );
+                    "base", base);
 
             return objectMapper.writeValueAsString(jsonData);
         } catch (Exception e) {
@@ -145,7 +146,9 @@ public class AIService {
                 })
                 .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) -> {
                     log.error("Retry exhausted for {} after {} attempts", identifier, retrySignal.totalRetries());
-                    return new RuntimeException("AI service unavailable after " + retrySignal.totalRetries() + " attempts", retrySignal.failure());
+                    return new RuntimeException(
+                            "AI service unavailable after " + retrySignal.totalRetries() + " attempts",
+                            retrySignal.failure());
                 });
     }
 
@@ -157,12 +160,10 @@ public class AIService {
                 || (throwable.getCause() instanceof io.netty.handler.timeout.WriteTimeoutException)
                 || (throwable.getCause() instanceof java.net.SocketTimeoutException)
                 || (throwable.getCause() instanceof java.net.ConnectException)
-                || (throwable.getMessage() != null && (
-                throwable.getMessage().contains("timeout") ||
+                || (throwable.getMessage() != null && (throwable.getMessage().contains("timeout") ||
                         throwable.getMessage().contains("connection") ||
                         throwable.getMessage().contains("503") ||
                         throwable.getMessage().contains("502") ||
-                        throwable.getMessage().contains("rate_limit")
-        ));
+                        throwable.getMessage().contains("rate_limit")));
     }
 }
