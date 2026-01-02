@@ -25,7 +25,6 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
 
-
     public Mono<LoginResponse> authenticate(LoginRequest loginRequest) {
         return findUserByUsernameOrEmail(loginRequest.getUsername())
                 .doOnNext(user -> log.info("Found user: {} with enabled: {}", user.getUsername(), user.isEnabled()))
@@ -51,8 +50,10 @@ public class AuthService {
                 }))
                 .map(user -> {
                     String token = jwts.generateToken(user);
+                    String refreshToken = jwts.generateRefreshToken(user);
                     return LoginResponse.builder()
                             .token(token)
+                            .refreshToken(refreshToken)
                             .user(mapToUserDto(user))
                             .build();
                 });
@@ -61,8 +62,7 @@ public class AuthService {
     private Mono<User> findUserByUsernameOrEmail(String usernameOrEmail) {
         return users.findByUsername(usernameOrEmail)
                 .switchIfEmpty(
-                        users.findByEmail(usernameOrEmail)
-                );
+                        users.findByEmail(usernameOrEmail));
     }
 
     public Mono<Void> logout(Authentication authentication) {
@@ -76,7 +76,7 @@ public class AuthService {
     }
 
     public Mono<RefreshTokenResponse> refreshToken(String token) {
-        return jwts.validateToken(token)
+        return jwts.validateRefreshToken(token)
                 .flatMap(users::findByUsername)
                 .filter(User::isEnabled)
                 .map(user -> {

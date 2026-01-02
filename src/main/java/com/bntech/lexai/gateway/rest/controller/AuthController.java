@@ -1,9 +1,6 @@
 package com.bntech.lexai.gateway.rest.controller;
 
-import com.bntech.lexai.gateway.rest.dto.security.LoginRequest;
-import com.bntech.lexai.gateway.rest.dto.security.LoginResponse;
-import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenResponse;
-import com.bntech.lexai.gateway.rest.dto.security.UserDto;
+import com.bntech.lexai.gateway.rest.dto.security.*;
 import com.bntech.lexai.gateway.service.AuthService;
 import com.bntech.lexai.gateway.service.OAuth2AuthService;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +45,6 @@ public class AuthController {
         return Mono.empty();
     }
 
-
     @GetMapping("/me")
     public Mono<ResponseEntity<UserDto>> getCurrentUser(Authentication authentication) {
         return authService.getCurrentUser(authentication)
@@ -56,9 +52,9 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public Mono<ResponseEntity<RefreshTokenResponse>> refreshToken(@RequestHeader("Authorization") String authHeader) {
-        String token = authHeader.substring(7);
-        return authService.refreshToken(token)
+    public Mono<ResponseEntity<RefreshTokenResponse>> refreshToken(
+            @RequestBody RefreshTokenRequest request) {
+        return authService.refreshToken(request.getRefreshToken())
                 .map(ResponseEntity::ok);
     }
 

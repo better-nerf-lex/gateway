@@ -29,9 +29,9 @@ public class OAuth2AuthService {
     private final AuthorizationCodeRepository authCodes;
 
     private final Map<String, ClientInfo> clients = Map.of(
-            "web-app", new ClientInfo("web-app", "web-secret", "http://localhost:3000/callback,http://localhost:8080/callback"),
-            "mobile-app", new ClientInfo("mobile-app", "mobile-secret", "myapp://callback")
-    );
+            "web-app",
+            new ClientInfo("web-app", "web-secret", "http://localhost:3000/callback,http://localhost:8080/callback"),
+            "mobile-app", new ClientInfo("mobile-app", "mobile-secret", "myapp://callback"));
 
     public Mono<LoginResponse> handleOAuth2Success(OAuth2User oauth2User) {
         String email = oauth2User.getAttribute("email");
@@ -73,7 +73,7 @@ public class OAuth2AuthService {
     }
 
     public Mono<String> authorize(String clientId, String redirectUri, String responseType,
-                                  String scope, String state, Authentication authentication) {
+            String scope, String state, Authentication authentication) {
 
         if (!"code".equals(responseType)) {
             return Mono.error(new IllegalArgumentException("Unsupported response type"));
@@ -100,7 +100,7 @@ public class OAuth2AuthService {
     }
 
     private Mono<AuthorizationCode> generateAuthorizationCode(String clientId, Long userId,
-                                                              String redirectUri, String scope) {
+            String redirectUri, String scope) {
         AuthorizationCode authCode = new AuthorizationCode();
         authCode.setId(UUID.randomUUID());
         authCode.setCode(UUID.randomUUID().toString());
@@ -116,7 +116,7 @@ public class OAuth2AuthService {
     }
 
     public Mono<TokenResponse> token(String grantType, String code, String refreshToken,
-                                     String clientId, String clientSecret, String redirectUri) {
+            String clientId, String clientSecret, String redirectUri) {
 
         if ("authorization_code".equals(grantType)) {
             return handleAuthorizationCodeGrant(code, clientId, redirectUri);
@@ -148,7 +148,7 @@ public class OAuth2AuthService {
                             .accessToken(accessToken)
                             .refreshToken(newRefreshToken)
                             .tokenType("Bearer")
-                            .expiresIn(86400L)
+                            .expiresIn(3600L)
                             .scope("read write")
                             .build());
                 });

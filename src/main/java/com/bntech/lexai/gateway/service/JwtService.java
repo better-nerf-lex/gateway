@@ -22,7 +22,7 @@ public class JwtService {
     @Value("${jwt.secret:mySecretKey}")
     private String secret;
 
-    @Value("${jwt.expiration:86400}")
+    @Value("${jwt.expiration:3600}")
     private Long expiration;
 
     @Value("${jwt.refresh-expiration:604800}")
@@ -97,6 +97,13 @@ public class JwtService {
         } catch (Exception e) {
             return Mono.error(new RuntimeException("Invalid token"));
         }
+    }
+
+    public Mono<String> validateRefreshToken(String token) {
+        return validateAndGetClaims(token)
+                .filter(claims -> "refresh".equals(claims.get("type")))
+                .map(Claims::getSubject)
+                .switchIfEmpty(Mono.error(new RuntimeException("Invalid refresh token type")));
     }
 
     public Mono<Claims> validateAndGetClaims(String token) {
