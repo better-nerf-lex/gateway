@@ -1,8 +1,11 @@
 package com.bntech.lexai.gateway.rest.controller;
 
+import com.bntech.lexai.gateway.data.object.CasePartyRole;
 import com.bntech.lexai.gateway.rest.dto.document.CaseDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
+import com.bntech.lexai.gateway.rest.dto.document.EventDto;
 import com.bntech.lexai.gateway.service.CaseService;
+import com.bntech.lexai.gateway.service.EventService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +18,7 @@ import reactor.core.publisher.Mono;
 public class CaseController {
 
     private final CaseService caseService;
+    private final EventService eventService;
 
     @GetMapping()
     @PreAuthorize("@access.canListCases(authentication, #teamId)")
@@ -61,5 +65,23 @@ public class CaseController {
     @PreAuthorize("@access.canUpdateCase(authentication, #id)")
     public Mono<Void> removeDocument(@PathVariable String id, @PathVariable String documentId) {
         return caseService.removeDocument(id, documentId);
+    }
+
+    @PostMapping("/{id}/parties/{legalEntityId}")
+    @PreAuthorize("@access.canUpdateCase(authentication, #id)")
+    public Mono<Void> addParty(@PathVariable String id, @PathVariable String legalEntityId, @RequestParam CasePartyRole role) {
+        return caseService.addParty(id, legalEntityId, role);
+    }
+
+    @DeleteMapping("/{id}/parties/{legalEntityId}")
+    @PreAuthorize("@access.canUpdateCase(authentication, #id)")
+    public Mono<Void> removeParty(@PathVariable String id, @PathVariable String legalEntityId, @RequestParam CasePartyRole role) {
+        return caseService.removeParty(id, legalEntityId, role);
+    }
+
+    @GetMapping("/{id}/events")
+    @PreAuthorize("@access.canViewCase(authentication, #id)")
+    public Flux<EventDto> getCaseEvents(@PathVariable String id) {
+        return eventService.getCaseEvents(id);
     }
 }

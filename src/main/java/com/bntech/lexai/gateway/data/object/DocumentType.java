@@ -22,7 +22,7 @@ public enum DocumentType {
     @JsonCreator
     public static DocumentType fromValue(String value) {
         for (DocumentType type : DocumentType.values()) {
-            if (type.value.equalsIgnoreCase(value)) {
+            if (type.value.equalsIgnoreCase(value) || type.name().equalsIgnoreCase(value)) {
                 return type;
             }
         }

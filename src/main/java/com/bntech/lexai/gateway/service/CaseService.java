@@ -1,14 +1,17 @@
 package com.bntech.lexai.gateway.service;
 
-import com.bntech.lexai.gateway.data.entity.document.Case;
+import com.bntech.lexai.gateway.data.entity.document.LegalCase;
 import com.bntech.lexai.gateway.data.entity.document.CaseDocument;
-import com.bntech.lexai.gateway.data.repository.CaseDocumentRepository;
-import com.bntech.lexai.gateway.data.repository.CaseRepository;
-import com.bntech.lexai.gateway.data.repository.DocumentRepository;
-import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
-import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.data.entity.document.CaseParty;
+import com.bntech.lexai.gateway.data.object.CasePartyRole;
+import com.bntech.lexai.gateway.data.repository.*;
 import com.bntech.lexai.gateway.mapper.CaseMapper;
+import com.bntech.lexai.gateway.mapper.CasePartyMapper;
+import com.bntech.lexai.gateway.mapper.EventMapper;
+import com.bntech.lexai.gateway.mapper.LegalEntityMapper;
 import com.bntech.lexai.gateway.rest.dto.document.CaseDto;
+import com.bntech.lexai.gateway.rest.dto.document.CasePartyDto;
+import com.bntech.lexai.gateway.rest.dto.document.EventDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -19,6 +22,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -32,11 +36,19 @@ public class CaseService {
     private final CaseDocumentRepository caseDocumentRepository;
     private final DocumentRepository documentRepository;
     private final com.bntech.lexai.gateway.mapper.DocumentMapper documentMapper;
+    private final CasePartyRepository casePartyRepository;
+    private final CasePartyMapper casePartyMapper;
+    private final LegalEntityRepository legalEntityRepository;
+    private final LegalEntityMapper legalEntityMapper;
+    private final EventRepository eventRepository;
+    private final EventMapper eventMapper;
+    private final EventParticipantRepository eventParticipantRepository;
 
     public Flux<CaseDto> getCases(String teamId) {
         if (teamId != null && !teamId.isBlank() && !teamId.equals("null") && !teamId.equals("undefined")) {
             return caseRepository.findByTeamIdOrderByCreatedAtDesc(UUID.fromString(teamId))
                     .map(caseMapper::toDto)
+                    .flatMap(this::enrichCase)
                     .doOnError(error -> log.error("Error retrieving team cases for {}", teamId, error));
         }
 
@@ -44,23 +56,59 @@ public class CaseService {
                 .map(SecurityContext::getAuthentication)
                 .flatMapMany(auth -> userRepository.findByUsername(auth.getName())
                         .flatMapMany(user -> {
-                            Flux<Case> byUser = caseRepository.findByOwnerIdOrderByCreatedAtDesc(user.getId());
+                            Flux<LegalCase> byUser = caseRepository.findByOwnerIdOrderByCreatedAtDesc(user.getId());
                             Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
                                     .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId);
-                            Flux<Case> byTeams = teamIds.flatMap(caseRepository::findByTeamIdOrderByCreatedAtDesc);
+                            Flux<LegalCase> byTeams = teamIds.flatMap(caseRepository::findByTeamIdOrderByCreatedAtDesc);
                             return Flux.merge(byUser, byTeams);
                         }))
-                .distinct(Case::getId)
+                .distinct(LegalCase::getId)
                 .map(caseMapper::toDto)
+                .flatMap(this::enrichCase)
                 .doOnError(error -> log.error("Error retrieving cases", error));
     }
 
     public Mono<CaseDto> getCase(String id) {
         UUID uuid = UUID.fromString(id);
         return caseRepository.findById(uuid)
-                .switchIfEmpty(Mono.error(new RuntimeException("Case not found: " + id)))
+                .switchIfEmpty(Mono.error(new RuntimeException("LegalCase not found: " + id)))
                 .map(caseMapper::toDto)
+                .flatMap(this::enrichCase)
                 .doOnError(error -> log.error("Error retrieving case: {}", id, error));
+    }
+
+    private Mono<CaseDto> enrichCase(CaseDto dto) {
+        if (dto.getId() == null)
+            return Mono.just(dto);
+        UUID caseId = UUID.fromString(dto.getId());
+
+        Mono<List<CasePartyDto>> partiesMono = casePartyRepository.findByCaseId(caseId)
+                .flatMap(party -> legalEntityRepository.findById(party.getLegalEntityId())
+                        .map(le -> {
+                            CasePartyDto partyDto = casePartyMapper.toDto(party);
+                            partyDto.setLegalEntity(legalEntityMapper.toDto(le));
+                            return partyDto;
+                        }))
+                .collectList();
+
+        Mono<List<EventDto>> eventsMono = eventRepository.findByCaseIdOrderByEventDateDesc(caseId)
+                .flatMapSequential(event -> eventParticipantRepository.findByEventId(event.getId())
+                        .flatMap(participant -> legalEntityRepository.findById(participant.getLegalEntityId())
+                                .map(legalEntityMapper::toDto))
+                        .collectList()
+                        .map(participants -> {
+                            EventDto eventDto = eventMapper.toDto(event);
+                            eventDto.setParticipants(participants);
+                            return eventDto;
+                        }))
+                .collectList();
+
+        return Mono.zip(partiesMono, eventsMono)
+                .map(tuple -> {
+                    dto.setParties(tuple.getT1());
+                    dto.setEvents(tuple.getT2());
+                    return dto;
+                });
     }
 
     public Mono<CaseDto> createCase(CaseDto caseDto) {
@@ -68,13 +116,17 @@ public class CaseService {
                 .map(SecurityContext::getAuthentication)
                 .flatMap(auth -> userRepository.findByUsername(auth.getName())
                         .flatMap(user -> {
-                            Case caseEntity = caseMapper.toEntity(caseDto);
+                            LegalCase caseEntity = caseMapper.toEntity(caseDto);
                             if (caseEntity.getId() == null) {
                                 caseEntity.setId(UUID.randomUUID());
                             }
                             caseEntity.setOwnerId(user.getId());
                             caseEntity.setCreatedAt(LocalDateTime.now());
                             caseEntity.setUpdatedAt(LocalDateTime.now());
+
+                            if (caseDto.getLeadingCourtId() != null) {
+                                caseEntity.setLeadingCourtId(UUID.fromString(caseDto.getLeadingCourtId()));
+                            }
 
                             if (caseDto.getTeamId() != null) {
                                 return teamMemberRepository.findByUserIdAndTeamId(user.getId(), caseDto.getTeamId())
@@ -89,31 +141,56 @@ public class CaseService {
                     savedCase.setNotNew();
                     return caseMapper.toDto(savedCase);
                 })
-                .doOnSuccess(result -> log.info("✅ Case created: {}", result.getId()))
+                .flatMap(this::enrichCase)
+                .doOnSuccess(result -> log.info("✅ LegalCase created: {}", result.getId()))
                 .doOnError(error -> log.error("❌ Error creating case", error));
     }
 
     public Mono<CaseDto> updateCase(String id, CaseDto caseDto) {
         UUID uuid = UUID.fromString(id);
+        log.debug("updateCase called - id: {}, dto: {}", id, caseDto);
         return caseRepository.findById(uuid)
-                .switchIfEmpty(Mono.error(new RuntimeException("Case not found: " + id)))
+                .switchIfEmpty(Mono.error(new RuntimeException("LegalCase not found: " + id)))
                 .flatMap(existingCase -> {
                     existingCase.setTitle(caseDto.getTitle());
                     existingCase.setDescription(caseDto.getDescription());
                     existingCase.setStatus(caseDto.getStatus());
+                    if (caseDto.getLeadingCourtId() != null) {
+                        if (caseDto.getLeadingCourtId().isBlank()) {
+                            existingCase.setLeadingCourtId(null);
+                        } else {
+                            existingCase.setLeadingCourtId(UUID.fromString(caseDto.getLeadingCourtId()));
+                        }
+                    }
                     existingCase.setUpdatedAt(LocalDateTime.now());
                     existingCase.setNotNew();
                     return caseRepository.save(existingCase);
                 })
                 .map(caseMapper::toDto)
-                .doOnSuccess(result -> log.info("✅ Case updated: {}", id))
+                .flatMap(this::enrichCase)
+                .doOnSuccess(result -> log.info("✅ LegalCase updated: {}", id))
                 .doOnError(error -> log.error("❌ Error updating case: {}", id, error));
+    }
+
+    public Mono<Void> addParty(String caseId, String legalEntityId, CasePartyRole role) {
+        UUID cId = UUID.fromString(caseId);
+        UUID leId = UUID.fromString(legalEntityId);
+        return casePartyRepository.save(new CaseParty(cId, leId, role))
+                .then()
+                .doOnSuccess(v -> log.info("✅ Party {} added to case {} as {}", legalEntityId, caseId, role));
+    }
+
+    public Mono<Void> removeParty(String caseId, String legalEntityId, CasePartyRole role) {
+        UUID cId = UUID.fromString(caseId);
+        UUID leId = UUID.fromString(legalEntityId);
+        return casePartyRepository.deleteByCaseIdAndLegalEntityIdAndRole(cId, leId, role)
+                .doOnSuccess(v -> log.info("✅ Party {} removed from case {} as {}", legalEntityId, caseId, role));
     }
 
     public Mono<Void> deleteCase(String id) {
         UUID uuid = UUID.fromString(id);
         return caseRepository.deleteById(uuid)
-                .doOnSuccess(result -> log.info("✅ Case deleted: {}", id))
+                .doOnSuccess(result -> log.info("✅ LegalCase deleted: {}", id))
                 .doOnError(error -> log.error("❌ Error deleting case: {}", id, error));
     }
 

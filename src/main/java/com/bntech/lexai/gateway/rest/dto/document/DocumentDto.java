@@ -2,6 +2,7 @@ package com.bntech.lexai.gateway.rest.dto.document;
 
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
 import com.bntech.lexai.gateway.data.object.DocumentType;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import lombok.Builder;
 import lombok.AllArgsConstructor;

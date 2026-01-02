@@ -2,6 +2,7 @@ package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.Document;
 import com.bntech.lexai.gateway.data.entity.document.DocumentHistory;
+import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
 import com.bntech.lexai.gateway.data.repository.*;
 import com.bntech.lexai.gateway.mapper.DocumentMapper;
@@ -14,6 +15,7 @@ import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.r2dbc.core.DatabaseClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import org.springframework.security.access.AccessDeniedException;
@@ -38,6 +40,7 @@ public class DocumentService {
     private final TeamMemberRepository teamMemberRepository;
     private final CaseRepository caseRepository;
     private final com.bntech.lexai.gateway.mapper.CaseMapper caseMapper;
+    private final DatabaseClient databaseClient;
 
     public Flux<DocumentDto> getDocuments() {
         return getDocuments(null);
@@ -58,7 +61,7 @@ public class DocumentService {
                                     .findByOwnerIdOrderByCreatedAtDesc(user.getId());
 
                             reactor.core.publisher.Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
-                                    .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId);
+                                    .map(TeamMember::getTeamId);
 
                             reactor.core.publisher.Flux<Document> byTeams = teamIds
                                     .flatMap(documents::findByTeamIdOrderByCreatedAtDesc);
@@ -138,11 +141,11 @@ public class DocumentService {
                                             .findByUserIdAndTeamId(user.getId(), UUID.fromString(requestedTeamId))
                                             .switchIfEmpty(
                                                     Mono.error(new AccessDeniedException("Insufficient team access")))
-                                            .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId);
+                                            .map(TeamMember::getTeamId);
                                 } else {
                                     teamIdMono = teamMemberRepository.findByUserId(user.getId())
                                             .next()
-                                            .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId);
+                                            .map(TeamMember::getTeamId);
                                 }
 
                                 return teamIdMono.flatMap(teamId -> {
@@ -263,7 +266,10 @@ public class DocumentService {
     }
 
     private Mono<DocumentHistory> createHistoryEntry(Document document) {
-        return documentsHistory.findMaxVersionByDocumentId(document.getId())
+        return databaseClient.sql("SELECT MAX(version) FROM document_history WHERE document_id = :documentId")
+                .bind("documentId", document.getId())
+                .map(row -> row.get(0, Integer.class))
+                .one()
                 .defaultIfEmpty(0)
                 .map(maxVersion -> DocumentHistory.builder()
                         .id(UUID.randomUUID())

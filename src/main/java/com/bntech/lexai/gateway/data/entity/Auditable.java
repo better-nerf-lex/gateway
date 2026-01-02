@@ -8,9 +8,6 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Column;
 
-import java.util.UUID;
-
-
 @EqualsAndHashCode(callSuper = true)
 @Data
 @SuperBuilder
@@ -23,5 +20,4 @@ public abstract class Auditable<T> extends BaseEntity<T> {
     @Version
     @Column()
     private Integer version;
-
 }

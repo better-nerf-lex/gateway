@@ -4,6 +4,7 @@ import com.bntech.lexai.gateway.service.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
@@ -22,13 +23,18 @@ public class JwtAuthenticationFilter implements WebFilter {
     private final ReactiveUserDetailsService userDetailsService;
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+    @NonNull
+    public Mono<Void> filter(@NonNull ServerWebExchange exchange, @NonNull WebFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
         String method = exchange.getRequest().getMethod().name();
 
         log.info("Processing request: {} {}", method, path);
+        exchange.getRequest().getHeaders().forEach((name, values) -> {
+            log.debug("Header: {} = {}", name, values);
+        });
 
-        if (path.startsWith("/auth/") || path.startsWith("/oauth2/") || path.equals("/login") || path.startsWith("/.well-known/")) {
+        if (path.startsWith("/auth/") || path.startsWith("/oauth2/") || path.equals("/login")
+                || path.startsWith("/.well-known/")) {
             log.info("Skipping authentication for public endpoint: {}", path);
             return chain.filter(exchange);
         }
@@ -51,13 +57,12 @@ public class JwtAuthenticationFilter implements WebFilter {
                     return userDetailsService.findByUsername(username);
                 })
                 .flatMap(userDetails -> {
-                    log.info("Creating authentication token for user: {}", userDetails.getUsername());
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails,
-                                    null,
-                                    userDetails.getAuthorities()
-                            );
+                    log.info("Creating authentication token for user: {} with authorities: {}",
+                            userDetails.getUsername(), userDetails.getAuthorities());
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities());
 
                     return chain.filter(exchange)
                             .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authToken));

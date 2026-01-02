@@ -22,7 +22,7 @@ public enum DocumentStatus {
     @JsonCreator
     public static DocumentStatus fromValue(String value) {
         for (DocumentStatus status : DocumentStatus.values()) {
-            if (status.value.equalsIgnoreCase(value)) {
+            if (status.value.equalsIgnoreCase(value) || status.name().equalsIgnoreCase(value)) {
                 return status;
             }
         }

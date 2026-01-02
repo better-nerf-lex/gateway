@@ -18,7 +18,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "cases")
-public class Case extends Auditable<UUID> implements OwnableEntity {
+public class LegalCase extends Auditable<UUID> implements OwnableEntity {
 
     @Column()
     private String title;
@@ -34,6 +34,9 @@ public class Case extends Auditable<UUID> implements OwnableEntity {
 
     @Column()
     private UUID teamId;
+
+    @Column("leading_court_id")
+    private UUID leadingCourtId;
 
     @Column("owner_id")
     private Long ownerId;

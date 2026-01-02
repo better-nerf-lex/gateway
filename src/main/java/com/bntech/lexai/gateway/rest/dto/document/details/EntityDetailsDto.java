@@ -21,10 +21,10 @@ import java.io.Serializable;
         visible = true
 )
 @JsonSubTypes({
-        @JsonSubTypes.Type(value = PersonDetailsDto.class, name = "INDIVIDUAL"),
-        @JsonSubTypes.Type(value = CompanyDetailsDto.class, name = "COMPANY"),
-        @JsonSubTypes.Type(value = CourtDetailsDto.class, name = "COURT"),
-        @JsonSubTypes.Type(value = LawFirmDetailsDto.class, name = "LAW_FIRM")
+        @JsonSubTypes.Type(value = PersonDetailsDto.class, names = {"INDIVIDUAL", "individual"}),
+        @JsonSubTypes.Type(value = CompanyDetailsDto.class, names = {"COMPANY", "company"}),
+        @JsonSubTypes.Type(value = CourtDetailsDto.class, names = {"COURT", "court"}),
+        @JsonSubTypes.Type(value = LawFirmDetailsDto.class, names = {"LAW_FIRM", "law_firm"})
 })
 public abstract class EntityDetailsDto implements Serializable {
 

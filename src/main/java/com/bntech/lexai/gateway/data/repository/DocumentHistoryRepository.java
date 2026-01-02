@@ -15,8 +15,6 @@ public interface DocumentHistoryRepository extends ReactiveCrudRepository<Docume
     @Query("SELECT * FROM document_history WHERE document_id = :documentId ORDER BY version DESC")
     Flux<DocumentHistory> findByDocumentIdOrderByVersionDesc(UUID documentId);
 
-    @Query("SELECT MAX(version) FROM document_history WHERE document_id = :documentId")
-    Mono<Integer> findMaxVersionByDocumentId(UUID documentId);
 
     @Query("DELETE FROM document_history WHERE document_id = :documentId")
     Mono<Void> deleteByDocumentId(UUID documentId);

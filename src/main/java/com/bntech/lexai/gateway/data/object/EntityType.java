@@ -23,7 +23,7 @@ public enum EntityType {
     @JsonCreator
     public static EntityType fromValue(String value) {
         for (EntityType type : EntityType.values()) {
-            if (type.value.equalsIgnoreCase(value)) {
+            if (type.value.equalsIgnoreCase(value) || type.name().equalsIgnoreCase(value)) {
                 return type;
             }
         }

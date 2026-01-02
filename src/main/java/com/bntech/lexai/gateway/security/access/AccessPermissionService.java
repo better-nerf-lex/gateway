@@ -1,13 +1,9 @@
 package com.bntech.lexai.gateway.security.access;
 
-import com.bntech.lexai.gateway.data.entity.document.Case;
+import com.bntech.lexai.gateway.data.entity.document.LegalCase;
 import com.bntech.lexai.gateway.data.entity.document.Document;
 import com.bntech.lexai.gateway.data.entity.document.LegalEntity;
-import com.bntech.lexai.gateway.data.repository.CaseRepository;
-import com.bntech.lexai.gateway.data.repository.DocumentRepository;
-import com.bntech.lexai.gateway.data.repository.LegalEntityRepository;
-import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
-import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.data.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -27,6 +23,7 @@ public class AccessPermissionService {
     private final DocumentRepository documentRepository;
     private final LegalEntityRepository legalEntityRepository;
     private final CaseRepository caseRepository;
+    private final EventRepository eventRepository;
 
     public Mono<Boolean> canListDocuments(Authentication authentication, String teamId) {
         if (authentication == null || !authentication.isAuthenticated())
@@ -282,16 +279,24 @@ public class AccessPermissionService {
     }
 
     public Mono<Boolean> hasTeamAccessByCase(Authentication authentication, String id, String level) {
-        if (id == null || id.isBlank() || isBlankId(id))
+        log.debug("hasTeamAccessByCase check - id: {}, level: {}", id, level);
+        if (id == null || id.isBlank() || isBlankId(id)) {
+            log.debug("hasTeamAccessByCase: invalid id: {}", id);
             return Mono.just(false);
+        }
         try {
             return caseRepository.findById(UUID.fromString(id))
-                    .map(Case::getTeamId)
+                    .map(LegalCase::getTeamId)
                     .filter(teamId -> teamId != null)
-                    .flatMap(teamId -> hasTeamAccess(authentication, teamId, level))
+                    .flatMap(teamId -> {
+                        log.debug("hasTeamAccessByCase: case found, teamId: {}, checking team access", teamId);
+                        return hasTeamAccess(authentication, teamId, level);
+                    })
                     .defaultIfEmpty(false)
+                    .doOnNext(hasAccess -> log.debug("hasTeamAccessByCase result: {}", hasAccess))
                     .onErrorReturn(false);
         } catch (IllegalArgumentException e) {
+            log.error("hasTeamAccessByCase: invalid UUID format: {}", id);
             return Mono.just(false);
         }
     }
@@ -316,12 +321,38 @@ public class AccessPermissionService {
         }
     }
 
+    public Mono<Boolean> isOwnerOrAdminOfEvent(Authentication authentication, String id) {
+        if (authentication == null || !authentication.isAuthenticated())
+            return Mono.just(false);
+        if (id == null || id.isBlank() || isBlankId(id))
+            return Mono.just(false);
+        if (isAdmin(authentication))
+            return Mono.just(true);
+
+        try {
+            return userRepository.findByUsername(authentication.getName())
+                    .flatMap(user -> eventRepository.findById(UUID.fromString(id))
+                            .map(e -> user.getId().equals(e.getOwnerId()))
+                            .defaultIfEmpty(false))
+                    .defaultIfEmpty(false)
+                    .onErrorReturn(false);
+        } catch (IllegalArgumentException e) {
+            return Mono.just(false);
+        }
+    }
+
     public Mono<Boolean> canUpdateCase(Authentication authentication, String id) {
+        log.debug("canUpdateCase check - user: {}, caseId: {}",
+                authentication != null ? authentication.getName() : "null", id);
         return hasTeamAccessByCase(authentication, id, AccessLevel.WRITE.name())
                 .flatMap(hasTeamAccess -> {
-                    if (hasTeamAccess)
+                    if (hasTeamAccess) {
+                        log.debug("canUpdateCase: granted via team for {}", id);
                         return Mono.just(true);
-                    return isOwnerOrAdminOfCase(authentication, id);
+                    }
+                    return isOwnerOrAdminOfCase(authentication, id)
+                            .doOnNext(isOwner -> log.debug("canUpdateCase result via owner/admin for {}: {}", id,
+                                    isOwner));
                 });
     }
 

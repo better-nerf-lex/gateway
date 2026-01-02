@@ -25,7 +25,7 @@ public enum RelevanceType {
     @JsonCreator
     public static RelevanceType fromValue(String value) {
         for (RelevanceType type : RelevanceType.values()) {
-            if (type.value.equalsIgnoreCase(value)) {
+            if (type.value.equalsIgnoreCase(value) || type.name().equalsIgnoreCase(value)) {
                 return type;
             }
         }
