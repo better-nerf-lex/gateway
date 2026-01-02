@@ -48,8 +48,11 @@ public class LegalEntity<D extends EntityDetails> extends Auditable<UUID> implem
         return teamId;
     }
 
+    @Column("owner_id")
+    private Long ownerId;
+
     @Override
-    public Long getUserId() {
-        return super.getCreatedBy();
+    public Long getOwnerId() {
+        return ownerId;
     }
 }

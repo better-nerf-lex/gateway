@@ -33,8 +33,8 @@ public interface LegalEntityRepository extends R2dbcRepository<LegalEntity, UUID
     @Query("SELECT COUNT(*) FROM legal_entities")
     Mono<Long> countAll();
 
-    @Query("SELECT * FROM legal_entities WHERE user_id = :userId ORDER BY relevance")
-    Flux<LegalEntity> findByUserId(Long userId);
+    @Query("SELECT * FROM legal_entities WHERE owner_id = :ownerId ORDER BY relevance")
+    Flux<LegalEntity> findByOwnerId(Long ownerId);
 
     @Query("SELECT * FROM legal_entities WHERE team_id = :teamId ORDER BY relevance")
     Flux<LegalEntity> findByTeamId(UUID teamId);

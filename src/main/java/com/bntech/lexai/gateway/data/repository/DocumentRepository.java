@@ -19,6 +19,9 @@ public interface DocumentRepository extends R2dbcRepository<Document, UUID> {
     @Query("SELECT * FROM documents WHERE team_id = :teamId ORDER BY created_at DESC")
     Flux<Document> findByTeamIdOrderByCreatedAtDesc(UUID teamId);
 
-    @Query("SELECT * FROM documents WHERE user_id = :userId ORDER BY created_at DESC")
-    Flux<Document> findByUserIdOrderByCreatedAtDesc(Long userId);
+    @Query("SELECT * FROM documents WHERE owner_id = :ownerId ORDER BY created_at DESC")
+    Flux<Document> findByOwnerIdOrderByCreatedAtDesc(Long ownerId);
+
+    @Query("SELECT d.* FROM documents d JOIN case_documents cd ON d.id = cd.document_id WHERE cd.case_id = :caseId ORDER BY d.created_at DESC")
+    Flux<Document> findByCaseId(UUID caseId);
 }

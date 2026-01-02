@@ -5,9 +5,46 @@ DROP TABLE IF EXISTS team_members CASCADE;
 DROP TABLE IF EXISTS legal_entities CASCADE;
 DROP TABLE IF EXISTS document_history CASCADE;
 DROP TABLE IF EXISTS documents CASCADE;
+DROP TABLE IF EXISTS cases CASCADE;
 DROP TABLE IF EXISTS activity CASCADE;
 DROP TABLE IF EXISTS teams CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
+
+CREATE TABLE IF NOT EXISTS users
+(
+    id         BIGSERIAL PRIMARY KEY,
+    username   VARCHAR(255) UNIQUE NOT NULL,
+    email      VARCHAR(255) UNIQUE NOT NULL,
+    password   VARCHAR(255)        NOT NULL,
+    enabled    BOOLEAN   DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT,
+    version    INTEGER             NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS teams
+(
+    id         UUID PRIMARY KEY,
+    name       VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT,
+    version    INTEGER      NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS cases
+(
+    id          UUID PRIMARY KEY,
+    title       VARCHAR(255),
+    description TEXT,
+    status      VARCHAR(20) CHECK (status IN ('OPEN', 'IN_PROGRESS', 'CLOSED', 'ARCHIVED')),
+    updated_at  TIMESTAMP,
+    created_at  TIMESTAMP,
+    created_by  BIGINT,
+    version     INTEGER NOT NULL,
+    team_id     UUID REFERENCES teams (id),
+    owner_id    BIGINT REFERENCES users (id)
+);
 
 CREATE TABLE IF NOT EXISTS documents
 (
@@ -20,18 +57,27 @@ CREATE TABLE IF NOT EXISTS documents
     created_at TIMESTAMP,
     created_by BIGINT,
     version    INTEGER NOT NULL,
-    team_id    UUID,
-    user_id    BIGINT
+    team_id    UUID REFERENCES teams (id),
+    owner_id   BIGINT REFERENCES users (id)
+);
+
+CREATE TABLE IF NOT EXISTS case_documents
+(
+    case_id     UUID NOT NULL,
+    document_id UUID NOT NULL,
+    PRIMARY KEY (case_id, document_id),
+    FOREIGN KEY (case_id) REFERENCES cases (id) ON DELETE CASCADE,
+    FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS document_history
 (
     id          UUID PRIMARY KEY,
-    document_id UUID NOT NULL,
+    document_id UUID    NOT NULL,
     content     TEXT,
-    created_at TIMESTAMP,
-    created_by BIGINT,
-    version    INTEGER NOT NULL,
+    created_at  TIMESTAMP,
+    created_by  BIGINT,
+    version     INTEGER NOT NULL,
     FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
 );
 
@@ -41,32 +87,19 @@ CREATE TABLE IF NOT EXISTS legal_entities
     document_id UUID,
     details     JSONB,
     relevance   VARCHAR(255),
-    created_at TIMESTAMP,
-    created_by BIGINT,
-    version    INTEGER NOT NULL,
-    team_id     UUID,
-    user_id     BIGINT,
+    created_at  TIMESTAMP,
+    created_by  BIGINT,
+    version     INTEGER NOT NULL,
+    team_id     UUID REFERENCES teams (id),
+    owner_id    BIGINT REFERENCES users (id),
     FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS activity
 (
-    id        UUID PRIMARY KEY,
-    action    VARCHAR(255) NOT NULL,
+    id         UUID PRIMARY KEY,
+    action     VARCHAR(255) NOT NULL,
     created_at TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS users
-(
-    id         BIGSERIAL PRIMARY KEY,
-    username   VARCHAR(255) UNIQUE NOT NULL,
-    email      VARCHAR(255) UNIQUE NOT NULL,
-    password   VARCHAR(255)        NOT NULL,
-    enabled    BOOLEAN   DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by BIGINT,
-    version    INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_roles
@@ -80,21 +113,12 @@ CREATE TABLE IF NOT EXISTS user_roles
 CREATE TABLE IF NOT EXISTS team_members
 (
     id           UUID PRIMARY KEY,
-    user_id      BIGINT       NOT NULL REFERENCES users (id),
-    team_id      UUID NOT NULL,
-    access_level VARCHAR(50)  NOT NULL,
+    user_id      BIGINT      NOT NULL REFERENCES users (id),
+    team_id      UUID        NOT NULL REFERENCES teams (id),
+    access_level VARCHAR(50) NOT NULL,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by BIGINT,
-    version    INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS teams
-(
-    id         UUID PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by BIGINT,
-    version    INTEGER NOT NULL
+    created_by   BIGINT,
+    version      INTEGER     NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS authorization_codes
@@ -116,12 +140,17 @@ CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents (created_at);
 CREATE INDEX IF NOT EXISTS idx_document_history_document_id ON document_history (document_id);
 CREATE INDEX IF NOT EXISTS idx_document_history_version ON document_history (document_id, version);
 CREATE INDEX IF NOT EXISTS idx_activity_date ON activity (created_at);
-CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents (user_id);
+CREATE INDEX IF NOT EXISTS idx_documents_owner_id ON documents (owner_id);
 CREATE INDEX IF NOT EXISTS idx_documents_team_id ON documents (team_id);
-CREATE INDEX IF NOT EXISTS idx_legal_entities_user_id ON legal_entities (user_id);
+CREATE INDEX IF NOT EXISTS idx_legal_entities_owner_id ON legal_entities (owner_id);
 CREATE INDEX IF NOT EXISTS idx_legal_entities_team_id ON legal_entities (team_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members (user_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members (team_id);
+CREATE INDEX IF NOT EXISTS idx_case_documents_case_id ON case_documents (case_id);
+CREATE INDEX IF NOT EXISTS idx_case_documents_document_id ON case_documents (document_id);
+CREATE INDEX IF NOT EXISTS idx_cases_owner_id ON cases (owner_id);
+CREATE INDEX IF NOT EXISTS idx_cases_team_id ON cases (team_id);
+CREATE INDEX IF NOT EXISTS idx_cases_created_at ON cases (created_at);
 
 -- Add full-text search support
 ALTER TABLE documents

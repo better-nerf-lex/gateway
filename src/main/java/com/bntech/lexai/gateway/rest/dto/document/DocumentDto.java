@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -21,4 +22,5 @@ public class DocumentDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String text;
+    private List<CaseDto> cases;
 }

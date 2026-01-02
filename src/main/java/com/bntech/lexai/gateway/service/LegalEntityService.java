@@ -41,7 +41,7 @@ public class LegalEntityService {
                 .map(SecurityContext::getAuthentication)
                 .flatMapMany(auth -> userRepository.findByUsername(auth.getName())
                         .flatMapMany(user -> {
-                            Flux<LegalEntity> byUser = legalEntityRepository.findByUserId(user.getId());
+                            Flux<LegalEntity> byUser = legalEntityRepository.findByOwnerId(user.getId());
 
                             Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
                                     .map(TeamMember::getTeamId);
@@ -94,7 +94,7 @@ public class LegalEntityService {
                                             legalEntity.setId(UUID.randomUUID());
                                         }
                                         legalEntity.setNew(true);
-                                        // legalEntity.setUserId(String.valueOf(user.getId()));
+                                        legalEntity.setOwnerId(user.getId());
                                         if (targetTeamId != null) {
                                             legalEntity.setTeamId(targetTeamId);
                                         }

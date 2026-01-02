@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Column;
 
 import java.util.UUID;
@@ -19,6 +20,7 @@ public abstract class Auditable<T> extends BaseEntity<T> {
     @Column()
     private Long createdBy;
 
+    @Version
     @Column()
     private Integer version;
 

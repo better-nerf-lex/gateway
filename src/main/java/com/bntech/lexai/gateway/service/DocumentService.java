@@ -36,6 +36,8 @@ public class DocumentService {
     private final AIService aiService;
     private final UserRepository userRepository;
     private final TeamMemberRepository teamMemberRepository;
+    private final CaseRepository caseRepository;
+    private final com.bntech.lexai.gateway.mapper.CaseMapper caseMapper;
 
     public Flux<DocumentDto> getDocuments() {
         return getDocuments(null);
@@ -52,27 +54,43 @@ public class DocumentService {
                 .map(org.springframework.security.core.context.SecurityContext::getAuthentication)
                 .flatMapMany(auth -> userRepository.findByUsername(auth.getName())
                         .flatMapMany(user -> {
-                            reactor.core.publisher.Flux<Document> byUser =
-                                    documents.findByUserIdOrderByCreatedAtDesc(user.getId());
+                            reactor.core.publisher.Flux<Document> byUser = documents
+                                    .findByOwnerIdOrderByCreatedAtDesc(user.getId());
 
                             reactor.core.publisher.Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
                                     .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId);
 
-                            reactor.core.publisher.Flux<Document> byTeams =
-                                    teamIds.flatMap(documents::findByTeamIdOrderByCreatedAtDesc);
+                            reactor.core.publisher.Flux<Document> byTeams = teamIds
+                                    .flatMap(documents::findByTeamIdOrderByCreatedAtDesc);
 
                             return reactor.core.publisher.Flux.merge(byUser, byTeams);
                         }))
                 .distinct(Document::getId)
                 .map(mapper::toDto)
+                .flatMap(this::enrichWithCases)
                 .doOnError(error -> log.error("Error retrieving documents", error));
     }
 
     public Mono<DocumentDto> getDocument(String id) {
+        log.info("Fetching document: {}", id);
         return documents.findById(UUID.fromString(id))
                 .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
                 .map(mapper::toDto)
+                .flatMap(this::enrichWithCases)
+                .doOnSuccess(doc -> log.info("Document enriched with cases: {}", doc.getId()))
                 .doOnError(error -> log.error("Error retrieving document: {}", id, error));
+    }
+
+    private Mono<DocumentDto> enrichWithCases(DocumentDto dto) {
+        if (dto.getId() == null)
+            return Mono.just(dto);
+        return caseRepository.findByDocumentId(UUID.fromString(dto.getId()))
+                .map(caseMapper::toDto)
+                .collectList()
+                .map(cases -> {
+                    dto.setCases(cases);
+                    return dto;
+                });
     }
 
     public Mono<DocumentStatsDto> getDocumentStats() {
@@ -114,9 +132,12 @@ public class DocumentService {
                             .flatMap(user -> {
                                 String requestedTeamId = request.getTeamId();
                                 Mono<UUID> teamIdMono;
-                                if (requestedTeamId != null && !requestedTeamId.isBlank() && !requestedTeamId.equals("null") && !requestedTeamId.equals("undefined")) {
-                                    teamIdMono = teamMemberRepository.findByUserIdAndTeamId(user.getId(), UUID.fromString(requestedTeamId))
-                                            .switchIfEmpty(Mono.error(new AccessDeniedException("Insufficient team access")))
+                                if (requestedTeamId != null && !requestedTeamId.isBlank()
+                                        && !requestedTeamId.equals("null") && !requestedTeamId.equals("undefined")) {
+                                    teamIdMono = teamMemberRepository
+                                            .findByUserIdAndTeamId(user.getId(), UUID.fromString(requestedTeamId))
+                                            .switchIfEmpty(
+                                                    Mono.error(new AccessDeniedException("Insufficient team access")))
                                             .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId);
                                 } else {
                                     teamIdMono = teamMemberRepository.findByUserId(user.getId())
@@ -125,26 +146,26 @@ public class DocumentService {
                                 }
 
                                 return teamIdMono.flatMap(teamId -> {
-                                        Document document = mapper.toEntity(DocumentDto.builder()
-                                                .id(UUID.randomUUID().toString())
-                                                .title(request.getTitle())
-                                                .type(null) // No predefined type, it's prompt-based
-                                                .status(DocumentStatus.PENDING)
-                                                .createdAt(LocalDateTime.now())
-                                                .updatedAt(LocalDateTime.now())
-                                                .text("")
-                                                .build());
-                                        document.setUserId(user.getId());
-                                        if (teamId != null) {
-                                            document.setTeamId(teamId);
-                                        }
+                                    Document document = mapper.toEntity(DocumentDto.builder()
+                                            .id(UUID.randomUUID().toString())
+                                            .title(request.getTitle())
+                                            .type(null) // No predefined type, it's prompt-based
+                                            .status(DocumentStatus.PENDING)
+                                            .createdAt(LocalDateTime.now())
+                                            .updatedAt(LocalDateTime.now())
+                                            .text("")
+                                            .build());
+                                    document.setOwnerId(user.getId());
+                                    if (teamId != null) {
+                                        document.setTeamId(teamId);
+                                    }
 
-                                        return documents.save(document)
-                                                .map(doc -> {
-                                                    doc.setNotNew();
-                                                    return doc;
-                                                })
-                                                .flatMap(savedDocument -> processAIGeneration(savedDocument, request));
+                                    return documents.save(document)
+                                            .map(doc -> {
+                                                doc.setNotNew();
+                                                return doc;
+                                            })
+                                            .flatMap(savedDocument -> processAIGeneration(savedDocument, request));
                                 });
                             });
                 });
