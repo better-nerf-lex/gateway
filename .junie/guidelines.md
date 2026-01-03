@@ -5,10 +5,11 @@ alwaysApply: true
 
 ## Project overview
 This folder is a system based on **Java 21 spring based reactive backend and React apps** backed by PostgreSQL and Anthropic API.
-It contains 3 folders, ./client-front, ./devtools and ./gateway.
+It contains 4 folders, ./client-front, ./devtools, ./infra and ./gateway.
 Code located in '/devtools' folder is used only in local developmment and is spring gateway app.
 Code located in ./gateway is our main backend entry point.
 Code located in ./client-front is bun and vite based react frontend using feature sliced design.
+We are located in gateway now.
 
 ## Antigravity Agent Guidelines
 
@@ -54,23 +55,23 @@ Access frontend on localhost:8080 and backend on localhost:8080/api
 #### Example
 ```java
 # Good
-    public Mono<RefreshTokenResponse> refreshToken(String token) {
-        return jwtService.validateToken(token)
-                .flatMap(userRepository::findByUsername)
-                .filter(User::isEnabled)
-                .map(user -> {
-                    String newToken = jwtService.generateToken(user);
-                    return RefreshTokenResponse.builder()
-                            .token(newToken)
-                            .build();
-                });
-    }
+public Mono<RefreshTokenResponse> refreshToken(String token) {
+    return jwtService.validateToken(token)
+            .flatMap(userRepository::findByUsername)
+            .filter(User::isEnabled)
+            .map(user -> {
+                String newToken = jwtService.generateToken(user);
+                return RefreshTokenResponse.builder()
+                        .token(newToken)
+                        .build();
+            });
+}
 
 # Bad
-    public Mono<RefreshTokenResponse> refreshToken(String token) {
-        boolean isValid = jwtService.validateToken(token);
-        return isValid;
-    }
+public Mono<RefreshTokenResponse> refreshToken(String token) {
+    boolean isValid = jwtService.validateToken(token);
+    return isValid;
+}
 ```
 
 #### Database Best Practices

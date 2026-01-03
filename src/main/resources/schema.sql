@@ -260,13 +260,94 @@ CREATE TRIGGER document_examples_search_vector_trigger
 EXECUTE FUNCTION document_examples_search_vector_update();
 
 INSERT INTO document_examples (id, title, description, questions, base, requirements)
-VALUES 
-('e50e8400-e29b-41d4-a716-446655440001', 'Request for payment', 'Formal request for payment of outstanding invoices or debts.', 
- '[{"id": "creditor", "text": "Who is the creditor?", "type": "ENTITY"}, {"id": "debtor", "text": "Who is the debtor?", "type": "ENTITY"}, {"id": "amount", "text": "Amount of debt", "type": "TEXT"}]'::jsonb,
- '["Art. 476 KC", "Art. 481 KC"]'::jsonb,
- '["Invoice copy", "Proof of delivery"]'::jsonb),
-('e50e8400-e29b-41d4-a716-446655440002', 'Power of Attorney', 'Authorizing a person or entity to act on behalf of another.',
- '[{"id": "principal", "text": "Who is granting the power?", "type": "ENTITY"}, {"id": "agent", "text": "Who is receiving the power?", "type": "ENTITY"}, {"id": "scope", "text": "Scope of authorization", "type": "TEXT"}]'::jsonb,
- '["Art. 98 KC"]'::jsonb,
- '["Identity verification"]'::jsonb)
+VALUES
+    ('11111111-1111-1111-1111-111111111111',
+     'Wniosek rozwodowy',
+     'Formalny wniosek o rozwiązanie małżeństwa przez rozwód.',
+     '[
+       {"id":"plaintiff","text":"Kto składa pozew rozwodowy?","type":"ENTITY"},
+       {"id":"defendant","text":"Kim jest drugi małżonek?","type":"ENTITY"},
+       {"id":"marriage_date","text":"Data zawarcia małżeństwa","type":"TEXT"},
+       {"id":"marriage_place","text":"Miejsce zawarcia małżeństwa","type":"TEXT"},
+       {"id":"children","text":"Czy małżonkowie posiadają małoletnie dzieci?","type":"TEXT"},
+       {"id":"children_details","text":"Dane małoletnich dzieci (imiona, daty urodzenia)","type":"TEXT"},
+       {"id":"fault","text":"Czy rozwód ma nastąpić z orzekaniem o winie czy bez orzekania o winie?","type":"TEXT"},
+       {"id":"separation_date","text":"Data faktycznej separacji małżonków","type":"TEXT"},
+       {"id":"assets","text":"Czy małżonkowie posiadają wspólny majątek?","type":"TEXT"},
+       {"id":"requests","text":"Dodatkowe wnioski kierowane do sądu","type":"TEXT"}
+     ]'::jsonb,
+     '["Art. 56 KRO", "Art. 57 KRO"]'::jsonb,
+     '["Odpis aktu małżeństwa", "Odpisy aktów urodzenia dzieci"]'::jsonb),
+
+    ('33333333-3333-3333-3333-333333333333',
+     'Ponaglenie płatności',
+     'Formalne wezwanie do zapłaty zaległego zobowiązania.',
+     '[
+       {"id":"creditor","text":"Kto jest wierzycielem?","type":"ENTITY"},
+       {"id":"debtor","text":"Kto jest dłużnikiem?","type":"ENTITY"},
+       {"id":"amount","text":"Kwota zaległego zobowiązania","type":"TEXT"},
+       {"id":"currency","text":"Waluta zadłużenia","type":"TEXT"},
+       {"id":"invoice_number","text":"Numer faktury lub umowy","type":"TEXT"},
+       {"id":"due_date","text":"Pierwotny termin płatności","type":"TEXT"},
+       {"id":"delay_days","text":"Liczba dni opóźnienia w płatności","type":"TEXT"},
+       {"id":"interest","text":"Czy naliczane są odsetki ustawowe?","type":"TEXT"},
+       {"id":"payment_method","text":"Preferowany sposób dokonania płatności","type":"TEXT"},
+       {"id":"deadline","text":"Ostateczny termin zapłaty","type":"TEXT"}
+     ]'::jsonb,
+     '["Art. 476 KC", "Art. 481 KC"]'::jsonb,
+     '["Kopia faktury", "Kopia umowy"]'::jsonb),
+
+    ('44444444-4444-4444-4444-444444444444',
+     'Ponaglenie płatności',
+     'Ostateczne wezwanie do zapłaty przed skierowaniem sprawy na drogę postępowania prawnego.',
+     '[
+       {"id":"creditor","text":"Wierzyciel występujący z wezwaniem","type":"ENTITY"},
+       {"id":"debtor","text":"Dłużnik zobowiązany do zapłaty","type":"ENTITY"},
+       {"id":"legal_basis","text":"Podstawa prawna dochodzonego roszczenia","type":"TEXT"},
+       {"id":"amount","text":"Łączna kwota do zapłaty","type":"TEXT"},
+       {"id":"interest","text":"Kwota naliczonych odsetek","type":"TEXT"},
+       {"id":"invoice_list","text":"Wykaz niezapłaconych faktur","type":"TEXT"},
+       {"id":"previous_reminders","text":"Czy były wysyłane wcześniejsze wezwania do zapłaty?","type":"TEXT"},
+       {"id":"bank_account","text":"Numer rachunku bankowego do zapłaty","type":"TEXT"},
+       {"id":"deadline","text":"Termin zapłaty pozwalający uniknąć dalszych kroków prawnych","type":"TEXT"},
+       {"id":"consequences","text":"Skutki braku zapłaty w wyznaczonym terminie","type":"TEXT"}
+     ]'::jsonb,
+     '["Art. 476 KC", "Art. 481 KC", "Art. 455 KC"]'::jsonb,
+     '["Faktury", "Dowody doręczenia"]'::jsonb),
+
+    ('55555555-5555-5555-5555-555555555555',
+     'Wniosek o alimenty',
+     'Wniosek o zasądzenie świadczeń alimentacyjnych.',
+     '[
+       {"id":"claimant","text":"Kto składa wniosek o alimenty?","type":"ENTITY"},
+       {"id":"obligor","text":"Kto jest zobowiązany do płacenia alimentów?","type":"ENTITY"},
+       {"id":"beneficiary","text":"Na czyją rzecz mają być zasądzone alimenty?","type":"ENTITY"},
+       {"id":"relationship","text":"Jaki jest stosunek prawny pomiędzy stronami?","type":"TEXT"},
+       {"id":"amount","text":"Żądana kwota alimentów","type":"TEXT"},
+       {"id":"frequency","text":"Częstotliwość płatności alimentów","type":"TEXT"},
+       {"id":"needs","text":"Uzasadnienie potrzeb osoby uprawnionej","type":"TEXT"},
+       {"id":"income","text":"Dochody i możliwości zarobkowe zobowiązanego","type":"TEXT"},
+       {"id":"court","text":"Właściwy sąd do rozpoznania sprawy","type":"ENTITY"},
+       {"id":"evidence","text":"Dowody na poparcie żądania","type":"TEXT"}
+     ]'::jsonb,
+     '["Art. 128 KRO", "Art. 135 KRO"]'::jsonb,
+     '["Odpis aktu urodzenia", "Zaświadczenia o dochodach"]'::jsonb),
+
+    ('66666666-6666-6666-6666-666666666666',
+     'Wniosek o odroczenie kary',
+     'Wniosek o odroczenie wykonania kary orzeczonej wyrokiem sądu.',
+     '[
+       {"id":"convict","text":"Kto jest osobą skazaną?","type":"ENTITY"},
+       {"id":"court","text":"Który sąd wydał wyrok skazujący?","type":"TEXT"},
+       {"id":"sentence","text":"Rodzaj i wymiar orzeczonej kary","type":"TEXT"},
+       {"id":"start_date","text":"Planowany termin rozpoczęcia odbywania kary","type":"TEXT"},
+       {"id":"requested_delay","text":"Wnioskowany okres odroczenia kary","type":"TEXT"},
+       {"id":"reason","text":"Przyczyna złożenia wniosku o odroczenie kary","type":"TEXT"},
+       {"id":"health","text":"Okoliczności zdrowotne uzasadniające odroczenie","type":"TEXT"},
+       {"id":"family","text":"Okoliczności rodzinne uzasadniające odroczenie","type":"TEXT"},
+       {"id":"evidence","text":"Dowody potwierdzające wskazane okoliczności","type":"TEXT"},
+       {"id":"signature","text":"Dane podpisu wnioskodawcy","type":"TEXT"}
+     ]'::jsonb,
+     '["Art. 151 KKW"]'::jsonb,
+     '["Zaświadczenia lekarskie", "Dokumenty rodzinne"]'::jsonb)
 ON CONFLICT (id) DO NOTHING;

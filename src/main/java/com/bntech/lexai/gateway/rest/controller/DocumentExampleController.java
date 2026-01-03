@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
 @RestController
-@RequestMapping("/api/document-examples")
+@RequestMapping("/document-examples")
 @ConditionalOnProperty(name = "elasticsearch.enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class DocumentExampleController {

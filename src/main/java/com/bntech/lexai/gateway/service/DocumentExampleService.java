@@ -2,7 +2,7 @@ package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.DocumentExample;
 import com.bntech.lexai.gateway.data.entity.document.DocumentExampleEs;
-import com.bntech.lexai.gateway.data.repository.DocumentExampleEsRepository;
+import com.bntech.lexai.gateway.data.repository.elastic.DocumentExampleEsRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentExampleRepository;
 import com.bntech.lexai.gateway.mapper.DocumentExampleMapper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentExampleDto;
@@ -30,8 +30,7 @@ public class DocumentExampleService {
             return Flux.empty();
         }
 
-        // Try ES first for fuzzy/similarity search
-        return esRepository.findByTitleContainingOrDescriptionContaining(query, query)
+        return esRepository.searchByTitleOrDescription(query)
                 .map(this::toDtoFromEs)
                 .switchIfEmpty(searchPostgresFallback(query));
     }
