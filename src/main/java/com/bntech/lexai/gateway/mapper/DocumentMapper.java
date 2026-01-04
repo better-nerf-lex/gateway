@@ -11,13 +11,15 @@ import org.mapstruct.ReportingPolicy;
 
 import com.bntech.lexai.gateway.data.object.ActionType;
 
-@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE, uses = {LegalEntityMapper.class}, imports = {ActionType.class})
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE, uses = {LegalEntityMapper.class}, imports = {ActionType.class, java.util.UUID.class})
 public interface DocumentMapper {
 
     @Mapping(target = "status", source = "status")
+    @Mapping(target = "documentGroupId", expression = "java(entity.getDocumentGroupId() != null ? entity.getDocumentGroupId().toString() : null)")
     DocumentDto toDto(Document entity);
 
     @Mapping(target = "status", source = "status")
+    @Mapping(target = "documentGroupId", expression = "java(dto.getDocumentGroupId() != null ? UUID.fromString(dto.getDocumentGroupId()) : null)")
     Document toEntity(DocumentDto dto);
 
     ActivityDto toDto(Activity entity);

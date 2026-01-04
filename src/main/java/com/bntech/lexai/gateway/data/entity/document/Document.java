@@ -42,6 +42,9 @@ public class Document extends Auditable<UUID> implements OwnableEntity {
     @Column("owner_id")
     private Long ownerId;
 
+    @Column("document_group_id")
+    private UUID documentGroupId;
+
     @Transient
     @Builder.Default
     private boolean isNew = true;

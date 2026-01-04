@@ -1,0 +1,26 @@
+package com.bntech.lexai.gateway.rest.dto.document;
+
+import com.bntech.lexai.gateway.data.object.CasePartyRole;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AddPartiesRequest {
+    private List<PartyEntry> parties;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PartyEntry {
+        private String legalEntityId;
+        private CasePartyRole role;
+    }
+}

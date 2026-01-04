@@ -10,6 +10,7 @@ import com.bntech.lexai.gateway.mapper.CaseMapper;
 import com.bntech.lexai.gateway.mapper.CasePartyMapper;
 import com.bntech.lexai.gateway.mapper.EventMapper;
 import com.bntech.lexai.gateway.mapper.LegalEntityMapper;
+import com.bntech.lexai.gateway.rest.dto.document.AddPartiesRequest;
 import com.bntech.lexai.gateway.rest.dto.document.CaseDto;
 import com.bntech.lexai.gateway.rest.dto.document.CasePartyDto;
 import com.bntech.lexai.gateway.rest.dto.document.EventDto;
@@ -180,6 +181,13 @@ public class CaseService {
                 .switchIfEmpty(casePartyRepository.save(new CaseParty(cId, leId, role)))
                 .then()
                 .doOnSuccess(v -> log.info("✅ Party {} added to case {} as {}", legalEntityId, caseId, role));
+    }
+
+    public Mono<Void> addParties(String caseId, List<AddPartiesRequest.PartyEntry> parties) {
+        return Flux.fromIterable(parties)
+                .flatMap(party -> addParty(caseId, party.getLegalEntityId(), party.getRole()))
+                .then()
+                .doOnSuccess(v -> log.info("✅ {} parties added to case {}", parties.size(), caseId));
     }
 
     public Mono<Void> removeParty(String caseId, String legalEntityId, CasePartyRole role) {

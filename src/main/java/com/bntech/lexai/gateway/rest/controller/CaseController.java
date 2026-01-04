@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.rest.controller;
 
 import com.bntech.lexai.gateway.data.object.CasePartyRole;
+import com.bntech.lexai.gateway.rest.dto.document.AddPartiesRequest;
 import com.bntech.lexai.gateway.rest.dto.document.CaseDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
 import com.bntech.lexai.gateway.rest.dto.document.EventDto;
@@ -67,15 +68,16 @@ public class CaseController {
         return caseService.removeDocument(id, documentId);
     }
 
-    @PostMapping("/{id}/parties/{legalEntityId}")
+    @PostMapping("/{id}/parties")
     @PreAuthorize("@access.canUpdateCase(authentication, #id)")
-    public Mono<Void> addParty(@PathVariable String id, @PathVariable String legalEntityId, @RequestParam CasePartyRole role) {
-        return caseService.addParty(id, legalEntityId, role);
+    public Mono<Void> addParties(@PathVariable String id, @RequestBody AddPartiesRequest request) {
+        return caseService.addParties(id, request.getParties());
     }
 
     @DeleteMapping("/{id}/parties/{legalEntityId}")
     @PreAuthorize("@access.canUpdateCase(authentication, #id)")
-    public Mono<Void> removeParty(@PathVariable String id, @PathVariable String legalEntityId, @RequestParam CasePartyRole role) {
+    public Mono<Void> removeParty(@PathVariable String id, @PathVariable String legalEntityId,
+            @RequestParam CasePartyRole role) {
         return caseService.removeParty(id, legalEntityId, role);
     }
 

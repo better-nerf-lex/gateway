@@ -8,6 +8,8 @@ DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS team_members CASCADE;
 DROP TABLE IF EXISTS legal_entities CASCADE;
 DROP TABLE IF EXISTS document_history CASCADE;
+DROP TABLE IF EXISTS document_files CASCADE;
+DROP TABLE IF EXISTS document_groups CASCADE;
 DROP TABLE IF EXISTS documents CASCADE;
 DROP TABLE IF EXISTS cases CASCADE;
 DROP TABLE IF EXISTS activity CASCADE;
@@ -50,19 +52,33 @@ CREATE TABLE IF NOT EXISTS document_examples
     search_vector tsvector
 );
 
+CREATE TABLE IF NOT EXISTS document_groups
+(
+    id          UUID PRIMARY KEY,
+    name        VARCHAR(255),
+    description TEXT,
+    updated_at  TIMESTAMP,
+    created_at  TIMESTAMP,
+    created_by  BIGINT,
+    version     INTEGER NOT NULL,
+    team_id     UUID REFERENCES teams (id),
+    owner_id    BIGINT REFERENCES users (id)
+);
+
 CREATE TABLE IF NOT EXISTS documents
 (
-    id         UUID PRIMARY KEY,
-    title      VARCHAR(255),
-    type       VARCHAR(100),
-    status     VARCHAR(20) CHECK (status IN ('PENDING', 'COMPLETED', 'ERROR')),
-    updated_at TIMESTAMP,
-    text       TEXT,
-    created_at TIMESTAMP,
-    created_by BIGINT,
-    version    INTEGER NOT NULL,
-    team_id    UUID REFERENCES teams (id),
-    owner_id   BIGINT REFERENCES users (id)
+    id                UUID PRIMARY KEY,
+    title             VARCHAR(255),
+    type              VARCHAR(100),
+    status            VARCHAR(20) CHECK (status IN ('PENDING', 'COMPLETED', 'ERROR')),
+    updated_at        TIMESTAMP,
+    text              TEXT,
+    created_at        TIMESTAMP,
+    created_by        BIGINT,
+    version           INTEGER NOT NULL,
+    team_id           UUID REFERENCES teams (id),
+    owner_id          BIGINT REFERENCES users (id),
+    document_group_id UUID REFERENCES document_groups (id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS document_history
@@ -74,6 +90,22 @@ CREATE TABLE IF NOT EXISTS document_history
     created_by  BIGINT,
     version     INTEGER NOT NULL,
     FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS document_files
+(
+    id                UUID PRIMARY KEY,
+    name              VARCHAR(255),
+    s3_url            VARCHAR(1000),
+    file_type         VARCHAR(20) CHECK (file_type IN ('pdf', 'jpg', 'jpeg', 'png', 'gif', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'other')),
+    document_group_id UUID REFERENCES document_groups (id) ON DELETE CASCADE,
+    file_size         BIGINT,
+    updated_at        TIMESTAMP,
+    created_at        TIMESTAMP,
+    created_by        BIGINT,
+    version           INTEGER NOT NULL,
+    team_id           UUID REFERENCES teams (id),
+    owner_id          BIGINT REFERENCES users (id)
 );
 
 CREATE TABLE IF NOT EXISTS legal_entities
@@ -203,6 +235,13 @@ CREATE INDEX IF NOT EXISTS idx_cases_created_at ON cases (created_at);
 CREATE INDEX IF NOT EXISTS idx_case_parties_case_id ON case_parties (case_id);
 CREATE INDEX IF NOT EXISTS idx_events_case_id ON events (case_id);
 CREATE INDEX IF NOT EXISTS idx_events_event_date ON events (event_date);
+CREATE INDEX IF NOT EXISTS idx_document_groups_owner_id ON document_groups (owner_id);
+CREATE INDEX IF NOT EXISTS idx_document_groups_team_id ON document_groups (team_id);
+CREATE INDEX IF NOT EXISTS idx_document_groups_created_at ON document_groups (created_at);
+CREATE INDEX IF NOT EXISTS idx_document_files_owner_id ON document_files (owner_id);
+CREATE INDEX IF NOT EXISTS idx_document_files_team_id ON document_files (team_id);
+CREATE INDEX IF NOT EXISTS idx_document_files_document_group_id ON document_files (document_group_id);
+CREATE INDEX IF NOT EXISTS idx_document_files_created_at ON document_files (created_at);
 
 -- Add full-text search support
 ALTER TABLE documents

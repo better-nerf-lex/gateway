@@ -23,5 +23,6 @@ public class DocumentDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String text;
+    private String documentGroupId;
     private List<CaseDto> cases;
 }
