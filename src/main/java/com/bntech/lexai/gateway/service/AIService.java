@@ -4,7 +4,6 @@ import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.TextBlock;
 import com.bntech.lexai.gateway.data.object.Prompts;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
@@ -37,6 +36,9 @@ public class AIService {
     @Value("${spring.ai.anthropic.api-key}")
     private String apiKey;
 
+    @Value("${spring.ai.anthropic.chat.options.model}")
+    private String model;
+
     private AnthropicClient client;
     private final ObjectMapper objectMapper;
     private final EliService eliService;
@@ -67,7 +69,7 @@ public class AIService {
                     .maxTokens(2048L)
                     .system(Prompts.EN_EXTRACT_LEGAL_BASIS)
                     .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
-                    .model(Model.CLAUDE_3_7_SONNET_LATEST)
+                    .model(model)
                     .temperature(0.2)
                     .build();
 
@@ -78,7 +80,7 @@ public class AIService {
                     .map(TextBlock::text)
                     .orElseThrow(() -> new IllegalStateException("No text content found in message"));
 
-            LegalBasisResponse response = objectMapper.readValue(jsonResponse, LegalBasisResponse.class);
+            LegalBasisResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse), LegalBasisResponse.class);
             log.info("✅ Extracted {} legal bases: {}", response.getBase().size(), response.getBase());
             return response;
         })
@@ -141,7 +143,7 @@ public class AIService {
                     .maxTokens(4096L)
                     .system(systemPrompt)
                     .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
-                    .model(Model.CLAUDE_3_7_SONNET_LATEST)
+                    .model(model)
                     .temperature(0.3)
                     .build();
 
@@ -152,7 +154,7 @@ public class AIService {
                     .map(TextBlock::text)
                     .orElseThrow(() -> new IllegalStateException("No text content found in message"));
 
-            SubmitPromptResponse response = objectMapper.readValue(jsonResponse, SubmitPromptResponse.class);
+            SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse), SubmitPromptResponse.class);
             log.info("✅ Parsed response with {} questions", response.getQuestions().size());
             return response;
         })
@@ -185,7 +187,7 @@ public class AIService {
                                 .maxTokens(8192L)
                                 .system(Prompts.EN_GENERATE_DOCUMENT)
                                 .addUserMessage(userMessage)
-                                .model(Model.CLAUDE_3_7_SONNET_LATEST)
+                                .model(model)
                                 .temperature(0.2)
                                 .build();
 
@@ -274,5 +276,21 @@ public class AIService {
                         throwable.getMessage().contains("503") ||
                         throwable.getMessage().contains("502") ||
                         throwable.getMessage().contains("rate_limit")));
+    }
+
+    private String stripMarkdownCodeBlocks(String response) {
+        if (response == null) {
+            return null;
+        }
+        String stripped = response.strip();
+        if (stripped.startsWith("```json")) {
+            stripped = stripped.substring(7);
+        } else if (stripped.startsWith("```")) {
+            stripped = stripped.substring(3);
+        }
+        if (stripped.endsWith("```")) {
+            stripped = stripped.substring(0, stripped.length() - 3);
+        }
+        return stripped.strip();
     }
 }
