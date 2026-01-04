@@ -195,10 +195,11 @@ public class AIService {
                         Message message = client.messages().create(params);
                         log.debug("Received document generation response from Anthropic API for: {}", title);
 
-                        return message.content().getFirst()
+                        String rawContent = message.content().getFirst()
                                 .text()
                                 .map(TextBlock::text)
                                 .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+                        return stripMarkdownCodeBlocks(rawContent);
                     }).subscribeOn(Schedulers.boundedElastic());
                 })
                 .timeout(Duration.ofMinutes(5))
@@ -283,10 +284,13 @@ public class AIService {
             return null;
         }
         String stripped = response.strip();
-        if (stripped.startsWith("```json")) {
-            stripped = stripped.substring(7);
-        } else if (stripped.startsWith("```")) {
-            stripped = stripped.substring(3);
+        if (stripped.startsWith("```")) {
+            int firstNewline = stripped.indexOf('\n');
+            if (firstNewline > 0) {
+                stripped = stripped.substring(firstNewline + 1);
+            } else {
+                stripped = stripped.substring(3);
+            }
         }
         if (stripped.endsWith("```")) {
             stripped = stripped.substring(0, stripped.length() - 3);

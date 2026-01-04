@@ -1,26 +1,43 @@
 package com.bntech.lexai.gateway.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class EliService {
 
     private static final String ELI_BASE_URL = "https://eli.gov.pl";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final int MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
 
     private final WebClient.Builder webClientBuilder;
+    private WebClient webClient;
+
+    public EliService(WebClient.Builder webClientBuilder) {
+        this.webClientBuilder = webClientBuilder;
+    }
+
+    @PostConstruct
+    public void init() {
+        ExchangeStrategies strategies = ExchangeStrategies.builder()
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(MAX_BUFFER_SIZE))
+                .build();
+
+        this.webClient = webClientBuilder
+                .exchangeStrategies(strategies)
+                .build();
+    }
 
     public record EliDocument(String uri, String content, boolean found) {}
 
@@ -39,7 +56,7 @@ public class EliService {
         String url = buildEliUrl(eliUri);
         log.info("Fetching legal document from: {}", url);
 
-        return webClientBuilder.build()
+        return webClient
                 .get()
                 .uri(url)
                 .retrieve()

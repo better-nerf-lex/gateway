@@ -5,6 +5,7 @@ import com.bntech.lexai.gateway.data.entity.document.DocumentHistory;
 import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
 import com.bntech.lexai.gateway.data.repository.*;
+import com.bntech.lexai.gateway.mapper.CaseMapper;
 import com.bntech.lexai.gateway.mapper.DocumentMapper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentHistoryDto;
@@ -14,6 +15,8 @@ import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Service;
 import org.springframework.r2dbc.core.DatabaseClient;
 import reactor.core.publisher.Flux;
@@ -51,7 +54,7 @@ public class DocumentService {
             UserRepository userRepository,
             TeamMemberRepository teamMemberRepository,
             CaseRepository caseRepository,
-            com.bntech.lexai.gateway.mapper.CaseMapper caseMapper,
+            CaseMapper caseMapper,
             DatabaseClient databaseClient,
             @Autowired(required = false) DocumentExampleService documentExampleService) {
         this.documents = documents;
@@ -78,8 +81,8 @@ public class DocumentService {
                     .doOnError(error -> log.error("Error retrieving team documents for {}", teamId, error));
         }
 
-        return org.springframework.security.core.context.ReactiveSecurityContextHolder.getContext()
-                .map(org.springframework.security.core.context.SecurityContext::getAuthentication)
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
                 .flatMapMany(auth -> userRepository.findByUsername(auth.getName())
                         .flatMapMany(user -> {
                             reactor.core.publisher.Flux<Document> byUser = documents
@@ -163,8 +166,8 @@ public class DocumentService {
     public Mono<DocumentDto> generateDocument(GenerateDocumentRequest request) {
         log.info("Generating document with request: {}", request);
 
-        return org.springframework.security.core.context.ReactiveSecurityContextHolder.getContext()
-                .map(org.springframework.security.core.context.SecurityContext::getAuthentication)
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
                 .flatMap(auth -> {
                     String username = auth.getName();
                     return userRepository.findByUsername(username)
@@ -267,12 +270,10 @@ public class DocumentService {
         return documents.findById(UUID.fromString(id))
                 .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
                 .flatMap(document -> {
-                    // Create history entry before updating
                     return createHistoryEntry(document)
                             .then(Mono.just(document));
                 })
                 .flatMap(document -> {
-                    // Update document with new content
                     document.setText(content);
                     document.setUpdatedAt(LocalDateTime.now());
                     document.setNotNew();
