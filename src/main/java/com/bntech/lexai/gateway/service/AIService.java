@@ -8,6 +8,7 @@ import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.TextBlock;
 import com.bntech.lexai.gateway.data.object.Prompts;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
+import com.bntech.lexai.gateway.rest.dto.document.LegalBasisResponse;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -22,9 +23,11 @@ import reactor.util.retry.Retry;
 import jakarta.annotation.PostConstruct;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -51,8 +54,88 @@ public class AIService {
     public Mono<SubmitPromptResponse> analyzePrompt(String prompt) {
         log.info("Analyzing prompt: {}", prompt);
 
+        return extractLegalBasis(prompt)
+                .flatMap(legalBasisResponse -> verifyLegalBasis(legalBasisResponse.getBase())
+                        .flatMap(verifiedBasis -> generateQuestionsWithBasis(prompt, verifiedBasis)));
+    }
+
+    public Mono<LegalBasisResponse> extractLegalBasis(String prompt) {
+        log.info("Extracting legal basis for prompt: {}", prompt);
+
         return Mono.fromCallable(() -> {
-            String systemPrompt = Prompts.EN_GENERATE_QUESTIONS;
+            MessageCreateParams params = MessageCreateParams.builder()
+                    .maxTokens(2048L)
+                    .system(Prompts.EN_EXTRACT_LEGAL_BASIS)
+                    .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
+                    .model(Model.CLAUDE_3_7_SONNET_LATEST)
+                    .temperature(0.2)
+                    .build();
+
+            log.debug("Sending legal basis extraction request to Anthropic API");
+            Message message = client.messages().create(params);
+            String jsonResponse = message.content().getFirst()
+                    .text()
+                    .map(TextBlock::text)
+                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+
+            LegalBasisResponse response = objectMapper.readValue(jsonResponse, LegalBasisResponse.class);
+            log.info("✅ Extracted {} legal bases: {}", response.getBase().size(), response.getBase());
+            return response;
+        })
+                .subscribeOn(Schedulers.boundedElastic())
+                .timeout(Duration.ofMinutes(1))
+                .retryWhen(buildRetrySpec("legal basis extraction"))
+                .doOnError(error -> log.error("❌ Error extracting legal basis", error));
+    }
+
+    public Mono<List<String>> verifyLegalBasis(List<String> bases) {
+        if (bases == null || bases.isEmpty()) {
+            return Mono.just(List.of());
+        }
+
+        log.info("Verifying {} legal bases against ELI API", bases.size());
+
+        return eliService.fetchLegalDocuments(bases)
+                .collectList()
+                .map(documents -> {
+                    List<String> verifiedBases = new ArrayList<>();
+                    List<String> failedBases = new ArrayList<>();
+
+                    for (EliService.EliDocument doc : documents) {
+                        if (doc.found()) {
+                            verifiedBases.add(doc.uri());
+                        } else {
+                            failedBases.add(doc.uri());
+                        }
+                    }
+
+                    if (!failedBases.isEmpty()) {
+                        log.warn("Failed to verify {} legal bases: {}", failedBases.size(), failedBases);
+                    }
+                    if (!verifiedBases.isEmpty()) {
+                        log.info("✅ Verified {} legal bases: {}", verifiedBases.size(), verifiedBases);
+                    }
+
+                    return verifiedBases.isEmpty() ? bases : verifiedBases;
+                })
+                .onErrorResume(e -> {
+                    log.warn("ELI API verification failed, using unverified bases: {}", e.getMessage());
+                    return Mono.just(bases);
+                });
+    }
+
+    private Mono<SubmitPromptResponse> generateQuestionsWithBasis(String prompt, List<String> verifiedBasis) {
+        log.info("Generating questions with verified legal basis: {}", verifiedBasis);
+
+        return Mono.fromCallable(() -> {
+            String basisJson;
+            try {
+                basisJson = objectMapper.writeValueAsString(verifiedBasis);
+            } catch (Exception e) {
+                basisJson = "[]";
+            }
+
+            String systemPrompt = String.format(Prompts.EN_GENERATE_QUESTIONS, basisJson, basisJson);
 
             MessageCreateParams params = MessageCreateParams.builder()
                     .maxTokens(4096L)
@@ -134,7 +217,7 @@ public class AIService {
                 .map(eliService::buildLegalDocumentsContext)
                 .doOnSuccess(context -> {
                     if (!context.isBlank()) {
-                        log.info("✅ Fetched {} legal documents from eli.gov.pl", 
+                        log.info("✅ Fetched {} legal documents from eli.gov.pl",
                                 base.stream().filter(uri -> context.contains(uri)).count());
                     }
                 })

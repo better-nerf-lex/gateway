@@ -128,13 +128,31 @@ public class EliService {
         }
 
         StringBuilder context = new StringBuilder();
-        context.append("\n\n--- ZAŁĄCZONE DOKUMENTY PRAWNE (z eli.gov.pl) ---\n\n");
+        List<EliDocument> foundDocs = documents.stream().filter(d -> d.found() && !d.content().isBlank()).toList();
+        List<EliDocument> failedDocs = documents.stream().filter(d -> !d.found()).toList();
 
-        for (EliDocument doc : documents) {
-            if (doc.found() && !doc.content().isBlank()) {
+        if (!foundDocs.isEmpty()) {
+            context.append("\n\n--- ZAŁĄCZONE DOKUMENTY PRAWNE (z eli.gov.pl) ---\n\n");
+            for (EliDocument doc : foundDocs) {
                 context.append("=== Dokument: ").append(doc.uri()).append(" ===\n");
                 context.append(doc.content()).append("\n\n");
             }
+        }
+
+        if (!failedDocs.isEmpty()) {
+            context.append("\n\n--- UWAGA: DOKUMENTY NIEDOSTĘPNE ---\n");
+            context.append("Następujące podstawy prawne nie mogły zostać pobrane z eli.gov.pl.\n");
+            context.append("Użyj tych linków jako odniesienia i spróbuj wariantów URL:\n\n");
+            for (EliDocument doc : failedDocs) {
+                String suggestedUrl = buildEliUrl(doc.uri());
+                context.append("- ").append(doc.uri()).append("\n");
+                context.append("  Sugerowany link: ").append(suggestedUrl).append("\n");
+                context.append("  Alternatywne warianty do sprawdzenia:\n");
+                context.append("    - ").append(ELI_BASE_URL).append("/").append(doc.uri()).append("/pol/html\n");
+                context.append("    - ").append(ELI_BASE_URL).append("/").append(doc.uri()).append("/pol/pdf\n");
+                context.append("    - ").append(ELI_BASE_URL).append("/").append(doc.uri().replace("/ogl", "/tj")).append("/pol/html\n");
+            }
+            context.append("\nPomimo braku dostępu do pełnych tekstów, uwzględnij te podstawy prawne w dokumencie.\n");
         }
 
         return context.toString();

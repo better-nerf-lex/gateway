@@ -56,10 +56,8 @@ logging:
     com.bntech.lexai.gateway.service.AIService: DEBUG
     com.bntech.lexai.gateway.security: DEBUG
     org.springframework.ai: DEBUG
+    org.springframework.r2dbc.core: ERROR
     reactor.netty.http.client: DEBUG
-#  level:
-#    org.springframework.security: DEBUG
-#    org.springframework.security.oauth2: DEBUG
 
 elasticsearch:
   enabled: true

@@ -28,37 +28,26 @@ public class JwtAuthenticationFilter implements WebFilter {
         String path = exchange.getRequest().getPath().value();
         String method = exchange.getRequest().getMethod().name();
 
-        log.info("Processing request: {} {}", method, path);
-        exchange.getRequest().getHeaders().forEach((name, values) -> {
-            log.debug("Header: {} = {}", name, values);
-        });
-
         if (path.startsWith("/auth/") || path.startsWith("/oauth2/") || path.equals("/login")
                 || path.startsWith("/.well-known/")) {
-            log.info("Skipping authentication for public endpoint: {}", path);
             return chain.filter(exchange);
         }
 
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.info("No Bearer token found in Authorization header for {} {}", method, path);
             return chain.filter(exchange);
         }
 
         String token = authHeader.substring(7);
-        log.info("Found Bearer token for {} {}", method, path);
 
         return jwtService.validateAndGetClaims(token)
-                .doOnSuccess(claims -> log.info("Token validation successful for user: {}", claims.getSubject()))
                 .doOnError(error -> log.info("Token validation failed: {}", error.getMessage()))
                 .flatMap(claims -> {
                     String username = claims.getSubject();
                     return userDetailsService.findByUsername(username);
                 })
                 .flatMap(userDetails -> {
-                    log.info("Creating authentication token for user: {} with authorities: {}",
-                            userDetails.getUsername(), userDetails.getAuthorities());
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,

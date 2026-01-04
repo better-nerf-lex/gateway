@@ -39,11 +39,17 @@ public class Prompts {
                    - pozycja: numer pozycji w dzienniku
                    - ogl = tekst ogłoszony, tj = tekst jednolity, uj = tekst ujednolicony
                    
-                   Przykłady:
+                   Zweryfikowane przykłady (używaj TYLKO tych URI):
                    - "eli/DU/1964/93/ogl" dla Kodeksu cywilnego
-                   - "eli/DU/1964/43/ogl" dla Kodeksu postępowania cywilnego
-                   - "eli/DU/1974/1/ogl" dla Kodeksu rodzinnego i opiekuńczego
-                   - "eli/DU/1997/88/ogl" dla Kodeksu karnego
+                   - "eli/DU/1964/296/ogl" dla Kodeksu postępowania cywilnego
+                   - "eli/DU/1964/59/ogl" dla Kodeksu rodzinnego i opiekuńczego
+                   - "eli/DU/1997/553/ogl" dla Kodeksu karnego
+                   - "eli/DU/1997/555/ogl" dla Kodeksu postępowania karnego
+                   - "eli/DU/1960/168/ogl" dla Kodeksu postępowania administracyjnego
+                   - "eli/DU/1989/163/ogl" dla Prawa geodezyjnego i kartograficznego
+                   - "eli/DU/1997/741/ogl" dla Ustawy o gospodarce nieruchomościami
+                   - "eli/DU/1974/141/ogl" dla Kodeksu pracy
+                   - "eli/DU/1994/414/ogl" dla Prawa budowlanego
                    
                    Te URI pozwalają pobrać pełne teksty prawne z https://eli.gov.pl/
                    
@@ -75,21 +81,97 @@ public class Prompts {
             3. The document layout and appearance must follow the structure described in "requirements". Treat "requirements" as layout and formatting guidelines (e.g., margins, sections, titles).
             4. At the end, include a section titled "Podstawa prawna", listing all elements from "base" as legal bases with their ELI URIs formatted as clickable links to https://eli.gov.pl/{uri}.
             5. If legal documents are attached below (from eli.gov.pl), use them as authoritative reference for legal terminology, article citations, and proper legal phrasing. Cite specific articles when relevant.
+            6. If some legal documents could not be fetched (marked as "DOKUMENTY NIEDOSTĘPNE"), still include them in the "Podstawa prawna" section with their ELI URIs. Use your knowledge of Polish law to reference appropriate articles from these acts.
 
             Additional notes:
             - Use only formal legal language, no casual or informal tone.
             - Do not include any explanation, metadata, or comments.
             - Output only the final document content, formatted for direct PDF rendering.
             - When referencing legal bases, include the full legal name of the act and specific article numbers.
+            - Even if a legal document was unavailable from eli.gov.pl, reference it properly using standard legal citation format.
 
             JSON input:
 
              %s
             """;
 
+    public static final String EN_EXTRACT_LEGAL_BASIS = """
+                Your task is to identify the CORRECT and RELEVANT legal basis (podstawa prawna) for a document that the user wants to create.
+                
+                CRITICAL INSTRUCTIONS:
+                1. Carefully analyze what TYPE of document the user wants to create
+                2. Match the document type to the SPECIFIC Polish legal act that governs that area
+                3. DO NOT guess or hallucinate ELI URIs - only use URIs you are confident exist
+                4. The ELI URI format is: eli/DU/{year}/{position}/ogl - where position is the "poz." number, NOT the journal number "nr"
+                
+                Respond strictly in JSON format:
+                {
+                    "base": ["eli/DU/rok/pozycja/ogl"],
+                    "reasoning": "Brief explanation of why these legal bases apply"
+                }
+                
+                ELI URI FORMAT:
+                eli/{dziennik}/{rok}/{pozycja}/{ogl|tj|uj}
+                
+                Where:
+                - dziennik: DU (Dziennik Ustaw), MP (Monitor Polski)
+                - rok: year of ORIGINAL publication
+                - pozycja: the "poz." position number (NOT the "nr" journal number!)
+                - ogl = original text, tj = consolidated text
+                
+                VERIFIED LEGAL ACTS BY DOMAIN (use ONLY these URIs):
+                
+                Civil Law:
+                - "eli/DU/1964/93/ogl" - Kodeks cywilny (Civil Code)
+                - "eli/DU/1964/296/ogl" - Kodeks postępowania cywilnego (Civil Procedure Code)
+                
+                Family Law:
+                - "eli/DU/1964/59/ogl" - Kodeks rodzinny i opiekuńczy (Family and Guardianship Code)
+                
+                Criminal Law:
+                - "eli/DU/1997/553/ogl" - Kodeks karny (Criminal Code)
+                - "eli/DU/1997/555/ogl" - Kodeks postępowania karnego (Criminal Procedure Code)
+                
+                Administrative Law:
+                - "eli/DU/1960/168/ogl" - Kodeks postępowania administracyjnego (Administrative Procedure Code)
+                
+                Real Estate & Geodesy:
+                - "eli/DU/1989/163/ogl" - Prawo geodezyjne i kartograficzne (Geodesy and Cartography Law)
+                - "eli/DU/1997/741/ogl" - Ustawa o gospodarce nieruchomościami (Real Estate Management Act)
+                
+                Labor Law:
+                - "eli/DU/1974/141/ogl" - Kodeks pracy (Labor Code)
+                
+                Tax Law:
+                - "eli/DU/1997/926/ogl" - Ordynacja podatkowa (Tax Ordinance)
+                
+                Construction:
+                - "eli/DU/1994/414/ogl" - Prawo budowlane (Construction Law)
+                
+                MATCHING RULES:
+                - For geodesy/surveying/maps/cartography/land measurement documents → use eli/DU/1989/163/ogl (Prawo geodezyjne)
+                - For divorce/alimony/custody/marriage documents → use eli/DU/1964/59/ogl (Kodeks rodzinny)
+                - For contracts/obligations/damages/civil matters → use eli/DU/1964/93/ogl (Kodeks cywilny)
+                - For civil court proceedings/lawsuits → use eli/DU/1964/296/ogl (KPC)
+                - For administrative requests/permits/appeals → use eli/DU/1960/168/ogl (KPA)
+                - For real estate transactions/property management → use eli/DU/1997/741/ogl (Gospodarka nieruchomościami)
+                - For employment/labor matters → use eli/DU/1974/141/ogl (Kodeks pracy)
+                - For criminal matters → use eli/DU/1997/553/ogl (Kodeks karny)
+                - For criminal proceedings → use eli/DU/1997/555/ogl (KPK)
+                - For tax matters → use eli/DU/1997/926/ogl (Ordynacja podatkowa)
+                - For construction/building permits → use eli/DU/1994/414/ogl (Prawo budowlane)
+                
+                These URIs will be verified against https://eli.gov.pl/ API. Only return URIs you are confident are correct.
+                
+                Return only the JSON data. Do not include any explanations outside the JSON structure.
+            """;
+
     public static final String EN_GENERATE_QUESTIONS = """
                 Your task is to prepare structured input data to generate a document based on a graphic template (form image) that will be provided as an attachment.
                 All in Polish.
+                
+                The legal basis for this document has already been determined: %s
+                
                 Respond strictly in JSON format, using the following schema:
                 {
                     "questions": [
@@ -100,7 +182,7 @@ public class Prompts {
                         },
                         ...
                     ],
-                    "base": ["eli/DU/rok/pozycja/ogl", "eli/DU/rok/pozycja/ogl"],
+                    "base": %s,
                     "name": "suggestedApplicationName",
                     "requirements": ["documentRequirement1", "documentRequirement2"]
                 }
@@ -111,25 +193,7 @@ public class Prompts {
                 3. For each question, assign a unique `id` and determine its `type`.
                 4. Use `PERSON`, `COMPANY`, `COURT`, or `LAW_FIRM` if the question specifically asks for details of such a legal entity. Use `ENTITY` if it's generic but clearly about a legal entity. Otherwise use `TEXT`.
                 5. Include questions for personal data such as case reference number or mother’s maiden name **only if** they are required for this specific type of form.
-                6. Under `base`, list the legal bases using ELI (European Legislation Identifier) URI format.
-                   
-                   IMPORTANT: Format legal bases as ELI URIs following this pattern:
-                   eli/{dziennik}/{rok}/{pozycja}/{ogl|tj|uj}
-                   
-                   Where:
-                   - dziennik: DU (Dziennik Ustaw), MP (Monitor Polski), etc.
-                   - rok: year of publication (e.g., 1964, 2020)
-                   - pozycja: position number in the journal
-                   - ogl = original text, tj = consolidated text, uj = unified text
-                   
-                   Examples:
-                   - "eli/DU/1964/93/ogl" for Kodeks cywilny (Civil Code)
-                   - "eli/DU/1964/43/ogl" for Kodeks postępowania cywilnego
-                   - "eli/DU/1974/1/ogl" for Kodeks rodzinny i opiekuńczy
-                   - "eli/DU/1997/88/ogl" for Kodeks karny
-                   
-                   These URIs can be used to fetch full legal texts from https://eli.gov.pl/
-                   
+                6. Use the pre-verified legal basis provided above in the `base` field.
                 7. In the `name` field, provide a suggested name for the application or request.
                 8. In `requirements`, list the necessary supporting documents or attachments.
 
