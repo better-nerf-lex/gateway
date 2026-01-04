@@ -6,6 +6,7 @@ import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.TextBlock;
 import com.bntech.lexai.gateway.data.object.Prompts;
+import com.bntech.lexai.gateway.exception.ServiceException;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.LegalBasisResponse;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
@@ -258,7 +259,7 @@ public class AIService {
                 })
                 .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) -> {
                     log.error("Retry exhausted for {} after {} attempts", identifier, retrySignal.totalRetries());
-                    return new RuntimeException(
+                    return new ServiceException("AIService",
                             "AI service unavailable after " + retrySignal.totalRetries() + " attempts",
                             retrySignal.failure());
                 });

@@ -5,6 +5,7 @@ import com.bntech.lexai.gateway.data.entity.document.CaseDocument;
 import com.bntech.lexai.gateway.data.entity.document.CaseParty;
 import com.bntech.lexai.gateway.data.object.CasePartyRole;
 import com.bntech.lexai.gateway.data.repository.*;
+import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
 import com.bntech.lexai.gateway.mapper.CaseMapper;
 import com.bntech.lexai.gateway.mapper.CasePartyMapper;
 import com.bntech.lexai.gateway.mapper.EventMapper;
@@ -71,7 +72,7 @@ public class CaseService {
     public Mono<CaseDto> getCase(String id) {
         UUID uuid = UUID.fromString(id);
         return caseRepository.findById(uuid)
-                .switchIfEmpty(Mono.error(new RuntimeException("LegalCase not found: " + id)))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("Case", id)))
                 .map(caseMapper::toDto)
                 .flatMap(this::enrichCase)
                 .doOnError(error -> log.error("Error retrieving case: {}", id, error));
@@ -150,7 +151,7 @@ public class CaseService {
         UUID uuid = UUID.fromString(id);
         log.debug("updateCase called - id: {}, dto: {}", id, caseDto);
         return caseRepository.findById(uuid)
-                .switchIfEmpty(Mono.error(new RuntimeException("LegalCase not found: " + id)))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("Case", id)))
                 .flatMap(existingCase -> {
                     existingCase.setTitle(caseDto.getTitle());
                     existingCase.setDescription(caseDto.getDescription());

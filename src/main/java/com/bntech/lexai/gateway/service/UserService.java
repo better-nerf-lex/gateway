@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.exception.BadRequestException;
 import com.bntech.lexai.gateway.mapper.UserMapper;
 import com.bntech.lexai.gateway.rest.dto.security.*;
 import lombok.RequiredArgsConstructor;
@@ -47,7 +48,7 @@ public class UserService {
                 .flatMap(userRepository::findByUsername)
                 .flatMap(user -> {
                     if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
-                        return Mono.error(new RuntimeException("Invalid old password"));
+                        return Mono.error(new BadRequestException("oldPassword", "Invalid old password"));
                     }
                     user.setPassword(passwordEncoder.encode(request.getNewPassword()));
                     user.setUpdatedAt(LocalDateTime.now());

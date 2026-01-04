@@ -5,6 +5,7 @@ import com.bntech.lexai.gateway.data.entity.document.DocumentHistory;
 import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
 import com.bntech.lexai.gateway.data.repository.*;
+import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
 import com.bntech.lexai.gateway.mapper.CaseMapper;
 import com.bntech.lexai.gateway.mapper.DocumentMapper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
@@ -106,7 +107,7 @@ public class DocumentService {
     public Mono<DocumentDto> getDocument(String id) {
         log.info("Fetching document: {}", id);
         return documents.findById(UUID.fromString(id))
-                .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("Document", id)))
                 .map(mapper::toDto)
                 .flatMap(this::enrichWithCases)
                 .doOnSuccess(doc -> log.info("Document enriched with cases: {}", doc.getId()))
@@ -286,7 +287,7 @@ public class DocumentService {
         log.info("Updating document: {}", id);
 
         return documents.findById(UUID.fromString(id))
-                .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("Document", id)))
                 .flatMap(document -> {
                     return createHistoryEntry(document)
                             .then(Mono.just(document));
@@ -314,7 +315,7 @@ public class DocumentService {
         log.info("Restoring document {} to version {}", documentId, versionId);
 
         return documentsHistory.findById(UUID.fromString(versionId))
-                .switchIfEmpty(Mono.error(new RuntimeException("Version not found: " + versionId)))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentVersion", versionId)))
                 .flatMap(history -> updateDocument(documentId, history.getContent()))
                 .doOnSuccess(result -> log.info("✅ Document restored to version: {}", versionId))
                 .doOnError(error -> log.error("❌ Error restoring document version", error));
@@ -357,7 +358,7 @@ public class DocumentService {
         UUID uuid = UUID.fromString(id);
 
         return documents.findById(uuid)
-                .switchIfEmpty(Mono.error(new RuntimeException("Document not found: " + id)))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("Document", id)))
                 .flatMap(document -> documentsHistory.deleteByDocumentId(uuid)
                         .then(documents.deleteById(uuid)))
                 .doOnSuccess(result -> log.info("✅ Document deleted: {}", id))

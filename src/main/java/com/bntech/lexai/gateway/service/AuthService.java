@@ -2,12 +2,13 @@ package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
+import com.bntech.lexai.gateway.exception.UnauthorizedException;
 import com.bntech.lexai.gateway.mapper.UserMapper;
 import com.bntech.lexai.gateway.rest.dto.security.LoginRequest;
 import com.bntech.lexai.gateway.rest.dto.security.LoginResponse;
 import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenResponse;
 import com.bntech.lexai.gateway.rest.dto.security.UserDto;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -31,12 +32,12 @@ public class AuthService {
                 .doOnError(error -> log.error("Error finding user: ", error))
                 .switchIfEmpty(Mono.defer(() -> {
                     log.warn("No user found for username/email: {}", loginRequest.getUsername());
-                    return Mono.error(new EntityNotFoundException("User not found"));
+                    return Mono.error(new ResourceNotFoundException("User", loginRequest.getUsername()));
                 }))
                 .filter(User::isEnabled)
                 .switchIfEmpty(Mono.defer(() -> {
                     log.warn("User is disabled: {}", loginRequest.getUsername());
-                    return Mono.error(new RuntimeException("User is disabled"));
+                    return Mono.error(new UnauthorizedException("User account is disabled"));
                 }))
                 .filter(user -> {
                     String providedPassword = loginRequest.getPassword();
@@ -46,7 +47,7 @@ public class AuthService {
                 })
                 .switchIfEmpty(Mono.defer(() -> {
                     log.warn("Password mismatch for user: {}", loginRequest.getUsername());
-                    return Mono.error(new RuntimeException("Invalid password"));
+                    return Mono.error(new UnauthorizedException("Invalid credentials"));
                 }))
                 .map(user -> {
                     String token = jwts.generateToken(user);

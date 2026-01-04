@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.security.User;
+import com.bntech.lexai.gateway.exception.UnauthorizedException;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -90,12 +91,12 @@ public class JwtService {
                     .getBody();
 
             if (claims.getExpiration().before(new Date())) {
-                return Mono.error(new RuntimeException("Token expired"));
+                return Mono.error(new UnauthorizedException("Token expired"));
             }
 
             return Mono.just(claims.getSubject());
         } catch (Exception e) {
-            return Mono.error(new RuntimeException("Invalid token"));
+            return Mono.error(new UnauthorizedException("Invalid token"));
         }
     }
 
@@ -103,7 +104,7 @@ public class JwtService {
         return validateAndGetClaims(token)
                 .filter(claims -> "refresh".equals(claims.get("type")))
                 .map(Claims::getSubject)
-                .switchIfEmpty(Mono.error(new RuntimeException("Invalid refresh token type")));
+                .switchIfEmpty(Mono.error(new UnauthorizedException("Invalid refresh token type")));
     }
 
     public Mono<Claims> validateAndGetClaims(String token) {
@@ -115,12 +116,12 @@ public class JwtService {
                     .getBody();
 
             if (claims.getExpiration().before(new Date())) {
-                return Mono.error(new RuntimeException("Token expired"));
+                return Mono.error(new UnauthorizedException("Token expired"));
             }
 
             return Mono.just(claims);
         } catch (Exception e) {
-            return Mono.error(new RuntimeException("Invalid token"));
+            return Mono.error(new UnauthorizedException("Invalid token"));
         }
     }
 
