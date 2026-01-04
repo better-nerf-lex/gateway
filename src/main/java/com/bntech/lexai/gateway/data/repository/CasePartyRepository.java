@@ -15,6 +15,8 @@ import java.util.UUID;
 public interface CasePartyRepository extends R2dbcRepository<CaseParty, UUID> {
     Flux<CaseParty> findByCaseId(UUID caseId);
 
+    Mono<CaseParty> findByCaseIdAndLegalEntityIdAndRole(UUID caseId, UUID legalEntityId, CasePartyRole role);
+
     @Modifying
     @Query("DELETE FROM case_parties WHERE case_id = :caseId AND legal_entity_id = :legalEntityId AND role = :role")
     Mono<Void> deleteByCaseIdAndLegalEntityIdAndRole(UUID caseId, UUID legalEntityId, CasePartyRole role);

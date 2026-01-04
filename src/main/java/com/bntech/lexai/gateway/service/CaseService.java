@@ -176,7 +176,8 @@ public class CaseService {
     public Mono<Void> addParty(String caseId, String legalEntityId, CasePartyRole role) {
         UUID cId = UUID.fromString(caseId);
         UUID leId = UUID.fromString(legalEntityId);
-        return casePartyRepository.save(new CaseParty(cId, leId, role))
+        return casePartyRepository.findByCaseIdAndLegalEntityIdAndRole(cId, leId, role)
+                .switchIfEmpty(casePartyRepository.save(new CaseParty(cId, leId, role)))
                 .then()
                 .doOnSuccess(v -> log.info("✅ Party {} added to case {} as {}", legalEntityId, caseId, role));
     }

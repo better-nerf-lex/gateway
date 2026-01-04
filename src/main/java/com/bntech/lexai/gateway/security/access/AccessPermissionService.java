@@ -132,7 +132,8 @@ public class AccessPermissionService {
                             log.debug("hasTeamAccessByDocument: document found but has no teamId: {}", id);
                             return Mono.just(false);
                         }
-                        log.debug("hasTeamAccessByDocument: document found, teamId: {}, checking team access", doc.getTeamId());
+                        log.debug("hasTeamAccessByDocument: document found, teamId: {}, checking team access",
+                                doc.getTeamId());
                         return hasTeamAccess(authentication, doc.getTeamId(), level);
                     })
                     .defaultIfEmpty(false)
@@ -154,7 +155,8 @@ public class AccessPermissionService {
             UUID uuid = UUID.fromString(id.trim());
             return legalEntityRepository.findById(uuid)
                     .flatMap(le -> {
-                        if (le.getTeamId() == null) return Mono.just(false);
+                        if (le.getTeamId() == null)
+                            return Mono.just(false);
                         return hasTeamAccess(authentication, le.getTeamId(), level);
                     })
                     .defaultIfEmpty(false)
@@ -186,16 +188,17 @@ public class AccessPermissionService {
                     .flatMap(user -> {
                         log.debug("isOwnerOrAdminOfDocument: checking document {} for user id {}", uuid, user.getId());
                         return documentRepository.findById(uuid)
-                            .map(doc -> {
-                                boolean isOwner = user.getId().equals(doc.getOwnerId());
-                                log.debug("isOwnerOrAdminOfDocument: user id: {}, document owner id: {}, isOwner: {}",
-                                        user.getId(), doc.getOwnerId(), isOwner);
-                                return isOwner;
-                            })
-                            .switchIfEmpty(Mono.defer(() -> {
-                                log.debug("isOwnerOrAdminOfDocument: document not found: {}", uuid);
-                                return Mono.just(false);
-                            }));
+                                .map(doc -> {
+                                    boolean isOwner = user.getId().equals(doc.getOwnerId());
+                                    log.debug(
+                                            "isOwnerOrAdminOfDocument: user id: {}, document owner id: {}, isOwner: {}",
+                                            user.getId(), doc.getOwnerId(), isOwner);
+                                    return isOwner;
+                                })
+                                .switchIfEmpty(Mono.defer(() -> {
+                                    log.debug("isOwnerOrAdminOfDocument: document not found: {}", uuid);
+                                    return Mono.just(false);
+                                }));
                     })
                     .defaultIfEmpty(false)
                     .onErrorResume(e -> {
@@ -297,7 +300,8 @@ public class AccessPermissionService {
         try {
             return caseRepository.findById(UUID.fromString(id.trim()))
                     .flatMap(c -> {
-                        if (c.getTeamId() == null) return Mono.just(false);
+                        if (c.getTeamId() == null)
+                            return Mono.just(false);
                         log.debug("hasTeamAccessByCase: case found, teamId: {}, checking team access", c.getTeamId());
                         return hasTeamAccess(authentication, c.getTeamId(), level);
                     })
@@ -372,11 +376,16 @@ public class AccessPermissionService {
                 .flatMap(hasAccess -> {
                     if (hasAccess) {
                         log.debug("canViewCase: Access granted via team for {}", id);
-                        return Mono.just(true);
                     }
                     return isOwnerOrAdminOfCase(authentication, id)
                             .doOnNext(isOwner -> log.debug("canViewCase: Access result via owner/admin for {}: {}", id,
                                     isOwner));
+                })
+                .doOnNext(allowed -> {
+                    if (!allowed) {
+                        log.warn("canViewCase: ACCESS DENIED for user: {}, caseId: {}",
+                                authentication != null ? authentication.getName() : "null", id);
+                    }
                 });
     }
 

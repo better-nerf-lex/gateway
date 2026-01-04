@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS case_parties
 (
     case_id         UUID         NOT NULL REFERENCES cases (id) ON DELETE CASCADE,
     legal_entity_id UUID         NOT NULL REFERENCES legal_entities (id) ON DELETE CASCADE,
-    role            VARCHAR(20) NOT NULL CHECK (role IN ('DEFENDANT', 'OFFENDANT', 'OTHER')),
+    role            VARCHAR(20) NOT NULL CHECK (role IN ('DEFENDANT', 'PLAINTIFF', 'OTHER')),
     PRIMARY KEY (case_id, legal_entity_id, role)
 );
 

@@ -36,24 +36,41 @@ public class JwtAuthenticationFilter implements WebFilter {
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.debug("No Bearer token found in header for {} {}", method, path);
             return chain.filter(exchange);
         }
 
         String token = authHeader.substring(7);
+        log.debug("Validating token for {} {}", method, path);
 
         return jwtService.validateAndGetClaims(token)
-                .doOnError(error -> log.info("Token validation failed: {}", error.getMessage()))
-                .flatMap(claims -> userDetailsService.findByUsername(claims.getSubject()))
-                .map(userDetails -> new UsernamePasswordAuthenticationToken(
-                        userDetails,
-                        null,
-                        userDetails.getAuthorities()))
+                .doOnError(error -> log.warn("Token validation failed for {} {}: {}", method, path, error.getMessage()))
+                .flatMap(claims -> {
+                    log.debug("Token valid for subject: {}", claims.getSubject());
+                    return userDetailsService.findByUsername(claims.getSubject());
+                })
+                .map(userDetails -> {
+                    log.debug("User found: {}, authorities: {}", userDetails.getUsername(),
+                            userDetails.getAuthorities());
+                    return new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities());
+                })
                 .onErrorResume(ex -> {
-                    log.info("Authentication failed for {} {}: {}", method, path, ex.getMessage());
+                    log.error("Authentication process failed for {} {}: {}", method, path, ex.getMessage());
                     return Mono.empty();
                 })
-                .flatMap(authToken -> chain.filter(exchange)
-                        .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authToken)))
-                .switchIfEmpty(Mono.defer(() -> chain.filter(exchange)));
+                .flatMap(authToken -> {
+                    log.debug("Authentication successful for {}, proceeding with chain", authToken.getName());
+                    return chain.filter(exchange)
+                            .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authToken))
+                            .then(Mono.just(authToken));
+                })
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.warn("No valid authentication, proceeding without security context for {} {}", method, path);
+                    return chain.filter(exchange).then(Mono.empty());
+                }))
+                .then();
     }
 }

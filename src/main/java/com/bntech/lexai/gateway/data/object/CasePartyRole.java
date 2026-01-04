@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum CasePartyRole {
     DEFENDANT("defendant"),
-    OFFENDANT("offendant"),
+    PLAINTIFF("plaintiff"),
     OTHER("other");
 
     private final String value;
