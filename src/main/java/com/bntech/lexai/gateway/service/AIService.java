@@ -36,6 +36,7 @@ public class AIService {
 
     private AnthropicClient client;
     private final ObjectMapper objectMapper;
+    private final EliService eliService;
 
     @PostConstruct
     private void initializeClient() {
@@ -91,31 +92,56 @@ public class AIService {
             Map<String, String> answers, List<String> requirements, List<String> base) {
         log.info("Generating document for: {}", title);
 
-        return Mono.fromCallable(() -> {
-            String jsonData = buildJsonForGeneration(title, originalPrompt, answers, requirements, base);
+        return fetchEliDocumentsContext(base)
+                .flatMap(legalContext -> {
+                    String jsonData = buildJsonForGeneration(title, originalPrompt, answers, requirements, base);
+                    String userMessage = jsonData + legalContext;
 
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(8192L)
-                    .system(Prompts.EN_GENERATE_DOCUMENT)
-                    .addUserMessage(jsonData)
-                    .model(Model.CLAUDE_3_7_SONNET_LATEST)
-                    .temperature(0.2)
-                    .build();
+                    return Mono.fromCallable(() -> {
+                        MessageCreateParams params = MessageCreateParams.builder()
+                                .maxTokens(8192L)
+                                .system(Prompts.EN_GENERATE_DOCUMENT)
+                                .addUserMessage(userMessage)
+                                .model(Model.CLAUDE_3_7_SONNET_LATEST)
+                                .temperature(0.2)
+                                .build();
 
-            log.debug("Sending document generation request to Anthropic API for: {}", title);
-            Message message = client.messages().create(params);
-            log.debug("Received document generation response from Anthropic API for: {}", title);
+                        log.debug("Sending document generation request to Anthropic API for: {}", title);
+                        Message message = client.messages().create(params);
+                        log.debug("Received document generation response from Anthropic API for: {}", title);
 
-            return message.content().getFirst()
-                    .text()
-                    .map(TextBlock::text)
-                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
-        })
-                .subscribeOn(Schedulers.boundedElastic())
+                        return message.content().getFirst()
+                                .text()
+                                .map(TextBlock::text)
+                                .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+                    }).subscribeOn(Schedulers.boundedElastic());
+                })
                 .timeout(Duration.ofMinutes(5))
                 .retryWhen(buildRetrySpec(title))
                 .doOnSuccess(result -> log.info("✅ Document generated for: {}", title))
                 .doOnError(error -> log.error("❌ Error generating document for: {}", title, error));
+    }
+
+    private Mono<String> fetchEliDocumentsContext(List<String> base) {
+        if (base == null || base.isEmpty()) {
+            return Mono.just("");
+        }
+
+        log.info("Fetching ELI documents for legal bases: {}", base);
+
+        return eliService.fetchLegalDocuments(base)
+                .collectList()
+                .map(eliService::buildLegalDocumentsContext)
+                .doOnSuccess(context -> {
+                    if (!context.isBlank()) {
+                        log.info("✅ Fetched {} legal documents from eli.gov.pl", 
+                                base.stream().filter(uri -> context.contains(uri)).count());
+                    }
+                })
+                .onErrorResume(e -> {
+                    log.warn("Failed to fetch ELI documents, proceeding without legal context: {}", e.getMessage());
+                    return Mono.just("");
+                });
     }
 
     private String buildJsonForGeneration(String title, String originalPrompt,

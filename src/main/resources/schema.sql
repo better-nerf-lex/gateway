@@ -276,7 +276,7 @@ VALUES
        {"id":"assets","text":"Czy małżonkowie posiadają wspólny majątek?","type":"TEXT"},
        {"id":"requests","text":"Dodatkowe wnioski kierowane do sądu","type":"TEXT"}
      ]'::jsonb,
-     '["Art. 56 KRO", "Art. 57 KRO"]'::jsonb,
+     '["eli/DU/1974/1/ogl"]'::jsonb,
      '["Odpis aktu małżeństwa", "Odpisy aktów urodzenia dzieci"]'::jsonb),
 
     ('33333333-3333-3333-3333-333333333333',
@@ -294,7 +294,7 @@ VALUES
        {"id":"payment_method","text":"Preferowany sposób dokonania płatności","type":"TEXT"},
        {"id":"deadline","text":"Ostateczny termin zapłaty","type":"TEXT"}
      ]'::jsonb,
-     '["Art. 476 KC", "Art. 481 KC"]'::jsonb,
+     '["eli/DU/1964/16/ogl"]'::jsonb,
      '["Kopia faktury", "Kopia umowy"]'::jsonb),
 
     ('44444444-4444-4444-4444-444444444444',
@@ -312,7 +312,7 @@ VALUES
        {"id":"deadline","text":"Termin zapłaty pozwalający uniknąć dalszych kroków prawnych","type":"TEXT"},
        {"id":"consequences","text":"Skutki braku zapłaty w wyznaczonym terminie","type":"TEXT"}
      ]'::jsonb,
-     '["Art. 476 KC", "Art. 481 KC", "Art. 455 KC"]'::jsonb,
+     '["eli/DU/1964/16/ogl"]'::jsonb,
      '["Faktury", "Dowody doręczenia"]'::jsonb),
 
     ('55555555-5555-5555-5555-555555555555',
@@ -330,7 +330,7 @@ VALUES
        {"id":"court","text":"Właściwy sąd do rozpoznania sprawy","type":"ENTITY"},
        {"id":"evidence","text":"Dowody na poparcie żądania","type":"TEXT"}
      ]'::jsonb,
-     '["Art. 128 KRO", "Art. 135 KRO"]'::jsonb,
+     '["eli/DU/1974/1/ogl"]'::jsonb,
      '["Odpis aktu urodzenia", "Zaświadczenia o dochodach"]'::jsonb),
 
     ('66666666-6666-6666-6666-666666666666',
@@ -348,6 +348,6 @@ VALUES
        {"id":"evidence","text":"Dowody potwierdzające wskazane okoliczności","type":"TEXT"},
        {"id":"signature","text":"Dane podpisu wnioskodawcy","type":"TEXT"}
      ]'::jsonb,
-     '["Art. 151 KKW"]'::jsonb,
+     '["eli/DU/1997/90/ogl"]'::jsonb,
      '["Zaświadczenia lekarskie", "Dokumenty rodzinne"]'::jsonb)
 ON CONFLICT (id) DO NOTHING;
