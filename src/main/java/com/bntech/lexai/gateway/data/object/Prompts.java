@@ -29,16 +29,16 @@ public class Prompts {
                 4. Użyj `PERSON`, `COMPANY`, `COURT` lub `LAW_FIRM` jeśli pytanie dotyczy konkretnie takiego podmiotu. Użyj `ENTITY` dla ogólnych podmiotów prawnych. W pozostałych przypadkach użyj `TEXT`.
                 5. Uwzględnij pytania o dane takie jak sygnatura sprawy lub nazwisko panieńskie matki **tylko jeśli są one niezbędne** do wniosku.
                 6. W polu `base` wskaż podstawy prawne używając formatu ELI (European Legislation Identifier).
-                   
+
                    WAŻNE: Formatuj podstawy prawne jako URI ELI według wzoru:
                    eli/{dziennik}/{rok}/{pozycja}/{ogl|tj|uj}
-                   
+
                    Gdzie:
                    - dziennik: DU (Dziennik Ustaw), MP (Monitor Polski), itp.
                    - rok: rok publikacji (np. 1964, 2020)
                    - pozycja: numer pozycji w dzienniku
                    - ogl = tekst ogłoszony, tj = tekst jednolity, uj = tekst ujednolicony
-                   
+
                    Zweryfikowane przykłady (używaj TYLKO tych URI):
                    - "eli/DU/1964/93/ogl" dla Kodeksu cywilnego
                    - "eli/DU/1964/296/ogl" dla Kodeksu postępowania cywilnego
@@ -50,9 +50,9 @@ public class Prompts {
                    - "eli/DU/1997/741/ogl" dla Ustawy o gospodarce nieruchomościami
                    - "eli/DU/1974/141/ogl" dla Kodeksu pracy
                    - "eli/DU/1994/414/ogl" dla Prawa budowlanego
-                   
+
                    Te URI pozwalają pobrać pełne teksty prawne z https://eli.gov.pl/
-                   
+
                 7. W polu `name` zaproponuj odpowiednią nazwę dla dokumentu.
                 8. W `requirements` wpisz, jakie załączniki lub dokumenty muszą zostać dostarczone.
 
@@ -73,10 +73,17 @@ public class Prompts {
             """;
 
     public static final String EN_GENERATE_DOCUMENT = """
-            Generate a formal legal document in Polish using HTML which I can do into pdf later, based on the provided JSON data. The document must be suitable for submission to court and ready for conversion to PDF.
+            Generate a formal legal document in Polish using HTML.
+            The document must be suitable for submission to court and ready for later conversion to PDF.
 
-            Formatting and content rules:
-            1. Use the value of "name" as the exact document title.
+            CRITICAL FORMATTING RULES:
+            1. return ONLY the HTML content. Do NOT include `<html>`, `<head>`, `<body>`, or `<!DOCTYPE>` tags.
+            2. Do NOT use `<style>` blocks. You MUST use inline `style="..."` attributes for ALL styling.
+            3. Use a simple clean layout.
+            4. Use `<div>` or `<p>` tags for structure.
+
+            Content rules:
+            1. Use the value of "name" as the exact document title, centered and bold.
             2. The main body of the document must contain the data from "questions", written in proper legal and formal style. Each {"question": "answer"} should be converted into a coherent paragraph.
             3. The document layout and appearance must follow the structure described in "requirements". Treat "requirements" as layout and formatting guidelines (e.g., margins, sections, titles).
             4. At the end, include a section titled "Podstawa prawna", listing all elements from "base" as legal bases with their ELI URIs formatted as clickable links to https://eli.gov.pl/{uri}.
@@ -86,7 +93,7 @@ public class Prompts {
             Additional notes:
             - Use only formal legal language, no casual or informal tone.
             - Do not include any explanation, metadata, or comments.
-            - Output only the final document content, formatted for direct PDF rendering.
+            - Output only the final document content HTML fragment.
             - When referencing legal bases, include the full legal name of the act and specific article numbers.
             - Even if a legal document was unavailable from eli.gov.pl, reference it properly using standard legal citation format.
 
@@ -97,57 +104,57 @@ public class Prompts {
 
     public static final String EN_EXTRACT_LEGAL_BASIS = """
                 Your task is to identify the CORRECT and RELEVANT legal basis (podstawa prawna) for a document that the user wants to create.
-                
+
                 CRITICAL INSTRUCTIONS:
                 1. Carefully analyze what TYPE of document the user wants to create
                 2. Match the document type to the SPECIFIC Polish legal act that governs that area
                 3. DO NOT guess or hallucinate ELI URIs - only use URIs you are confident exist
                 4. The ELI URI format is: eli/DU/{year}/{position}/ogl - where position is the "poz." number, NOT the journal number "nr"
-                
+
                 Respond strictly in JSON format:
                 {
                     "base": ["eli/DU/rok/pozycja/ogl"],
                     "reasoning": "Brief explanation of why these legal bases apply"
                 }
-                
+
                 ELI URI FORMAT:
                 eli/{dziennik}/{rok}/{pozycja}/{ogl|tj|uj}
-                
+
                 Where:
                 - dziennik: DU (Dziennik Ustaw), MP (Monitor Polski)
                 - rok: year of ORIGINAL publication
                 - pozycja: the "poz." position number (NOT the "nr" journal number!)
                 - ogl = original text, tj = consolidated text
-                
+
                 VERIFIED LEGAL ACTS BY DOMAIN (use ONLY these URIs):
-                
+
                 Civil Law:
                 - "eli/DU/1964/93/ogl" - Kodeks cywilny (Civil Code)
                 - "eli/DU/1964/296/ogl" - Kodeks postępowania cywilnego (Civil Procedure Code)
-                
+
                 Family Law:
                 - "eli/DU/1964/59/ogl" - Kodeks rodzinny i opiekuńczy (Family and Guardianship Code)
-                
+
                 Criminal Law:
                 - "eli/DU/1997/553/ogl" - Kodeks karny (Criminal Code)
                 - "eli/DU/1997/555/ogl" - Kodeks postępowania karnego (Criminal Procedure Code)
-                
+
                 Administrative Law:
                 - "eli/DU/1960/168/ogl" - Kodeks postępowania administracyjnego (Administrative Procedure Code)
-                
+
                 Real Estate & Geodesy:
                 - "eli/DU/1989/163/ogl" - Prawo geodezyjne i kartograficzne (Geodesy and Cartography Law)
                 - "eli/DU/1997/741/ogl" - Ustawa o gospodarce nieruchomościami (Real Estate Management Act)
-                
+
                 Labor Law:
                 - "eli/DU/1974/141/ogl" - Kodeks pracy (Labor Code)
-                
+
                 Tax Law:
                 - "eli/DU/1997/926/ogl" - Ordynacja podatkowa (Tax Ordinance)
-                
+
                 Construction:
                 - "eli/DU/1994/414/ogl" - Prawo budowlane (Construction Law)
-                
+
                 MATCHING RULES:
                 - For geodesy/surveying/maps/cartography/land measurement documents → use eli/DU/1989/163/ogl (Prawo geodezyjne)
                 - For divorce/alimony/custody/marriage documents → use eli/DU/1964/59/ogl (Kodeks rodzinny)
@@ -160,18 +167,18 @@ public class Prompts {
                 - For criminal proceedings → use eli/DU/1997/555/ogl (KPK)
                 - For tax matters → use eli/DU/1997/926/ogl (Ordynacja podatkowa)
                 - For construction/building permits → use eli/DU/1994/414/ogl (Prawo budowlane)
-                
+
                 These URIs will be verified against https://eli.gov.pl/ API. Only return URIs you are confident are correct.
-                
+
                 Return only the JSON data. Do not include any explanations outside the JSON structure.
             """;
 
     public static final String EN_GENERATE_QUESTIONS = """
                 Your task is to prepare structured input data to generate a document based on a graphic template (form image) that will be provided as an attachment.
                 All in Polish.
-                
+
                 The legal basis for this document has already been determined: %s
-                
+
                 Respond strictly in JSON format, using the following schema:
                 {
                     "questions": [

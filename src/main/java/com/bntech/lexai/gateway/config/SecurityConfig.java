@@ -25,7 +25,7 @@ import org.springframework.web.server.ServerWebExchange;
 import java.util.List;
 import org.springframework.http.HttpMethod;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @EnableWebFluxSecurity
 @EnableReactiveMethodSecurity
 @RequiredArgsConstructor
@@ -40,18 +40,18 @@ public class SecurityConfig {
     }
 
     @Bean
-    public ReactiveAuthenticationManager authenticationManager() {
+    public ReactiveAuthenticationManager authenticationManager(PasswordEncoder passwordEncoder) {
         UserDetailsRepositoryReactiveAuthenticationManager authManager =
                 new UserDetailsRepositoryReactiveAuthenticationManager(userDetailsService);
-        authManager.setPasswordEncoder(passwordEncoder());
+        authManager.setPasswordEncoder(passwordEncoder);
         return authManager;
     }
 
     @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http, CorsConfigurationSource corsConfigurationSource) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .cors(cors -> cors.configurationSource(this.corsConfigurationSource()))
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .pathMatchers("/auth/**", "/oauth2/**", "/login", "/.well-known/**").permitAll()

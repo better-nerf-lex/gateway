@@ -43,22 +43,17 @@ public class JwtAuthenticationFilter implements WebFilter {
 
         return jwtService.validateAndGetClaims(token)
                 .doOnError(error -> log.info("Token validation failed: {}", error.getMessage()))
-                .flatMap(claims -> {
-                    String username = claims.getSubject();
-                    return userDetailsService.findByUsername(username);
-                })
-                .flatMap(userDetails -> {
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities());
-
-                    return chain.filter(exchange)
-                            .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authToken));
-                })
+                .flatMap(claims -> userDetailsService.findByUsername(claims.getSubject()))
+                .map(userDetails -> new UsernamePasswordAuthenticationToken(
+                        userDetails,
+                        null,
+                        userDetails.getAuthorities()))
                 .onErrorResume(ex -> {
                     log.info("Authentication failed for {} {}: {}", method, path, ex.getMessage());
-                    return chain.filter(exchange);
-                });
+                    return Mono.empty();
+                })
+                .flatMap(authToken -> chain.filter(exchange)
+                        .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authToken)))
+                .switchIfEmpty(Mono.defer(() -> chain.filter(exchange)));
     }
 }

@@ -11,8 +11,9 @@ import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentHistoryDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentStatsDto;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
-import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
+import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
+import org.jsoup.Jsoup;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
@@ -216,8 +217,25 @@ public class DocumentService {
     private Mono<DocumentDto> processAIGeneration(Document document, GenerateDocumentRequest request) {
         return aiService.generateDocumentWithAnswers(request)
                 .map(content -> {
-                    log.info("Generated document content: {}", content);
-                    return content;
+                    log.info("Generated document content raw: {}", content);
+                    // Clean up HTML using Jsoup to ensure we only have the body content
+                    // and no html/head/body tags that confuse editors
+                    String cleanedContent = content;
+                    try {
+                        org.jsoup.nodes.Document doc = Jsoup.parse(content);
+                        // If there is a body, use its html, otherwise use the whole thing (it might be
+                        // a fragment)
+                        if (doc.body() != null && !doc.body().html().isBlank()) {
+                            cleanedContent = doc.body().html();
+                        } else {
+                            // Fallback if body is empty but doc has content
+                            cleanedContent = doc.html();
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to parse/clean HTML content, using raw", e);
+                    }
+                    log.info("Cleaned document content: {}", cleanedContent);
+                    return cleanedContent;
                 })
                 .flatMap(content -> updateDocumentWithContent(document, content))
                 .doOnSuccess(result -> log.info("✅ AI generation completed for: {}", document.getTitle()))

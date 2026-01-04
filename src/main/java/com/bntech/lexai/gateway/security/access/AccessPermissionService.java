@@ -125,18 +125,20 @@ public class AccessPermissionService {
             return Mono.just(false);
         }
         try {
-            UUID uuid = UUID.fromString(id);
+            UUID uuid = UUID.fromString(id.trim());
             return documentRepository.findById(uuid)
-                    .map(Document::getTeamId)
-                    .filter(teamId -> teamId != null)
-                    .flatMap(teamId -> {
-                        log.debug("hasTeamAccessByDocument: document found, teamId: {}, checking team access", teamId);
-                        return hasTeamAccess(authentication, teamId, level);
+                    .flatMap(doc -> {
+                        if (doc.getTeamId() == null) {
+                            log.debug("hasTeamAccessByDocument: document found but has no teamId: {}", id);
+                            return Mono.just(false);
+                        }
+                        log.debug("hasTeamAccessByDocument: document found, teamId: {}, checking team access", doc.getTeamId());
+                        return hasTeamAccess(authentication, doc.getTeamId(), level);
                     })
                     .defaultIfEmpty(false)
-                    .doOnNext(hasAccess -> log.debug("hasTeamAccessByDocument: result: {}", hasAccess))
+                    .doOnNext(hasAccess -> log.debug("hasTeamAccessByDocument: result for id {}: {}", id, hasAccess))
                     .onErrorResume(e -> {
-                        log.error("hasTeamAccessByDocument: error occurred", e);
+                        log.error("hasTeamAccessByDocument: error occurred for id {}", id, e);
                         return Mono.just(false);
                     });
         } catch (IllegalArgumentException e) {
@@ -149,11 +151,12 @@ public class AccessPermissionService {
         if (id == null || id.isBlank() || isBlankId(id))
             return Mono.just(false);
         try {
-            UUID uuid = UUID.fromString(id);
+            UUID uuid = UUID.fromString(id.trim());
             return legalEntityRepository.findById(uuid)
-                    .map(LegalEntity::getTeamId)
-                    .filter(teamId -> teamId != null)
-                    .flatMap(teamId -> hasTeamAccess(authentication, teamId, level))
+                    .flatMap(le -> {
+                        if (le.getTeamId() == null) return Mono.just(false);
+                        return hasTeamAccess(authentication, le.getTeamId(), level);
+                    })
                     .defaultIfEmpty(false)
                     .onErrorReturn(false);
         } catch (IllegalArgumentException e) {
@@ -178,18 +181,25 @@ public class AccessPermissionService {
         }
 
         try {
+            UUID uuid = UUID.fromString(id.trim());
             return userRepository.findByUsername(authentication.getName())
-                    .flatMap(user -> documentRepository.findById(UUID.fromString(id))
+                    .flatMap(user -> {
+                        log.debug("isOwnerOrAdminOfDocument: checking document {} for user id {}", uuid, user.getId());
+                        return documentRepository.findById(uuid)
                             .map(doc -> {
                                 boolean isOwner = user.getId().equals(doc.getOwnerId());
-                                log.debug("isOwnerOrAdminOfDocument: user id: {}, document user id: {}, isOwner: {}",
+                                log.debug("isOwnerOrAdminOfDocument: user id: {}, document owner id: {}, isOwner: {}",
                                         user.getId(), doc.getOwnerId(), isOwner);
                                 return isOwner;
                             })
-                            .defaultIfEmpty(false))
+                            .switchIfEmpty(Mono.defer(() -> {
+                                log.debug("isOwnerOrAdminOfDocument: document not found: {}", uuid);
+                                return Mono.just(false);
+                            }));
+                    })
                     .defaultIfEmpty(false)
                     .onErrorResume(e -> {
-                        log.error("isOwnerOrAdminOfDocument: error occurred", e);
+                        log.error("isOwnerOrAdminOfDocument: error occurred for id {}", id, e);
                         return Mono.just(false);
                     });
         } catch (IllegalArgumentException e) {
@@ -208,7 +218,7 @@ public class AccessPermissionService {
 
         try {
             return userRepository.findByUsername(authentication.getName())
-                    .flatMap(user -> legalEntityRepository.findById(UUID.fromString(id))
+                    .flatMap(user -> legalEntityRepository.findById(UUID.fromString(id.trim()))
                             .map(e -> user.getId().equals(e.getOwnerId()))
                             .defaultIfEmpty(false))
                     .defaultIfEmpty(false)
@@ -285,12 +295,11 @@ public class AccessPermissionService {
             return Mono.just(false);
         }
         try {
-            return caseRepository.findById(UUID.fromString(id))
-                    .map(LegalCase::getTeamId)
-                    .filter(teamId -> teamId != null)
-                    .flatMap(teamId -> {
-                        log.debug("hasTeamAccessByCase: case found, teamId: {}, checking team access", teamId);
-                        return hasTeamAccess(authentication, teamId, level);
+            return caseRepository.findById(UUID.fromString(id.trim()))
+                    .flatMap(c -> {
+                        if (c.getTeamId() == null) return Mono.just(false);
+                        log.debug("hasTeamAccessByCase: case found, teamId: {}, checking team access", c.getTeamId());
+                        return hasTeamAccess(authentication, c.getTeamId(), level);
                     })
                     .defaultIfEmpty(false)
                     .doOnNext(hasAccess -> log.debug("hasTeamAccessByCase result: {}", hasAccess))
@@ -311,7 +320,7 @@ public class AccessPermissionService {
 
         try {
             return userRepository.findByUsername(authentication.getName())
-                    .flatMap(user -> caseRepository.findById(UUID.fromString(id))
+                    .flatMap(user -> caseRepository.findById(UUID.fromString(id.trim()))
                             .map(c -> user.getId().equals(c.getOwnerId()))
                             .defaultIfEmpty(false))
                     .defaultIfEmpty(false)
@@ -331,7 +340,7 @@ public class AccessPermissionService {
 
         try {
             return userRepository.findByUsername(authentication.getName())
-                    .flatMap(user -> eventRepository.findById(UUID.fromString(id))
+                    .flatMap(user -> eventRepository.findById(UUID.fromString(id.trim()))
                             .map(e -> user.getId().equals(e.getOwnerId()))
                             .defaultIfEmpty(false))
                     .defaultIfEmpty(false)
