@@ -16,6 +16,7 @@ public class DocumentGroupDto {
     private String id;
     private String name;
     private String description;
+    private String caseId;
     private String teamId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

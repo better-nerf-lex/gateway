@@ -18,4 +18,7 @@ public interface DocumentGroupRepository extends R2dbcRepository<DocumentGroup, 
 
     @Query("SELECT * FROM document_groups WHERE owner_id = :ownerId ORDER BY created_at DESC")
     Flux<DocumentGroup> findByOwnerIdOrderByCreatedAtDesc(Long ownerId);
+
+    @Query("SELECT * FROM document_groups WHERE case_id = :caseId ORDER BY created_at DESC")
+    Flux<DocumentGroup> findByCaseIdOrderByCreatedAtDesc(UUID caseId);
 }

@@ -27,4 +27,5 @@ public class CaseDto {
     private Long ownerId;
     private List<CasePartyDto> parties;
     private List<EventDto> events;
+    private List<DocumentGroupDto> documentGroups;
 }

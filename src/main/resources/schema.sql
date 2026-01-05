@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS document_groups
     created_by  BIGINT,
     version     INTEGER NOT NULL,
     team_id     UUID REFERENCES teams (id),
-    owner_id    BIGINT REFERENCES users (id)
+    owner_id    BIGINT REFERENCES users (id),
+    case_id     UUID
 );
 
 CREATE TABLE IF NOT EXISTS documents
@@ -97,7 +98,7 @@ CREATE TABLE IF NOT EXISTS document_files
     id                UUID PRIMARY KEY,
     name              VARCHAR(255),
     s3_url            VARCHAR(1000),
-    file_type         VARCHAR(20) CHECK (file_type IN ('pdf', 'jpg', 'jpeg', 'png', 'gif', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'other')),
+    file_type         VARCHAR(20) CHECK (file_type IN ('PDF', 'JPG', 'JPEG', 'PNG', 'GIF', 'TXT', 'DOC', 'DOCX', 'XLS', 'XLSX', 'OTHER')),
     document_group_id UUID REFERENCES document_groups (id) ON DELETE CASCADE,
     file_size         BIGINT,
     updated_at        TIMESTAMP,
@@ -136,6 +137,9 @@ CREATE TABLE IF NOT EXISTS cases
     team_id          UUID REFERENCES teams (id),
     owner_id         BIGINT REFERENCES users (id)
 );
+
+ALTER TABLE document_groups DROP CONSTRAINT IF EXISTS document_groups_case_id_fkey;
+ALTER TABLE document_groups ADD CONSTRAINT document_groups_case_id_fkey FOREIGN KEY (case_id) REFERENCES cases (id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS case_parties
 (

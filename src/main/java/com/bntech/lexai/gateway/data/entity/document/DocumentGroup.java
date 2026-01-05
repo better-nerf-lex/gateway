@@ -25,6 +25,9 @@ public class DocumentGroup extends Auditable<UUID> implements OwnableEntity {
     @Column()
     private String description;
 
+    @Column("case_id")
+    private UUID caseId;
+
     @Column()
     private UUID teamId;
 

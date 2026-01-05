@@ -13,6 +13,7 @@ import com.bntech.lexai.gateway.mapper.LegalEntityMapper;
 import com.bntech.lexai.gateway.rest.dto.document.AddPartiesRequest;
 import com.bntech.lexai.gateway.rest.dto.document.CaseDto;
 import com.bntech.lexai.gateway.rest.dto.document.CasePartyDto;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentGroupDto;
 import com.bntech.lexai.gateway.rest.dto.document.EventDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,7 @@ public class CaseService {
     private final EventRepository eventRepository;
     private final EventMapper eventMapper;
     private final EventParticipantRepository eventParticipantRepository;
+    private final DocumentGroupService documentGroupService;
 
     public Flux<CaseDto> getCases(String teamId) {
         if (teamId != null && !teamId.isBlank() && !teamId.equals("null") && !teamId.equals("undefined")) {
@@ -105,10 +107,14 @@ public class CaseService {
                         }))
                 .collectList();
 
-        return Mono.zip(partiesMono, eventsMono)
+        Mono<List<DocumentGroupDto>> documentGroupsMono = documentGroupService.getDocumentGroupsByCaseId(caseId)
+                .collectList();
+
+        return Mono.zip(partiesMono, eventsMono, documentGroupsMono)
                 .map(tuple -> {
                     dto.setParties(tuple.getT1());
                     dto.setEvents(tuple.getT2());
+                    dto.setDocumentGroups(tuple.getT3());
                     return dto;
                 });
     }

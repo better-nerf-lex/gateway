@@ -38,6 +38,12 @@ public class DocumentGroupService {
                 .flatMap(this::enrichWithFiles);
     }
 
+    public Flux<DocumentGroupDto> getDocumentGroupsByCaseId(UUID caseId) {
+        return documentGroupRepository.findByCaseIdOrderByCreatedAtDesc(caseId)
+                .map(documentGroupMapper::toDto)
+                .flatMap(this::enrichWithFiles);
+    }
+
     public Mono<DocumentGroupDto> getDocumentGroupById(String id) {
         UUID uuid = UUID.fromString(id);
         return documentGroupRepository.findById(uuid)
