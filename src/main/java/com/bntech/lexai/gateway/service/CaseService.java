@@ -3,6 +3,7 @@ package com.bntech.lexai.gateway.service;
 import com.bntech.lexai.gateway.data.entity.document.LegalCase;
 import com.bntech.lexai.gateway.data.entity.document.CaseDocument;
 import com.bntech.lexai.gateway.data.entity.document.CaseParty;
+import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.object.CasePartyRole;
 import com.bntech.lexai.gateway.data.repository.*;
 import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
@@ -47,6 +48,7 @@ public class CaseService {
     private final EventMapper eventMapper;
     private final EventParticipantRepository eventParticipantRepository;
     private final DocumentGroupService documentGroupService;
+    private final DocumentGroupRepository documentGroupRepository;
 
     public Flux<CaseDto> getCases(String teamId) {
         if (teamId != null && !teamId.isBlank() && !teamId.equals("null") && !teamId.equals("undefined")) {
@@ -62,7 +64,7 @@ public class CaseService {
                         .flatMapMany(user -> {
                             Flux<LegalCase> byUser = caseRepository.findByOwnerIdOrderByCreatedAtDesc(user.getId());
                             Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
-                                    .map(com.bntech.lexai.gateway.data.entity.security.TeamMember::getTeamId);
+                                    .map(TeamMember::getTeamId);
                             Flux<LegalCase> byTeams = teamIds.flatMap(caseRepository::findByTeamIdOrderByCreatedAtDesc);
                             return Flux.merge(byUser, byTeams);
                         }))
@@ -110,11 +112,24 @@ public class CaseService {
         Mono<List<DocumentGroupDto>> documentGroupsMono = documentGroupService.getDocumentGroupsByCaseId(caseId)
                 .collectList();
 
-        return Mono.zip(partiesMono, eventsMono, documentGroupsMono)
+        Mono<List<com.bntech.lexai.gateway.rest.dto.document.DocumentDto>> documentsMono = documentRepository.findByCaseId(caseId)
+                .filterWhen(doc -> {
+                    if (doc.getDocumentGroupId() == null) {
+                        return Mono.just(true);
+                    }
+                    return documentGroupRepository.findById(doc.getDocumentGroupId())
+                            .map(group -> !caseId.equals(group.getCaseId()))
+                            .defaultIfEmpty(true);
+                })
+                .map(documentMapper::toDto)
+                .collectList();
+
+        return Mono.zip(partiesMono, eventsMono, documentGroupsMono, documentsMono)
                 .map(tuple -> {
                     dto.setParties(tuple.getT1());
                     dto.setEvents(tuple.getT2());
                     dto.setDocumentGroups(tuple.getT3());
+                    dto.setDocuments(tuple.getT4());
                     return dto;
                 });
     }
