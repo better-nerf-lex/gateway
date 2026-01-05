@@ -2,7 +2,7 @@ package com.bntech.lexai.gateway.data.entity.document;
 
 import com.bntech.lexai.gateway.data.entity.Auditable;
 import com.bntech.lexai.gateway.data.entity.OwnableEntity;
-import com.bntech.lexai.gateway.data.object.DocumentFileType;
+import com.bntech.lexai.gateway.data.object.StorageFileType;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.Transient;
@@ -17,8 +17,8 @@ import java.util.UUID;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "document_files")
-public class DocumentFile extends Auditable<UUID> implements OwnableEntity {
+@Table(name = "storage_files")
+public class StorageFile extends Auditable<UUID> implements OwnableEntity {
 
     @Column()
     private String name;
@@ -27,7 +27,7 @@ public class DocumentFile extends Auditable<UUID> implements OwnableEntity {
     private String s3Url;
 
     @Column()
-    private DocumentFileType fileType;
+    private StorageFileType fileType;
 
     @Column()
     private UUID documentGroupId;

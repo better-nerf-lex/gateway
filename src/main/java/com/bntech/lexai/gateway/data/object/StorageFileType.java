@@ -3,7 +3,7 @@ package com.bntech.lexai.gateway.data.object;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
-public enum DocumentFileType {
+public enum StorageFileType {
     PDF("pdf"),
     JPG("jpg"),
     JPEG("jpeg"),
@@ -18,7 +18,7 @@ public enum DocumentFileType {
 
     private final String value;
 
-    DocumentFileType(String value) {
+    StorageFileType(String value) {
         this.value = value;
     }
 
@@ -28,8 +28,8 @@ public enum DocumentFileType {
     }
 
     @JsonCreator
-    public static DocumentFileType fromValue(String value) {
-        for (DocumentFileType type : DocumentFileType.values()) {
+    public static StorageFileType fromValue(String value) {
+        for (StorageFileType type : StorageFileType.values()) {
             if (type.value.equalsIgnoreCase(value) || type.name().equalsIgnoreCase(value)) {
                 return type;
             }

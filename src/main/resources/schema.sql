@@ -8,7 +8,7 @@ DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS team_members CASCADE;
 DROP TABLE IF EXISTS legal_entities CASCADE;
 DROP TABLE IF EXISTS document_history CASCADE;
-DROP TABLE IF EXISTS document_files CASCADE;
+DROP TABLE IF EXISTS storage_files CASCADE;
 DROP TABLE IF EXISTS document_groups CASCADE;
 DROP TABLE IF EXISTS documents CASCADE;
 DROP TABLE IF EXISTS cases CASCADE;
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS document_history
     FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS document_files
+CREATE TABLE IF NOT EXISTS storage_files
 (
     id                UUID PRIMARY KEY,
     name              VARCHAR(255),
@@ -242,10 +242,10 @@ CREATE INDEX IF NOT EXISTS idx_events_event_date ON events (event_date);
 CREATE INDEX IF NOT EXISTS idx_document_groups_owner_id ON document_groups (owner_id);
 CREATE INDEX IF NOT EXISTS idx_document_groups_team_id ON document_groups (team_id);
 CREATE INDEX IF NOT EXISTS idx_document_groups_created_at ON document_groups (created_at);
-CREATE INDEX IF NOT EXISTS idx_document_files_owner_id ON document_files (owner_id);
-CREATE INDEX IF NOT EXISTS idx_document_files_team_id ON document_files (team_id);
-CREATE INDEX IF NOT EXISTS idx_document_files_document_group_id ON document_files (document_group_id);
-CREATE INDEX IF NOT EXISTS idx_document_files_created_at ON document_files (created_at);
+CREATE INDEX IF NOT EXISTS idx_storage_files_owner_id ON storage_files (owner_id);
+CREATE INDEX IF NOT EXISTS idx_storage_files_team_id ON storage_files (team_id);
+CREATE INDEX IF NOT EXISTS idx_storage_files_document_group_id ON storage_files (document_group_id);
+CREATE INDEX IF NOT EXISTS idx_storage_files_created_at ON storage_files (created_at);
 
 -- Add full-text search support
 ALTER TABLE documents

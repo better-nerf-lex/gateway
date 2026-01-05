@@ -1,8 +1,8 @@
 package com.bntech.lexai.gateway.rest.controller;
 
-import com.bntech.lexai.gateway.rest.dto.document.DocumentFileDto;
+import com.bntech.lexai.gateway.rest.dto.document.StorageFileDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentGroupDto;
-import com.bntech.lexai.gateway.service.DocumentFileService;
+import com.bntech.lexai.gateway.service.StorageFileService;
 import com.bntech.lexai.gateway.service.DocumentGroupService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -16,7 +16,7 @@ import reactor.core.publisher.Mono;
 public class DocumentGroupController {
 
     private final DocumentGroupService documentGroupService;
-    private final DocumentFileService documentFileService;
+    private final StorageFileService documentFileService;
 
     @GetMapping()
     public Flux<DocumentGroupDto> getDocumentGroups() {
@@ -45,12 +45,12 @@ public class DocumentGroupController {
     }
 
     @GetMapping("/{id}/files")
-    public Flux<DocumentFileDto> getDocumentGroupFiles(@PathVariable String id) {
+    public Flux<StorageFileDto> getDocumentGroupFiles(@PathVariable String id) {
         return documentFileService.getDocumentFilesByGroupId(id);
     }
 
     @PostMapping("/{id}/files")
-    public Mono<DocumentFileDto> addFileToGroup(@PathVariable String id, @RequestBody DocumentFileDto dto, Authentication authentication) {
+    public Mono<StorageFileDto> addFileToGroup(@PathVariable String id, @RequestBody StorageFileDto dto, Authentication authentication) {
         Long ownerId = Long.parseLong(authentication.getName());
         dto.setDocumentGroupId(id);
         return documentFileService.createDocumentFile(dto, ownerId);

@@ -20,5 +20,5 @@ public class DocumentGroupDto {
     private String teamId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private List<DocumentFileDto> files;
+    private List<StorageFileDto> files;
 }

@@ -6,7 +6,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 
-@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE, uses = {DocumentFileMapper.class}, imports = {java.util.UUID.class})
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE, uses = {StorageFileMapper.class}, imports = {java.util.UUID.class})
 public interface DocumentGroupMapper {
 
     @Mapping(target = "files", ignore = true)

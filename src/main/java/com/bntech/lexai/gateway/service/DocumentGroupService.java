@@ -1,10 +1,10 @@
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.DocumentGroup;
-import com.bntech.lexai.gateway.data.repository.DocumentFileRepository;
+import com.bntech.lexai.gateway.data.repository.StorageFileRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentGroupRepository;
 import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
-import com.bntech.lexai.gateway.mapper.DocumentFileMapper;
+import com.bntech.lexai.gateway.mapper.StorageFileMapper;
 import com.bntech.lexai.gateway.mapper.DocumentGroupMapper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentGroupDto;
 import lombok.RequiredArgsConstructor;
@@ -22,9 +22,9 @@ import java.util.UUID;
 public class DocumentGroupService {
 
     private final DocumentGroupRepository documentGroupRepository;
-    private final DocumentFileRepository documentFileRepository;
+    private final StorageFileRepository documentFileRepository;
     private final DocumentGroupMapper documentGroupMapper;
-    private final DocumentFileMapper documentFileMapper;
+    private final StorageFileMapper documentFileMapper;
 
     public Flux<DocumentGroupDto> getAllDocumentGroups() {
         return documentGroupRepository.findAllByOrderByCreatedAtDesc()
@@ -58,7 +58,7 @@ public class DocumentGroupService {
         entity.setOwnerId(ownerId);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
-        
+
         return documentGroupRepository.save(entity)
                 .map(documentGroupMapper::toDto)
                 .doOnSuccess(result -> log.info("✅ DocumentGroup created: {}", result.getId()));

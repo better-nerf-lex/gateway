@@ -15,3 +15,7 @@ logging:
   level:
     com.bntech.lexai: DEBUG
     org.springframework.r2dbc: DEBUG
+
+aws:
+  s3:
+    endpoint: http://localstack:4566

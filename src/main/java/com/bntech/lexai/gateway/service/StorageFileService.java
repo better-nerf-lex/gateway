@@ -1,10 +1,10 @@
 package com.bntech.lexai.gateway.service;
 
-import com.bntech.lexai.gateway.data.entity.document.DocumentFile;
-import com.bntech.lexai.gateway.data.repository.DocumentFileRepository;
+import com.bntech.lexai.gateway.data.entity.document.StorageFile;
+import com.bntech.lexai.gateway.data.repository.StorageFileRepository;
 import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
-import com.bntech.lexai.gateway.mapper.DocumentFileMapper;
-import com.bntech.lexai.gateway.rest.dto.document.DocumentFileDto;
+import com.bntech.lexai.gateway.mapper.StorageFileMapper;
+import com.bntech.lexai.gateway.rest.dto.document.StorageFileDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,57 +17,58 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class DocumentFileService {
+public class StorageFileService {
 
-    private final DocumentFileRepository documentFileRepository;
-    private final DocumentFileMapper documentFileMapper;
+    private final StorageFileRepository documentFileRepository;
+    private final StorageFileMapper documentFileMapper;
+    private final S3Service s3Service;
 
-    public Flux<DocumentFileDto> getAllDocumentFiles() {
+    public Flux<StorageFileDto> getAllDocumentFiles() {
         return documentFileRepository.findAllByOrderByCreatedAtDesc()
                 .map(documentFileMapper::toDto);
     }
 
-    public Flux<DocumentFileDto> getDocumentFilesByGroupId(String documentGroupId) {
+    public Flux<StorageFileDto> getDocumentFilesByGroupId(String documentGroupId) {
         UUID uuid = UUID.fromString(documentGroupId);
         return documentFileRepository.findByDocumentGroupIdOrderByCreatedAtDesc(uuid)
                 .map(documentFileMapper::toDto);
     }
 
-    public Flux<DocumentFileDto> getDocumentFilesByTeamId(UUID teamId) {
+    public Flux<StorageFileDto> getDocumentFilesByTeamId(UUID teamId) {
         return documentFileRepository.findByTeamIdOrderByCreatedAtDesc(teamId)
                 .map(documentFileMapper::toDto);
     }
 
-    public Mono<DocumentFileDto> getDocumentFileById(String id) {
+    public Mono<StorageFileDto> getDocumentFileById(String id) {
         UUID uuid = UUID.fromString(id);
         return documentFileRepository.findById(uuid)
-                .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentFile", id)))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("StorageFile", id)))
                 .map(documentFileMapper::toDto);
     }
 
-    public Mono<DocumentFileDto> createDocumentFile(DocumentFileDto dto, Long ownerId) {
-        DocumentFile entity = documentFileMapper.toEntity(dto);
+    public Mono<StorageFileDto> createDocumentFile(StorageFileDto dto, Long ownerId) {
+        StorageFile entity = documentFileMapper.toEntity(dto);
         entity.setId(UUID.randomUUID());
         entity.setOwnerId(ownerId);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
-        
+
         if (dto.getDocumentGroupId() != null) {
             entity.setDocumentGroupId(UUID.fromString(dto.getDocumentGroupId()));
         }
         if (dto.getTeamId() != null) {
             entity.setTeamId(UUID.fromString(dto.getTeamId()));
         }
-        
+
         return documentFileRepository.save(entity)
                 .map(documentFileMapper::toDto)
-                .doOnSuccess(result -> log.info("✅ DocumentFile created: {}", result.getId()));
+                .doOnSuccess(result -> log.info("✅ StorageFile created: {}", result.getId()));
     }
 
-    public Mono<DocumentFileDto> updateDocumentFile(String id, DocumentFileDto dto) {
+    public Mono<StorageFileDto> updateDocumentFile(String id, StorageFileDto dto) {
         UUID uuid = UUID.fromString(id);
         return documentFileRepository.findById(uuid)
-                .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentFile", id)))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("StorageFile", id)))
                 .flatMap(existing -> {
                     existing.setName(dto.getName());
                     existing.setS3Url(dto.getS3Url());
@@ -78,12 +79,17 @@ public class DocumentFileService {
                     return documentFileRepository.save(existing);
                 })
                 .map(documentFileMapper::toDto)
-                .doOnSuccess(result -> log.info("✅ DocumentFile updated: {}", id));
+                .doOnSuccess(result -> log.info("✅ StorageFile updated: {}", id));
     }
 
     public Mono<Void> deleteDocumentFile(String id) {
         UUID uuid = UUID.fromString(id);
         return documentFileRepository.deleteById(uuid)
-                .doOnSuccess(v -> log.info("✅ DocumentFile deleted: {}", id));
+                .doOnSuccess(v -> log.info("✅ StorageFile deleted: {}", id));
+    }
+
+    public Mono<String> generateViewUrl(String id) {
+        return getDocumentFileById(id)
+                .map(fileDto -> s3Service.generatePresignedUrl(fileDto.getS3Url()));
     }
 }

@@ -103,6 +103,19 @@ public class GlobalExceptionHandler {
         return Mono.just(ResponseEntity.status(HttpStatus.CONFLICT).body(response));
     }
 
+    @ExceptionHandler(S3OperationException.class)
+    public Mono<ResponseEntity<ErrorResponse>> handleS3Operation(
+            S3OperationException ex, ServerWebExchange exchange) {
+        log.error("S3 Operation error: {}", ex.getMessage(), ex);
+        String path = exchange.getRequest().getPath().value();
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "Internal Server Error",
+                ex.getMessage(),
+                path);
+        return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response));
+    }
+
     @ExceptionHandler(ServiceException.class)
     public Mono<ResponseEntity<ErrorResponse>> handleServiceException(
             ServiceException ex, ServerWebExchange exchange) {
@@ -164,6 +177,19 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 path);
         return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response));
+    }
+
+    @ExceptionHandler(org.springframework.web.reactive.resource.NoResourceFoundException.class)
+    public Mono<ResponseEntity<ErrorResponse>> handleNoResourceFound(
+            org.springframework.web.reactive.resource.NoResourceFoundException ex, ServerWebExchange exchange) {
+        log.warn("Resource not found: {}", ex.getMessage());
+        String path = exchange.getRequest().getPath().value();
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.NOT_FOUND.value(),
+                "Not Found",
+                "The requested resource was not found",
+                path);
+        return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND).body(response));
     }
 
     @ExceptionHandler(Exception.class)
