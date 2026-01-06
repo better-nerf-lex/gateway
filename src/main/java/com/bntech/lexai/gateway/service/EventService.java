@@ -66,10 +66,11 @@ public class EventService {
                                 event.setCreatedAt(LocalDateTime.now());
                                 event.setVersion(1);
 
+                                Mono<Event> eventMono;
                                 if (eventDto.getTeamId() != null) {
                                     log.debug("Checking team access for user {} and team {}", user.getId(),
                                             eventDto.getTeamId());
-                                    return teamMemberRepository
+                                    eventMono = teamMemberRepository
                                             .findByUserIdAndTeamId(user.getId(), eventDto.getTeamId())
                                             .switchIfEmpty(Mono.defer(() -> {
                                                 log.warn("❌ Team access denied for user {} in team {}", user.getId(),
@@ -78,8 +79,22 @@ public class EventService {
                                                         .error(new AccessDeniedException("Insufficient team access"));
                                             }))
                                             .flatMap(tm -> eventRepository.save(event));
+                                } else {
+                                    eventMono = eventRepository.save(event);
                                 }
-                                return eventRepository.save(event);
+
+                                return eventMono.flatMap(savedEvent -> {
+                                    if (eventDto.getParticipants() != null && !eventDto.getParticipants().isEmpty()) {
+                                        return Flux.fromIterable(eventDto.getParticipants())
+                                                .flatMap(p -> eventParticipantRepository.save(
+                                                        EventParticipant.builder()
+                                                                .eventId(savedEvent.getId())
+                                                                .legalEntityId(UUID.fromString(p.getId()))
+                                                                .build()))
+                                                .then(Mono.just(savedEvent));
+                                    }
+                                    return Mono.just(savedEvent);
+                                });
                             });
                 })
                 .map(savedEvent -> {
