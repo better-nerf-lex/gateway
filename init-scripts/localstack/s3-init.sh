@@ -1,18 +1,21 @@
 #!/bin/bash
 awslocal s3 mb s3://lexai-documents
-awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/samples/sample.txt
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/samples/sample.pdf
-awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/samples/sample.jpg
 
-# Seed case-001 files
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/case-001/pleadings/complaint_filing.pdf
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/case-001/pleadings/motion_to_dismiss.pdf
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/case-001/discovery/deposition_transcript.pdf
-awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/case-001/discovery/interrogatories_response.docx
+# Team ID: 550e8400-e29b-41d4-a716-446655440100
+# Case ID: 650e8400-e29b-41d4-a716-446655440001 (and 'default' for files without case)
 
-# Seed other sample directories if needed
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/contracts/contract_scan_001.pdf
-awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/contracts/signature_page.jpg
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/filings/court_filing_2024.pdf
-awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/evidence/evidence_photo_01.png
-awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/evidence/witness_statement.docx
+# Default group files
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/default/b50e8400-e29b-41d4-a716-446655440001.pdf
+awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/default/b50e8400-e29b-41d4-a716-446655440002.jpg
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/default/b50e8400-e29b-41d4-a716-446655440003.pdf
+awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/default/b50e8400-e29b-41d4-a716-446655440004.png
+awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/default/b50e8400-e29b-41d4-a716-446655440005.docx
+
+# Case-related files
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/b50e8400-e29b-41d4-a716-446655440006.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440007.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440008.pdf
+awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440009.docx
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440010.pdf
+awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440011.jpg
+awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440012.txt

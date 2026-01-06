@@ -35,9 +35,12 @@ public class StorageFileController {
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Mono<StorageFileDto> uploadFile(@RequestPart("file") FilePart filePart, Authentication authentication) {
+    public Mono<StorageFileDto> uploadFile(
+            @RequestPart("file") FilePart filePart,
+            @RequestPart(value = "documentGroupId", required = false) String documentGroupId,
+            Authentication authentication) {
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
-        return documentFileService.uploadFile(filePart, principal.getUserId());
+        return documentFileService.uploadFile(filePart, principal.getUserId(), documentGroupId);
     }
 
     @PatchMapping("/{id}")

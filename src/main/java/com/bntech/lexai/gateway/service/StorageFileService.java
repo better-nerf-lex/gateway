@@ -2,6 +2,7 @@ package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.StorageFile;
 import com.bntech.lexai.gateway.data.object.StorageFileType;
+import com.bntech.lexai.gateway.data.repository.DocumentGroupRepository;
 import com.bntech.lexai.gateway.data.repository.StorageFileRepository;
 import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
 import com.bntech.lexai.gateway.mapper.StorageFileMapper;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class StorageFileService {
 
     private final StorageFileRepository documentFileRepository;
+    private final DocumentGroupRepository documentGroupRepository;
     private final StorageFileMapper documentFileMapper;
     private final WebClient.Builder webClientBuilder;
 
@@ -60,7 +62,10 @@ public class StorageFileService {
 
     public Mono<StorageFileDto> createDocumentFile(StorageFileDto dto, Long ownerId) {
         StorageFile entity = documentFileMapper.toEntity(dto);
-        entity.setId(UUID.randomUUID());
+        // ID should already be set if creating from uploadFile, but safety check
+        if (entity.getId() == null) {
+            entity.setId(UUID.randomUUID());
+        }
         entity.setOwnerId(ownerId);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
@@ -77,39 +82,70 @@ public class StorageFileService {
                 .doOnSuccess(result -> log.info("✅ StorageFile created: {}", result.getId()));
     }
 
-    public Mono<StorageFileDto> uploadFile(FilePart filePart, Long ownerId) {
+    public Mono<StorageFileDto> uploadFile(FilePart filePart, Long ownerId, String documentGroupId) {
+        UUID fileId = UUID.randomUUID();
+
         return DataBufferUtils.join(filePart.content())
                 .flatMap(dataBuffer -> {
                     byte[] bytes = new byte[dataBuffer.readableByteCount()];
                     dataBuffer.read(bytes);
                     DataBufferUtils.release(dataBuffer);
 
-                    MultipartBodyBuilder builder = new MultipartBodyBuilder();
-                    builder.part("file", new ByteArrayResource(bytes) {
-                        @Override
-                        public String getFilename() {
-                            return filePart.filename();
-                        }
-                    });
+                    Mono<String> keyMono;
+                    if (documentGroupId != null && !documentGroupId.isEmpty()) {
+                        keyMono = documentGroupRepository.findById(UUID.fromString(documentGroupId))
+                                .map(group -> {
+                                    String teamIdStr = group.getTeamId() != null ? group.getTeamId().toString()
+                                            : "no-team";
+                                    String caseIdStr = group.getCaseId() != null ? group.getCaseId().toString()
+                                            : "default";
+                                    String extension = getFileExtension(filePart.filename());
+                                    return String.format("%s/%s/%s%s", teamIdStr, caseIdStr, fileId.toString(), extension);
+                                })
+                                .defaultIfEmpty(String.format("no-group/default/%s%s", fileId.toString(), getFileExtension(filePart.filename())));
+                    } else {
+                        keyMono = Mono
+                                .just(String.format("uploads/default/%s%s", fileId.toString(), getFileExtension(filePart.filename())));
+                    }
 
-                    return webClientBuilder.build().post()
-                            .uri(fileServiceUrl + "/files/upload")
-                            .contentType(MediaType.MULTIPART_FORM_DATA)
-                            .body(BodyInserters.fromMultipartData(builder.build()))
-                            .retrieve()
-                            .bodyToMono(FileServiceUploadResponse.class)
-                            .flatMap(response -> {
-                                StorageFileDto dto = StorageFileDto.builder()
-                                        .name(filePart.filename())
-                                        .s3Url(response.getS3Url())
-                                        .fileType(determineFileType(filePart.filename()))
-                                        .fileSize((long) bytes.length)
-                                        .createdAt(LocalDateTime.now())
-                                        .updatedAt(LocalDateTime.now())
-                                        .build();
-                                return createDocumentFile(dto, ownerId);
-                            });
+                    return keyMono.flatMap(key -> {
+                        MultipartBodyBuilder builder = new MultipartBodyBuilder();
+                        builder.part("file", new ByteArrayResource(bytes) {
+                            @Override
+                            public String getFilename() {
+                                return filePart.filename();
+                            }
+                        });
+                        builder.part("key", key);
+
+                        return webClientBuilder.build().post()
+                                .uri(fileServiceUrl + "/files/upload")
+                                .contentType(MediaType.MULTIPART_FORM_DATA)
+                                .body(BodyInserters.fromMultipartData(builder.build()))
+                                .retrieve()
+                                .bodyToMono(FileServiceUploadResponse.class)
+                                .flatMap(response -> {
+                                    StorageFileDto dto = StorageFileDto.builder()
+                                            .id(fileId.toString()) // Pre-set ID
+                                            .name(filePart.filename())
+                                            .s3Url(response.getS3Url())
+                                            .fileType(determineFileType(filePart.filename()))
+                                            .fileSize((long) bytes.length)
+                                            .createdAt(LocalDateTime.now())
+                                            .updatedAt(LocalDateTime.now())
+                                            .documentGroupId(documentGroupId)
+                                            .build();
+                                    return createDocumentFile(dto, ownerId);
+                                });
+                    });
                 });
+    }
+
+    private String getFileExtension(String filename) {
+        if (filename == null || !filename.contains(".")) {
+            return "";
+        }
+        return filename.substring(filename.lastIndexOf("."));
     }
 
     private StorageFileType determineFileType(String filename) {
@@ -167,11 +203,11 @@ public class StorageFileService {
                                     return Mono.empty();
                                 })
                                 .then(Mono.defer(() -> {
-                                    java.util.UUID uuid = java.util.UUID.fromString(id);
+                                    UUID uuid = UUID.fromString(id);
                                     return documentFileRepository.deleteById(uuid);
                                 }));
                     } else {
-                        java.util.UUID uuid = java.util.UUID.fromString(id);
+                        UUID uuid = UUID.fromString(id);
                         return documentFileRepository.deleteById(uuid);
                     }
                 })
