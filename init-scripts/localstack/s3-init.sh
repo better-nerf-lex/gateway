@@ -2,20 +2,24 @@
 awslocal s3 mb s3://lexai-documents
 
 # Team ID: 550e8400-e29b-41d4-a716-446655440100
-# Case ID: 650e8400-e29b-41d4-a716-446655440001 (and 'default' for files without case)
+# Case ID: 650e8400-e29b-41d4-a716-446655440001
+# URL format: teamId/caseId/groupId/fileId
 
-# Default group files
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/default/b50e8400-e29b-41d4-a716-446655440001.pdf
-awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/default/b50e8400-e29b-41d4-a716-446655440002.jpg
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/default/b50e8400-e29b-41d4-a716-446655440003.pdf
-awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/default/b50e8400-e29b-41d4-a716-446655440004.png
-awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/default/b50e8400-e29b-41d4-a716-446655440005.docx
-
-# Case-related files
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/b50e8400-e29b-41d4-a716-446655440006.pdf
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440007.pdf
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440008.pdf
-awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440009.docx
-awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440010.pdf
-awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440011.jpg
-awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440012.txt
+# Group a50e8400-e29b-41d4-a716-446655440001 (Contract Documents)
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440001/b50e8400-e29b-41d4-a716-446655440001.pdf
+awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440001/b50e8400-e29b-41d4-a716-446655440002.jpg
+# Group a50e8400-e29b-41d4-a716-446655440002 (Court Filings)
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440002/b50e8400-e29b-41d4-a716-446655440003.pdf
+# Group a50e8400-e29b-41d4-a716-446655440003 (Evidence Collection)
+awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440003/b50e8400-e29b-41d4-a716-446655440004.png
+awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440003/b50e8400-e29b-41d4-a716-446655440005.docx
+# Group a50e8400-e29b-41d4-a716-446655440004 (Case Pleadings)
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440004/b50e8400-e29b-41d4-a716-446655440006.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440004/b50e8400-e29b-41d4-a716-446655440007.pdf
+# Group a50e8400-e29b-41d4-a716-446655440005 (Case Discovery)
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440005/b50e8400-e29b-41d4-a716-446655440008.pdf
+awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440005/b50e8400-e29b-41d4-a716-446655440009.docx
+# Group a50e8400-e29b-41d4-a716-446655440006 (Sample Files)
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440006/b50e8400-e29b-41d4-a716-446655440010.pdf
+awslocal s3 cp /tmp/sample-files/sample.jpg s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440006/b50e8400-e29b-41d4-a716-446655440011.jpg
+awslocal s3 cp /tmp/sample-files/sample.txt s3://lexai-documents/550e8400-e29b-41d4-a716-446655440100/650e8400-e29b-41d4-a716-446655440001/a50e8400-e29b-41d4-a716-446655440006/b50e8400-e29b-41d4-a716-446655440012.txt

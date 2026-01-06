@@ -1,6 +1,0 @@
-chce zlozyc wniosek o alimenty
-
-Podaj liste wymaganych danych ktore powinienem podac w nastepnym kroku oraz podstawy prawne Odpowiedz zwroc w formacie json o schemacie: { "questions": ["pytanie1", "pytanie2"...], "base": ["podstawyprawne", "podstawaprawna2"] "name": "sugerowananazwawniosku" "requirements": ["wymaganiaDotDokumentu1"] }
-Do pytan dodaj tez pytania o podstawowe informacje typu sygnatura sprawy lub nazwisko panienskie matki ale tylko wtedy, kiedy sa one wymagane dla wniosku
-Do uzyskania odpowiedzi bazuj na: https://sip.lex.pl/akty-prawne/dzu-dziennik-ustaw/kodeks-postepowania-cywilnego-16786199/art-235 Najwazniejsze elementy to Komentarze i Publikacje.
-Zwroc jedynie dane w formacie json, nic poza tym.

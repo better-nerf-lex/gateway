@@ -91,53 +91,56 @@ public class StorageFileService {
                     dataBuffer.read(bytes);
                     DataBufferUtils.release(dataBuffer);
 
-                    Mono<String> keyMono;
-                    if (documentGroupId != null && !documentGroupId.isEmpty()) {
-                        keyMono = documentGroupRepository.findById(UUID.fromString(documentGroupId))
-                                .map(group -> {
-                                    String teamIdStr = group.getTeamId() != null ? group.getTeamId().toString()
-                                            : "no-team";
-                                    String caseIdStr = group.getCaseId() != null ? group.getCaseId().toString()
-                                            : "default";
-                                    String extension = getFileExtension(filePart.filename());
-                                    return String.format("%s/%s/%s%s", teamIdStr, caseIdStr, fileId.toString(), extension);
-                                })
-                                .defaultIfEmpty(String.format("no-group/default/%s%s", fileId.toString(), getFileExtension(filePart.filename())));
-                    } else {
-                        keyMono = Mono
-                                .just(String.format("uploads/default/%s%s", fileId.toString(), getFileExtension(filePart.filename())));
-                    }
+                    return documentGroupRepository.findById(UUID.fromString(documentGroupId))
+                            .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentGroup", documentGroupId)))
+                            .flatMap(group -> {
+                                if (group.getTeamId() == null) {
+                                    return Mono.error(new IllegalStateException(
+                                            "DocumentGroup must have teamId for file upload"));
+                                }
+                                if (group.getCaseId() == null) {
+                                    return Mono.error(new IllegalStateException(
+                                            "DocumentGroup must have caseId for file upload"));
+                                }
+                                String extension = getFileExtension(filePart.filename());
+                                String key = String.format("%s/%s/%s/%s%s", 
+                                        group.getTeamId().toString(), 
+                                        group.getCaseId().toString(),
+                                        documentGroupId,
+                                        fileId.toString(), 
+                                        extension);
 
-                    return keyMono.flatMap(key -> {
-                        MultipartBodyBuilder builder = new MultipartBodyBuilder();
-                        builder.part("file", new ByteArrayResource(bytes) {
-                            @Override
-                            public String getFilename() {
-                                return filePart.filename();
-                            }
-                        });
-                        builder.part("key", key);
+                                log.info("Uploading file with key: {}", key);
 
-                        return webClientBuilder.build().post()
-                                .uri(fileServiceUrl + "/files/upload")
-                                .contentType(MediaType.MULTIPART_FORM_DATA)
-                                .body(BodyInserters.fromMultipartData(builder.build()))
-                                .retrieve()
-                                .bodyToMono(FileServiceUploadResponse.class)
-                                .flatMap(response -> {
-                                    StorageFileDto dto = StorageFileDto.builder()
-                                            .id(fileId.toString()) // Pre-set ID
-                                            .name(filePart.filename())
-                                            .s3Url(response.getS3Url())
-                                            .fileType(determineFileType(filePart.filename()))
-                                            .fileSize((long) bytes.length)
-                                            .createdAt(LocalDateTime.now())
-                                            .updatedAt(LocalDateTime.now())
-                                            .documentGroupId(documentGroupId)
-                                            .build();
-                                    return createDocumentFile(dto, ownerId);
+                                MultipartBodyBuilder builder = new MultipartBodyBuilder();
+                                builder.part("file", new ByteArrayResource(bytes) {
+                                    @Override
+                                    public String getFilename() {
+                                        return filePart.filename();
+                                    }
                                 });
-                    });
+                                builder.part("key", key);
+
+                                return webClientBuilder.build().post()
+                                        .uri(fileServiceUrl + "/files/upload")
+                                        .contentType(MediaType.MULTIPART_FORM_DATA)
+                                        .body(BodyInserters.fromMultipartData(builder.build()))
+                                        .retrieve()
+                                        .bodyToMono(FileServiceUploadResponse.class)
+                                        .flatMap(response -> {
+                                            StorageFileDto dto = StorageFileDto.builder()
+                                                    .id(fileId.toString())
+                                                    .name(filePart.filename())
+                                                    .s3Url(response.getS3Url())
+                                                    .fileType(determineFileType(filePart.filename()))
+                                                    .fileSize((long) bytes.length)
+                                                    .createdAt(LocalDateTime.now())
+                                                    .updatedAt(LocalDateTime.now())
+                                                    .documentGroupId(documentGroupId)
+                                                    .build();
+                                            return createDocumentFile(dto, ownerId);
+                                        });
+                            });
                 });
     }
 
