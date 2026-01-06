@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.rest.controller;
 
 import com.bntech.lexai.gateway.rest.dto.document.StorageFileDto;
+import com.bntech.lexai.gateway.security.UserPrincipal;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentGroupDto;
 import com.bntech.lexai.gateway.service.StorageFileService;
 import com.bntech.lexai.gateway.service.DocumentGroupService;
@@ -30,8 +31,8 @@ public class DocumentGroupController {
 
     @PostMapping()
     public Mono<DocumentGroupDto> createDocumentGroup(@RequestBody DocumentGroupDto dto, Authentication authentication) {
-        Long ownerId = Long.parseLong(authentication.getName());
-        return documentGroupService.createDocumentGroup(dto, ownerId);
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        return documentGroupService.createDocumentGroup(dto, principal.getUserId());
     }
 
     @PatchMapping("/{id}")
@@ -51,8 +52,8 @@ public class DocumentGroupController {
 
     @PostMapping("/{id}/files")
     public Mono<StorageFileDto> addFileToGroup(@PathVariable String id, @RequestBody StorageFileDto dto, Authentication authentication) {
-        Long ownerId = Long.parseLong(authentication.getName());
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
         dto.setDocumentGroupId(id);
-        return documentFileService.createDocumentFile(dto, ownerId);
+        return documentFileService.createDocumentFile(dto, principal.getUserId());
     }
 }

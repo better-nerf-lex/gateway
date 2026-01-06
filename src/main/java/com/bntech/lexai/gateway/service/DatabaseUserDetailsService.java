@@ -31,14 +31,14 @@ public class DatabaseUserDetailsService implements ReactiveUserDetailsService {
                                                 .collect(Collectors.toList())
                                                 .doOnNext(authorities -> log.info("Found authorities for user {}: {}",
                                                                 username, authorities))
-                                                .map(authorities -> org.springframework.security.core.userdetails.User
-                                                                .withUsername(user.getUsername())
-                                                                .password(user.getPassword())
-                                                                .authorities(authorities)
-                                                                .disabled(!user.isEnabled())
-                                                                .accountExpired(false)
-                                                                .credentialsExpired(false)
-                                                                .accountLocked(false)
-                                                                .build()));
+                                                .map(authorities -> new com.bntech.lexai.gateway.security.UserPrincipal(
+                                                                user.getId(),
+                                                                user.getUsername(),
+                                                                user.getPassword(),
+                                                                user.isEnabled(),
+                                                                true,
+                                                                true,
+                                                                true,
+                                                                authorities)));
         }
 }

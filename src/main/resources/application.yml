@@ -7,9 +7,9 @@ spring:
   main:
     web-application-type: reactive
   r2dbc:
-    url: r2dbc:postgresql://localhost:5432/lex-users
-    username: root
-    password: root
+    url: r2dbc:postgresql://localhost:5432/gateway
+    username: gateway_user
+    password: gateway_password
   data:
     r2dbc:
       repositories:
@@ -46,6 +46,8 @@ jwt:
   refresh-expiration: 604800
 
 app:
+  file-service:
+    url: ${FILE_SERVICE_URL:http://localhost:3001}
   http:
     connect-timeout: 30000 # 0.5 minute
     read-timeout: 300000    # 5 minutes for AI responses

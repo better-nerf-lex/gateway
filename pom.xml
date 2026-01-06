@@ -37,40 +37,10 @@
         <jakarta-persistence.version>3.2.0</jakarta-persistence.version>
         <jjwt.version>0.11.5</jjwt.version>
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
-        <aws-java-sdk.version>2.20.162</aws-java-sdk.version>
+
     </properties>
 
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>software.amazon.awssdk</groupId>
-                <artifactId>bom</artifactId>
-                <version>${aws-java-sdk.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
     <dependencies>
-<!--        core-->
-        <dependency>
-            <groupId>com.anthropic</groupId>
-            <artifactId>anthropic-java</artifactId>
-            <version>${anthropic.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>s3</artifactId>
-            <version>${aws-java-sdk.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>netty-nio-client</artifactId>
-            <version>${aws-java-sdk.version}</version>
-        </dependency>
-
 <!--        web-->
         <dependency>
             <groupId>org.springframework.boot</groupId>

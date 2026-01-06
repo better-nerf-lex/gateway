@@ -7,6 +7,9 @@ spring:
     url: jdbc:postgresql://postgres:5432/gateway
     username: gateway_user
     password: gateway_password
+  sql:
+    init:
+      mode: never
 
 server:
   port: 8081

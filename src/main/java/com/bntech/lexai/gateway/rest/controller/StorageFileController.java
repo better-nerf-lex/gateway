@@ -1,10 +1,13 @@
 package com.bntech.lexai.gateway.rest.controller;
 
+import com.bntech.lexai.gateway.security.UserPrincipal;
 import com.bntech.lexai.gateway.rest.dto.document.StorageFileDto;
 import com.bntech.lexai.gateway.service.StorageFileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.codec.multipart.FilePart;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -27,8 +30,14 @@ public class StorageFileController {
 
     @PostMapping()
     public Mono<StorageFileDto> createDocumentFile(@RequestBody StorageFileDto dto, Authentication authentication) {
-        Long ownerId = Long.parseLong(authentication.getName());
-        return documentFileService.createDocumentFile(dto, ownerId);
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        return documentFileService.createDocumentFile(dto, principal.getUserId());
+    }
+
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Mono<StorageFileDto> uploadFile(@RequestPart("file") FilePart filePart, Authentication authentication) {
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        return documentFileService.uploadFile(filePart, principal.getUserId());
     }
 
     @PatchMapping("/{id}")

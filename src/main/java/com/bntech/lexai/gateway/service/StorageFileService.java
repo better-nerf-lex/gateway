@@ -1,13 +1,22 @@
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.StorageFile;
+import com.bntech.lexai.gateway.data.object.StorageFileType;
 import com.bntech.lexai.gateway.data.repository.StorageFileRepository;
 import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
 import com.bntech.lexai.gateway.mapper.StorageFileMapper;
 import com.bntech.lexai.gateway.rest.dto.document.StorageFileDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
+import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -21,7 +30,10 @@ public class StorageFileService {
 
     private final StorageFileRepository documentFileRepository;
     private final StorageFileMapper documentFileMapper;
-    private final S3Service s3Service;
+    private final WebClient.Builder webClientBuilder;
+
+    @Value("${app.file-service.url}")
+    private String fileServiceUrl;
 
     public Flux<StorageFileDto> getAllDocumentFiles() {
         return documentFileRepository.findAllByOrderByCreatedAtDesc()
@@ -65,6 +77,58 @@ public class StorageFileService {
                 .doOnSuccess(result -> log.info("✅ StorageFile created: {}", result.getId()));
     }
 
+    public Mono<StorageFileDto> uploadFile(FilePart filePart, Long ownerId) {
+        return DataBufferUtils.join(filePart.content())
+                .flatMap(dataBuffer -> {
+                    byte[] bytes = new byte[dataBuffer.readableByteCount()];
+                    dataBuffer.read(bytes);
+                    DataBufferUtils.release(dataBuffer);
+
+                    MultipartBodyBuilder builder = new MultipartBodyBuilder();
+                    builder.part("file", new ByteArrayResource(bytes) {
+                        @Override
+                        public String getFilename() {
+                            return filePart.filename();
+                        }
+                    });
+
+                    return webClientBuilder.build().post()
+                            .uri(fileServiceUrl + "/files/upload")
+                            .contentType(MediaType.MULTIPART_FORM_DATA)
+                            .body(BodyInserters.fromMultipartData(builder.build()))
+                            .retrieve()
+                            .bodyToMono(FileServiceUploadResponse.class)
+                            .flatMap(response -> {
+                                StorageFileDto dto = StorageFileDto.builder()
+                                        .name(filePart.filename())
+                                        .s3Url(response.getS3Url())
+                                        .fileType(determineFileType(filePart.filename()))
+                                        .fileSize((long) bytes.length)
+                                        .createdAt(LocalDateTime.now())
+                                        .updatedAt(LocalDateTime.now())
+                                        .build();
+                                return createDocumentFile(dto, ownerId);
+                            });
+                });
+    }
+
+    private StorageFileType determineFileType(String filename) {
+        if (filename.toLowerCase().endsWith(".pdf")) {
+            return StorageFileType.PDF;
+        } else if (filename.toLowerCase().endsWith(".docx")) {
+            return StorageFileType.DOCX;
+        }
+        return StorageFileType.OTHER;
+    }
+
+    @lombok.Data
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class FileServiceUploadResponse {
+        private String key;
+        private String s3Url;
+    }
+
     public Mono<StorageFileDto> updateDocumentFile(String id, StorageFileDto dto) {
         UUID uuid = UUID.fromString(id);
         return documentFileRepository.findById(uuid)
@@ -83,13 +147,50 @@ public class StorageFileService {
     }
 
     public Mono<Void> deleteDocumentFile(String id) {
-        UUID uuid = UUID.fromString(id);
-        return documentFileRepository.deleteById(uuid)
+        return getDocumentFileById(id)
+                .flatMap(dto -> {
+                    String s3Url = dto.getS3Url();
+                    if (s3Url != null && s3Url.startsWith("s3://")) {
+                        String key = s3Url;
+                        String path = s3Url.substring(5);
+                        int firstSlash = path.indexOf('/');
+                        if (firstSlash != -1) {
+                            key = path.substring(firstSlash + 1);
+                        }
+                        String finalKey = key;
+                        return webClientBuilder.build().delete()
+                                .uri(fileServiceUrl + "/files/" + finalKey)
+                                .retrieve()
+                                .toBodilessEntity()
+                                .onErrorResume(e -> {
+                                    log.warn("Failed to delete file from file-service: {}", e.getMessage());
+                                    return Mono.empty();
+                                })
+                                .then(Mono.defer(() -> {
+                                    java.util.UUID uuid = java.util.UUID.fromString(id);
+                                    return documentFileRepository.deleteById(uuid);
+                                }));
+                    } else {
+                        java.util.UUID uuid = java.util.UUID.fromString(id);
+                        return documentFileRepository.deleteById(uuid);
+                    }
+                })
                 .doOnSuccess(v -> log.info("✅ StorageFile deleted: {}", id));
     }
 
     public Mono<String> generateViewUrl(String id) {
         return getDocumentFileById(id)
-                .map(fileDto -> s3Service.generatePresignedUrl(fileDto.getS3Url()));
+                .map(fileDto -> {
+                    String s3Url = fileDto.getS3Url();
+                    String key = s3Url;
+                    if (s3Url != null && s3Url.startsWith("s3://")) {
+                        String path = s3Url.substring(5);
+                        int firstSlash = path.indexOf('/');
+                        if (firstSlash != -1) {
+                            key = path.substring(firstSlash + 1);
+                        }
+                    }
+                    return fileServiceUrl + "/files/" + key;
+                });
     }
 }
