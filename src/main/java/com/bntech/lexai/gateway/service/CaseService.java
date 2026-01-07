@@ -220,9 +220,38 @@ public class CaseService {
 
     public Mono<Void> deleteCase(String id) {
         UUID uuid = UUID.fromString(id);
+        return caseRepository.softDelete(uuid)
+                .doOnSuccess(result -> log.info("✅ LegalCase soft deleted: {}", id))
+                .doOnError(error -> log.error("❌ Error soft deleting case: {}", id, error));
+    }
+
+    public Flux<CaseDto> getDeletedCases(String teamId) {
+        if (teamId != null) {
+            return caseRepository.findDeletedByTeamId(UUID.fromString(teamId))
+                    .map(caseMapper::toDto);
+        }
+        return caseRepository.findAllDeleted()
+                .map(caseMapper::toDto);
+    }
+
+    public Mono<CaseDto> restoreCase(String id) {
+        UUID uuid = UUID.fromString(id);
+        return caseRepository.restore(uuid)
+                .then(caseRepository.findById(uuid))
+                .map(restoredCase -> {
+                    restoredCase.setNotNew();
+                    return caseMapper.toDto(restoredCase);
+                })
+                .flatMap(this::enrichCase)
+                .doOnSuccess(result -> log.info("✅ LegalCase restored: {}", id))
+                .doOnError(error -> log.error("❌ Error restoring case: {}", id, error));
+    }
+
+    public Mono<Void> permanentlyDeleteCase(String id) {
+        UUID uuid = UUID.fromString(id);
         return caseRepository.deleteById(uuid)
-                .doOnSuccess(result -> log.info("✅ LegalCase deleted: {}", id))
-                .doOnError(error -> log.error("❌ Error deleting case: {}", id, error));
+                .doOnSuccess(result -> log.info("✅ LegalCase permanently deleted: {}", id))
+                .doOnError(error -> log.error("❌ Error permanently deleting case: {}", id, error));
     }
 
     public Mono<Void> assignDocument(String caseId, String documentId) {

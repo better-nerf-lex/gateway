@@ -2,6 +2,7 @@ package com.bntech.lexai.gateway.data.entity.document;
 
 import com.bntech.lexai.gateway.data.entity.Auditable;
 import com.bntech.lexai.gateway.data.entity.OwnableEntity;
+import com.bntech.lexai.gateway.data.entity.SoftDeletable;
 import com.bntech.lexai.gateway.data.object.CaseStatus;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -18,7 +19,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "cases")
-public class LegalCase extends Auditable<UUID> implements OwnableEntity {
+public class LegalCase extends Auditable<UUID> implements OwnableEntity, SoftDeletable {
 
     @Column()
     private String title;
@@ -40,6 +41,9 @@ public class LegalCase extends Auditable<UUID> implements OwnableEntity {
 
     @Column("owner_id")
     private Long ownerId;
+
+    @Column("deleted_at")
+    private LocalDateTime deletedAt;
 
     @Transient
     @Builder.Default

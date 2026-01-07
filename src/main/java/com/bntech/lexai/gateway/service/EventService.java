@@ -120,7 +120,29 @@ public class EventService {
     }
 
     public Mono<Void> deleteEvent(String id) {
+        return eventRepository.softDelete(UUID.fromString(id))
+                .doOnSuccess(v -> log.info("✅ Event soft deleted: {}", id));
+    }
+
+    public Flux<EventDto> getDeletedEvents(String caseId) {
+        if (caseId != null) {
+            return eventRepository.findDeletedByCaseId(UUID.fromString(caseId))
+                    .flatMapSequential(this::enrichEvent);
+        }
+        return eventRepository.findAllDeleted()
+                .flatMapSequential(this::enrichEvent);
+    }
+
+    public Mono<EventDto> restoreEvent(String id) {
+        UUID uuid = UUID.fromString(id);
+        return eventRepository.restore(uuid)
+                .then(eventRepository.findById(uuid))
+                .flatMap(this::enrichEvent)
+                .doOnSuccess(result -> log.info("✅ Event restored: {}", id));
+    }
+
+    public Mono<Void> permanentlyDeleteEvent(String id) {
         return eventRepository.deleteById(UUID.fromString(id))
-                .doOnSuccess(v -> log.info("✅ Event deleted: {}", id));
+                .doOnSuccess(v -> log.info("✅ Event permanently deleted: {}", id));
     }
 }

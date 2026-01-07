@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS teams
     name       VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by BIGINT,
-    version    INTEGER      NOT NULL
+    version    INTEGER      NOT NULL,
+    deleted_at TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS document_examples
@@ -63,7 +64,8 @@ CREATE TABLE IF NOT EXISTS document_groups
     version     INTEGER NOT NULL,
     team_id     UUID REFERENCES teams (id),
     owner_id    BIGINT REFERENCES users (id),
-    case_id     UUID
+    case_id     UUID,
+    deleted_at  TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS documents
@@ -79,7 +81,8 @@ CREATE TABLE IF NOT EXISTS documents
     version           INTEGER NOT NULL,
     team_id           UUID REFERENCES teams (id),
     owner_id          BIGINT REFERENCES users (id),
-    document_group_id UUID REFERENCES document_groups (id) ON DELETE SET NULL
+    document_group_id UUID REFERENCES document_groups (id) ON DELETE SET NULL,
+    deleted_at        TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS document_history
@@ -106,7 +109,8 @@ CREATE TABLE IF NOT EXISTS storage_files
     created_by        BIGINT,
     version           INTEGER NOT NULL,
     team_id           UUID REFERENCES teams (id),
-    owner_id          BIGINT REFERENCES users (id)
+    owner_id          BIGINT REFERENCES users (id),
+    deleted_at        TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS legal_entities
@@ -120,6 +124,7 @@ CREATE TABLE IF NOT EXISTS legal_entities
     version     INTEGER NOT NULL,
     team_id     UUID REFERENCES teams (id),
     owner_id    BIGINT REFERENCES users (id),
+    deleted_at  TIMESTAMP,
     FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
 );
 
@@ -135,7 +140,8 @@ CREATE TABLE IF NOT EXISTS cases
     created_by       BIGINT,
     version          INTEGER NOT NULL,
     team_id          UUID REFERENCES teams (id),
-    owner_id         BIGINT REFERENCES users (id)
+    owner_id         BIGINT REFERENCES users (id),
+    deleted_at       TIMESTAMP
 );
 
 ALTER TABLE document_groups DROP CONSTRAINT IF EXISTS document_groups_case_id_fkey;
@@ -170,7 +176,8 @@ CREATE TABLE IF NOT EXISTS events
     created_by BIGINT,
     version    INTEGER     NOT NULL,
     team_id    UUID REFERENCES teams (id),
-    owner_id   BIGINT REFERENCES users (id)
+    owner_id   BIGINT REFERENCES users (id),
+    deleted_at TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS event_participants

@@ -82,8 +82,35 @@ public class DocumentGroupService {
 
     public Mono<Void> deleteDocumentGroup(String id) {
         UUID uuid = UUID.fromString(id);
+        return documentGroupRepository.softDelete(uuid)
+                .doOnSuccess(v -> log.info("✅ DocumentGroup soft deleted: {}", id));
+    }
+
+    public Flux<DocumentGroupDto> getDeletedDocumentGroups(String teamId) {
+        if (teamId != null) {
+            return documentGroupRepository.findDeletedByTeamId(UUID.fromString(teamId))
+                    .map(documentGroupMapper::toDto);
+        }
+        return documentGroupRepository.findAllDeleted()
+                .map(documentGroupMapper::toDto);
+    }
+
+    public Mono<DocumentGroupDto> restoreDocumentGroup(String id) {
+        UUID uuid = UUID.fromString(id);
+        return documentGroupRepository.restore(uuid)
+                .then(documentGroupRepository.findById(uuid))
+                .map(restored -> {
+                    restored.setNotNew();
+                    return documentGroupMapper.toDto(restored);
+                })
+                .flatMap(this::enrichWithFiles)
+                .doOnSuccess(result -> log.info("✅ DocumentGroup restored: {}", id));
+    }
+
+    public Mono<Void> permanentlyDeleteDocumentGroup(String id) {
+        UUID uuid = UUID.fromString(id);
         return documentGroupRepository.deleteById(uuid)
-                .doOnSuccess(v -> log.info("✅ DocumentGroup deleted: {}", id));
+                .doOnSuccess(v -> log.info("✅ DocumentGroup permanently deleted: {}", id));
     }
 
     private Mono<DocumentGroupDto> enrichWithFiles(DocumentGroupDto dto) {

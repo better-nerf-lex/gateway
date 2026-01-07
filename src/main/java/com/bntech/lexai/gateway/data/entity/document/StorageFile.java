@@ -2,12 +2,13 @@ package com.bntech.lexai.gateway.data.entity.document;
 
 import com.bntech.lexai.gateway.data.entity.Auditable;
 import com.bntech.lexai.gateway.data.entity.OwnableEntity;
+import com.bntech.lexai.gateway.data.entity.SoftDeletable;
 import com.bntech.lexai.gateway.data.object.StorageFileType;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.Transient;
-import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -18,7 +19,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "storage_files")
-public class StorageFile extends Auditable<UUID> implements OwnableEntity {
+public class StorageFile extends Auditable<UUID> implements OwnableEntity, SoftDeletable {
 
     @Column()
     private String name;
@@ -43,6 +44,9 @@ public class StorageFile extends Auditable<UUID> implements OwnableEntity {
 
     @Column()
     private LocalDateTime updatedAt;
+
+    @Column("deleted_at")
+    private LocalDateTime deletedAt;
 
     @Transient
     @Builder.Default

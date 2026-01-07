@@ -10,6 +10,7 @@ import com.bntech.lexai.gateway.rest.dto.team.TeamDto;
 import com.bntech.lexai.gateway.rest.dto.team.TeamMemberDto;
 import com.bntech.lexai.gateway.security.access.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TeamService {
 
         private final TeamRepository teamRepository;
@@ -97,5 +99,31 @@ public class TeamService {
                                 .name(team.getName())
                                 .createdAt(team.getCreatedAt())
                                 .build();
+        }
+
+        public Mono<Void> deleteTeam(String id) {
+                return teamRepository.softDelete(UUID.fromString(id))
+                                .doOnSuccess(v -> log.info("✅ Team soft deleted: {}", id));
+        }
+
+        public Flux<TeamDto> getDeletedTeams() {
+                return teamRepository.findAllDeleted()
+                                .map(this::toDto);
+        }
+
+        public Mono<TeamDto> restoreTeam(String id) {
+                UUID uuid = UUID.fromString(id);
+                return teamRepository.restore(uuid)
+                                .then(teamRepository.findById(uuid))
+                                .map(restored -> {
+                                        restored.setNotNew();
+                                        return toDto(restored);
+                                })
+                                .doOnSuccess(result -> log.info("✅ Team restored: {}", id));
+        }
+
+        public Mono<Void> permanentlyDeleteTeam(String id) {
+                return teamRepository.deleteById(UUID.fromString(id))
+                                .doOnSuccess(v -> log.info("✅ Team permanently deleted: {}", id));
         }
 }

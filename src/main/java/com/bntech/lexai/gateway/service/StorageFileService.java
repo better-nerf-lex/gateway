@@ -186,6 +186,32 @@ public class StorageFileService {
     }
 
     public Mono<Void> deleteDocumentFile(String id) {
+        UUID uuid = UUID.fromString(id);
+        return documentFileRepository.softDelete(uuid)
+                .doOnSuccess(v -> log.info("✅ StorageFile soft deleted: {}", id));
+    }
+
+    public Flux<StorageFileDto> getDeletedDocumentFiles(String teamId) {
+        if (teamId != null) {
+            return documentFileRepository.findDeletedByTeamId(UUID.fromString(teamId))
+                    .map(documentFileMapper::toDto);
+        }
+        return documentFileRepository.findAllDeleted()
+                .map(documentFileMapper::toDto);
+    }
+
+    public Mono<StorageFileDto> restoreDocumentFile(String id) {
+        UUID uuid = UUID.fromString(id);
+        return documentFileRepository.restore(uuid)
+                .then(documentFileRepository.findById(uuid))
+                .map(restored -> {
+                    restored.setNotNew();
+                    return documentFileMapper.toDto(restored);
+                })
+                .doOnSuccess(result -> log.info("✅ StorageFile restored: {}", id));
+    }
+
+    public Mono<Void> permanentlyDeleteDocumentFile(String id) {
         return getDocumentFileById(id)
                 .flatMap(dto -> {
                     String s3Url = dto.getS3Url();
@@ -214,7 +240,7 @@ public class StorageFileService {
                         return documentFileRepository.deleteById(uuid);
                     }
                 })
-                .doOnSuccess(v -> log.info("✅ StorageFile deleted: {}", id));
+                .doOnSuccess(v -> log.info("✅ StorageFile permanently deleted: {}", id));
     }
 
     public Mono<String> generateViewUrl(String id) {

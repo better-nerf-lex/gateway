@@ -354,15 +354,50 @@ public class DocumentService {
     }
 
     public Mono<Void> deleteDocument(String id) {
-        log.info("Deleting document: {}", id);
+        log.info("Soft deleting document: {}", id);
+        UUID uuid = UUID.fromString(id);
+
+        return documents.findById(uuid)
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("Document", id)))
+                .flatMap(document -> documents.softDelete(uuid))
+                .doOnSuccess(result -> log.info("✅ Document soft deleted: {}", id))
+                .doOnError(error -> log.error("❌ Error soft deleting document: {}", id, error));
+    }
+
+    public Flux<DocumentDto> getDeletedDocuments(String teamId) {
+        if (teamId != null) {
+            return documents.findDeletedByTeamId(UUID.fromString(teamId))
+                    .map(mapper::toDto);
+        }
+        return documents.findAllDeleted()
+                .map(mapper::toDto);
+    }
+
+    public Mono<DocumentDto> restoreDocument(String id) {
+        log.info("Restoring document: {}", id);
+        UUID uuid = UUID.fromString(id);
+
+        return documents.restore(uuid)
+                .then(documents.findById(uuid))
+                .map(restoredDoc -> {
+                    restoredDoc.setNotNew();
+                    return mapper.toDto(restoredDoc);
+                })
+                .flatMap(this::enrichWithCases)
+                .doOnSuccess(result -> log.info("✅ Document restored: {}", id))
+                .doOnError(error -> log.error("❌ Error restoring document: {}", id, error));
+    }
+
+    public Mono<Void> permanentlyDeleteDocument(String id) {
+        log.info("Permanently deleting document: {}", id);
         UUID uuid = UUID.fromString(id);
 
         return documents.findById(uuid)
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("Document", id)))
                 .flatMap(document -> documentsHistory.deleteByDocumentId(uuid)
                         .then(documents.deleteById(uuid)))
-                .doOnSuccess(result -> log.info("✅ Document deleted: {}", id))
-                .doOnError(error -> log.error("❌ Error deleting document: {}", id, error));
+                .doOnSuccess(result -> log.info("✅ Document permanently deleted: {}", id))
+                .doOnError(error -> log.error("❌ Error permanently deleting document: {}", id, error));
     }
 
     public Flux<DocumentDto> searchDocuments(String query) {

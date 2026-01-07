@@ -119,7 +119,33 @@ public class LegalEntityService {
     }
 
     public Mono<Void> deleteLegalEntity(String id) {
-        return legalEntityRepository.deleteById(UUID.fromString(id));
+        return legalEntityRepository.softDelete(UUID.fromString(id))
+                .doOnSuccess(v -> log.info("✅ LegalEntity soft deleted: {}", id));
+    }
+
+    public Flux<LegalEntityDto> getDeletedLegalEntities(String teamId) {
+        if (teamId != null) {
+            return legalEntityRepository.findDeletedByTeamId(UUID.fromString(teamId))
+                    .map(legalEntityMapper::toDto);
+        }
+        return legalEntityRepository.findAllDeleted()
+                .map(legalEntityMapper::toDto);
+    }
+
+    public Mono<LegalEntityDto> restoreLegalEntity(String id) {
+        UUID uuid = UUID.fromString(id);
+        return legalEntityRepository.restore(uuid)
+                .then(legalEntityRepository.findById(uuid))
+                .map(restored -> {
+                    restored.setNotNew();
+                    return legalEntityMapper.toDto(restored);
+                })
+                .doOnSuccess(result -> log.info("✅ LegalEntity restored: {}", id));
+    }
+
+    public Mono<Void> permanentlyDeleteLegalEntity(String id) {
+        return legalEntityRepository.deleteById(UUID.fromString(id))
+                .doOnSuccess(v -> log.info("✅ LegalEntity permanently deleted: {}", id));
     }
 
     public Flux<LegalEntityDto> searchLegalEntities(String query) {
