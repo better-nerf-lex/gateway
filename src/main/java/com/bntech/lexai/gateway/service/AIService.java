@@ -7,9 +7,12 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.TextBlock;
 import com.bntech.lexai.gateway.data.object.Prompts;
 import com.bntech.lexai.gateway.exception.ServiceException;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentChatRequest;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentChatResponse;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.LegalBasisResponse;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +46,10 @@ public class AIService {
     private String apiKey;
 
     @Value("${spring.ai.anthropic.chat.options.model}")
-    private String model;
+    private String genModel;
+
+    @Value("${spring.ai.anthropic.chat.options.model}")
+    private String chatModel;
 
     private AnthropicClient client;
     private final ObjectMapper objectMapper;
@@ -74,7 +80,7 @@ public class AIService {
                     .maxTokens(2048L)
                     .system(Prompts.EN_EXTRACT_LEGAL_BASIS)
                     .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
-                    .model(model)
+                    .model(genModel)
                     .temperature(0.2)
                     .build();
 
@@ -148,7 +154,7 @@ public class AIService {
                     .maxTokens(4096L)
                     .system(systemPrompt)
                     .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
-                    .model(model)
+                    .model(genModel)
                     .temperature(0.3)
                     .build();
 
@@ -168,6 +174,44 @@ public class AIService {
                 .timeout(Duration.ofMinutes(2))
                 .retryWhen(buildRetrySpec("prompt analysis"))
                 .doOnError(error -> log.error("❌ Error analyzing prompt", error));
+    }
+
+    public Mono<DocumentChatResponse> chatWithDocument(DocumentChatRequest request) {
+        log.info("Chatting with document: {}", request.getDocumentId());
+        return Mono.fromCallable(() -> {
+            String inputJson;
+            try {
+                inputJson = objectMapper.writeValueAsString(Map.of(
+                        "currentContent", request.getCurrentContent(),
+                        "userRequest", request.getUserMessage()));
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException("Error serializing chat request", e);
+            }
+
+            MessageCreateParams params = MessageCreateParams.builder()
+                    .maxTokens(8192L)
+                    .system(Prompts.EN_CHAT_WITH_DOCUMENT)
+                    .addUserMessage(inputJson)
+                    .model(chatModel)
+                    .temperature(0.2)
+                    .build();
+
+            log.debug("Sending chat request to Anthropic API for document: {}", request.getDocumentId());
+            Message message = client.messages().create(params);
+
+            String rawContent = message.content().getFirst()
+                    .text()
+                    .map(TextBlock::text)
+                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+
+            String jsonContent = stripMarkdownCodeBlocks(rawContent);
+            return objectMapper.readValue(jsonContent, DocumentChatResponse.class);
+        })
+                .subscribeOn(Schedulers.boundedElastic())
+                .timeout(Duration.ofMinutes(2))
+                .retryWhen(buildRetrySpec("document chat"))
+                .doOnSuccess(response -> log.info("✅ Chat response received for document: {}", request.getDocumentId()))
+                .doOnError(error -> log.error("❌ Error during document chat for: {}", request.getDocumentId(), error));
     }
 
     public Mono<String> generateDocumentWithAnswers(GenerateDocumentRequest request) {
@@ -192,7 +236,7 @@ public class AIService {
                                 .maxTokens(8192L)
                                 .system(Prompts.EN_GENERATE_DOCUMENT)
                                 .addUserMessage(userMessage)
-                                .model(model)
+                                .model(genModel)
                                 .temperature(0.2)
                                 .build();
 

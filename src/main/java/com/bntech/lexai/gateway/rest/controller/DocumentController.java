@@ -56,6 +56,14 @@ public class DocumentController {
         return documentService.updateDocument(id, request.getContent());
     }
 
+    @PostMapping("/{id}/chat")
+    @PreAuthorize("@access.canUpdateDocument(authentication, #id)")
+    public Mono<DocumentChatResponse> chatWithDocument(@PathVariable String id,
+            @RequestBody DocumentChatRequest request) {
+        request.setDocumentId(id);
+        return documentService.chatWithDocument(request);
+    }
+
     @GetMapping("/{id}/history")
     @PreAuthorize("@access.canViewDocument(authentication, #id)")
     public Flux<DocumentHistoryDto> getDocumentHistory(@PathVariable String id) {

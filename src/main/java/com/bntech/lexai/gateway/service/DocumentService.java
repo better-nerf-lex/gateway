@@ -11,6 +11,8 @@ import com.bntech.lexai.gateway.mapper.DocumentMapper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentHistoryDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentStatsDto;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentChatRequest;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentChatResponse;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
@@ -163,6 +165,10 @@ public class DocumentService {
                     log.info("✅ Prompt analysis completed {}", response);
                 })
                 .doOnError(error -> log.error("❌ Error analyzing prompt", error));
+    }
+
+    public Mono<DocumentChatResponse> chatWithDocument(DocumentChatRequest request) {
+        return aiService.chatWithDocument(request);
     }
 
     public Mono<DocumentDto> generateDocument(GenerateDocumentRequest request) {

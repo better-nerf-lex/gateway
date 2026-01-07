@@ -20,6 +20,7 @@ spring:
       chat:
         options:
           model: claude-opus-4-5-20251101
+          chat-model: claude-sonnet-4-5-20250929
           temperature: 0.2
           max-tokens: 4096
       version: 2023-06-01
