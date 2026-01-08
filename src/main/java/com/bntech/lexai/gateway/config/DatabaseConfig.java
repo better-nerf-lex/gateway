@@ -41,6 +41,10 @@ public class DatabaseConfig {
         converters.add(new QuestionDtoListToJsonConverter(objectMapper));
         converters.add(new JsonToStringListConverter(objectMapper));
         converters.add(new StringListToJsonConverter(objectMapper));
+        converters.add(new JsonToTemplateFileListConverter(objectMapper));
+        converters.add(new TemplateFileListToJsonConverter(objectMapper));
+        converters.add(new StringToActionTypeConverter());
+        converters.add(new StringToCasePartyRoleConverter());
         return new R2dbcCustomConversions(CustomConversions.StoreConversions
                 .of(PostgresDialect.INSTANCE.getSimpleTypeHolder()), converters);
     }

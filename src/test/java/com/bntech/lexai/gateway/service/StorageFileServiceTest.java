@@ -97,4 +97,22 @@ public class StorageFileServiceTest {
 
         verify(storageFileRepository).save(argThat(f -> !f.isNew()));
     }
+
+    @Test
+    void getFileContentByKey_ShouldFetchFileFromS3() {
+        String s3Key = "templates/document-examples/11111111-1111-1111-1111-111111111111/t1111111-1111-1111-1111-111111111111.pdf";
+        byte[] expectedContent = "test file content".getBytes();
+
+        when(webClient.get()).thenReturn(mock(WebClient.RequestHeadersUriSpec.class));
+        WebClient.RequestHeadersUriSpec requestHeadersUriSpec = webClient.get();
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToMono(byte[].class)).thenReturn(Mono.just(expectedContent));
+
+        StepVerifier.create(storageFileService.getFileContentByKey(s3Key))
+                .expectNext(expectedContent)
+                .verifyComplete();
+
+        verify(requestHeadersUriSpec).uri(contains(s3Key));
+    }
 }

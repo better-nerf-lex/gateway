@@ -23,6 +23,21 @@ public class Activity extends BaseEntity<UUID> {
     @Column()
     private ActionType action;
 
+    @Column("user_id")
+    private Long userId;
+
+    @Column("team_id")
+    private UUID teamId;
+
+    @Column("entity_id")
+    private UUID entityId;
+
+    @Column("entity_type")
+    private String entityType;
+
+    @Column("details")
+    private String details;
+
     public boolean isNew() {
         return true;
     }

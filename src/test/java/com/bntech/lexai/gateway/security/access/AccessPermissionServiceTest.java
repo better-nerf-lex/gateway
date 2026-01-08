@@ -124,4 +124,36 @@ class AccessPermissionServiceTest {
                 .expectNext(false)
                 .verifyComplete();
     }
+
+    @Test
+    void isTeamMember_ShouldReturnTrue_WhenUserIsAdmin() {
+        UUID teamId = UUID.randomUUID();
+
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getAuthorities()).thenAnswer(invocation ->
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN")));
+
+        StepVerifier.create(accessPermissionService.isTeamMember(authentication, teamId.toString()))
+                .expectNext(true)
+                .verifyComplete();
+    }
+
+    @Test
+    void isTeamMember_ShouldReturnFalse_WhenUserIsNotMember() {
+        String username = "testuser";
+        Long userId = 1L;
+        UUID teamId = UUID.randomUUID();
+
+        User user = User.builder().id(userId).username(username).build();
+
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getName()).thenReturn(username);
+        when(authentication.getAuthorities()).thenReturn(Collections.emptyList());
+        when(userRepository.findByUsername(username)).thenReturn(Mono.just(user));
+        when(teamMemberRepository.findByUserIdAndTeamId(userId, teamId)).thenReturn(Mono.empty());
+
+        StepVerifier.create(accessPermissionService.isTeamMember(authentication, teamId.toString()))
+                .expectNext(false)
+                .verifyComplete();
+    }
 }

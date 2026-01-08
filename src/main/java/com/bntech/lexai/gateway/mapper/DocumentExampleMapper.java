@@ -23,6 +23,7 @@ public interface DocumentExampleMapper {
                 .questions(entity.getQuestions())
                 .base(entity.getBase())
                 .requirements(entity.getRequirements())
+                .templateFiles(entity.getTemplateFiles())
                 .build();
     }
 
@@ -34,6 +35,7 @@ public interface DocumentExampleMapper {
                 .questions(es.getQuestions())
                 .base(es.getBase())
                 .requirements(es.getRequirements())
+                .templateFiles(es.getTemplateFiles())
                 .build();
     }
 }

@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.rest.dto.document;
 
+import com.bntech.lexai.gateway.data.entity.document.DocumentExample;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,4 +20,6 @@ public class GenerateDocumentRequest {
     private List<String> requirements;
     private List<String> base;
     private String teamId;
+    private String exampleId;
+    private List<DocumentExample.TemplateFile> templateFiles;
 }

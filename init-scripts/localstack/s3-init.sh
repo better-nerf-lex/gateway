@@ -1,6 +1,19 @@
 #!/bin/bash
 awslocal s3 mb s3://lexai-documents
 
+# Template files for DocumentExamples
+# Path format: templates/document-examples/{exampleId}/{fileId}.extension
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/templates/document-examples/11111111-1111-1111-1111-111111111111/t1111111-1111-1111-1111-111111111111.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/templates/document-examples/11111111-1111-1111-1111-111111111111/t1111111-1111-1111-1111-111111111112.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/templates/document-examples/33333333-3333-3333-3333-333333333333/t3333333-3333-3333-3333-333333333331.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/templates/document-examples/33333333-3333-3333-3333-333333333333/t3333333-3333-3333-3333-333333333332.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/templates/document-examples/44444444-4444-4444-4444-444444444444/t4444444-4444-4444-4444-444444444441.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/templates/document-examples/44444444-4444-4444-4444-444444444444/t4444444-4444-4444-4444-444444444442.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/templates/document-examples/55555555-5555-5555-5555-555555555555/t5555555-5555-5555-5555-555555555551.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/templates/document-examples/55555555-5555-5555-5555-555555555555/t5555555-5555-5555-5555-555555555552.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/templates/document-examples/66666666-6666-6666-6666-666666666666/t6666666-6666-6666-6666-666666666661.pdf
+awslocal s3 cp /tmp/sample-files/sample.pdf s3://lexai-documents/templates/document-examples/66666666-6666-6666-6666-666666666666/t6666666-6666-6666-6666-666666666662.pdf
+
 # Team ID: 550e8400-e29b-41d4-a716-446655440100
 # Case ID: 650e8400-e29b-41d4-a716-446655440001
 # URL format: teamId/caseId/groupId/fileId

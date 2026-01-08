@@ -19,8 +19,10 @@ public interface DocumentHistoryRepository extends ReactiveCrudRepository<Docume
     @Query("DELETE FROM document_history WHERE document_id = :documentId")
     Mono<Void> deleteByDocumentId(UUID documentId);
 
-    @Query("SELECT COALESCE(MAX(history_version), 0) FROM document_history WHERE document_id = :documentId")
-    Mono<Integer> findMaxHistoryVersionByDocumentId(UUID documentId);
+    @Query("SELECT COALESCE(MAX(history_version), 0) as value FROM document_history WHERE document_id = :documentId")
+    Mono<ScalarResult> findMaxHistoryVersionByDocumentId(UUID documentId);
+
+    record ScalarResult(Integer value) {}
 
     @Modifying
     @Query("DELETE FROM document_history WHERE id IN (SELECT id FROM document_history WHERE document_id = :documentId ORDER BY history_version DESC OFFSET 10)")

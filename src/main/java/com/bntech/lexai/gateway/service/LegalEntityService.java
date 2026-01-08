@@ -8,6 +8,7 @@ import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.rest.dto.document.LegalEntityDto;
 import com.bntech.lexai.gateway.mapper.LegalEntityMapper;
+import com.bntech.lexai.gateway.data.object.ActionType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
@@ -27,6 +28,7 @@ public class LegalEntityService {
     private final LegalEntityMapper legalEntityMapper;
     private final UserRepository userRepository;
     private final TeamMemberRepository teamMemberRepository;
+    private final ActivityService activityService;
 
     public Flux<LegalEntityDto> getAllLegalEntities() {
         return getAllLegalEntities(null);
@@ -98,6 +100,18 @@ public class LegalEntityService {
                                         }
 
                                         return legalEntityRepository.save(legalEntity)
+                                                .doOnSuccess(saved -> {
+                                                    if (saved.getTeamId() != null) {
+                                                        activityService.logActivity(
+                                                                saved.getOwnerId(),
+                                                                saved.getTeamId(),
+                                                                ActionType.ENTITY_NEW,
+                                                                saved.getId(),
+                                                                "LegalEntity",
+                                                                "Created entity: " + legalEntityMapper
+                                                                        .mapName(saved.getDetails()));
+                                                    }
+                                                })
                                                 .map(legalEntityMapper::toDto);
                                     }));
                 });
@@ -111,13 +125,36 @@ public class LegalEntityService {
                     updatedEntity.setId(uuid);
                     updatedEntity.setNotNew();
 
-                    return legalEntityRepository.save(updatedEntity);
+                    return legalEntityRepository.save(updatedEntity)
+                            .doOnSuccess(saved -> {
+                                if (saved.getTeamId() != null) {
+                                    activityService.logActivity(
+                                            saved.getOwnerId(),
+                                            saved.getTeamId(),
+                                            ActionType.ENTITY_UPDATE,
+                                            saved.getId(),
+                                            "LegalEntity",
+                                            "Updated entity: " + legalEntityMapper.mapName(saved.getDetails()));
+                                }
+                            });
                 })
                 .map(legalEntityMapper::toDto);
     }
 
     public Mono<Void> deleteLegalEntity(String id) {
         return legalEntityRepository.softDelete(UUID.fromString(id))
+                .flatMap(unused -> legalEntityRepository.findById(UUID.fromString(id))
+                        .doOnSuccess(e -> {
+                            if (e != null && e.getTeamId() != null) {
+                                activityService.logActivity(
+                                        e.getOwnerId(),
+                                        e.getTeamId(),
+                                        ActionType.ENTITY_DELETE,
+                                        e.getId(),
+                                        "LegalEntity",
+                                        "Deleted entity: " + legalEntityMapper.mapName(e.getDetails()));
+                            }
+                        }).then())
                 .doOnSuccess(v -> log.info("✅ LegalEntity soft deleted: {}", id));
     }
 
@@ -134,9 +171,18 @@ public class LegalEntityService {
         UUID uuid = UUID.fromString(id);
         return legalEntityRepository.restore(uuid)
                 .then(legalEntityRepository.findById(uuid))
-                .map(restored -> {
+                .flatMap(restored -> {
                     restored.setNotNew();
-                    return legalEntityMapper.toDto(restored);
+                    if (restored.getTeamId() != null) {
+                        activityService.logActivity(
+                                restored.getOwnerId(),
+                                restored.getTeamId(),
+                                ActionType.ENTITY_RESTORE,
+                                restored.getId(),
+                                "LegalEntity",
+                                "Restored entity: " + legalEntityMapper.mapName(restored.getDetails()));
+                    }
+                    return Mono.just(legalEntityMapper.toDto(restored));
                 })
                 .doOnSuccess(result -> log.info("✅ LegalEntity restored: {}", id));
     }

@@ -37,9 +37,22 @@ public class DocumentExample {
     @Column()
     private List<String> requirements;
 
+    @Column("template_files")
+    private List<TemplateFile> templateFiles;
+
     @Column("created_at")
     private LocalDateTime createdAt;
 
     @Column("updated_at")
     private LocalDateTime updatedAt;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class TemplateFile {
+        private String id;
+        private String name;
+        private String s3Key;
+    }
 }

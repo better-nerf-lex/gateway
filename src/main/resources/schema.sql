@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS document_examples
     questions   JSONB,
     base        JSONB,
     requirements JSONB,
+    template_files JSONB,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     search_vector tsvector
@@ -190,9 +191,14 @@ CREATE TABLE IF NOT EXISTS event_participants
 
 CREATE TABLE IF NOT EXISTS activity
 (
-    id         UUID PRIMARY KEY,
-    action     VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP
+    id          UUID PRIMARY KEY,
+    user_id     BIGINT REFERENCES users (id),
+    team_id     UUID REFERENCES teams (id),
+    action      VARCHAR(255) NOT NULL,
+    entity_id   UUID,
+    entity_type VARCHAR(255),
+    details     TEXT,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS user_roles
@@ -310,7 +316,7 @@ CREATE TRIGGER document_examples_search_vector_trigger
     FOR EACH ROW
 EXECUTE FUNCTION document_examples_search_vector_update();
 
-INSERT INTO document_examples (id, title, description, questions, base, requirements)
+INSERT INTO document_examples (id, title, description, questions, base, requirements, template_files)
 VALUES
     ('11111111-1111-1111-1111-111111111111',
      'Wniosek rozwodowy',
@@ -328,7 +334,11 @@ VALUES
        {"id":"requests","text":"Dodatkowe wnioski kierowane do sądu","type":"TEXT"}
      ]'::jsonb,
      '["eli/DU/1974/1/ogl"]'::jsonb,
-     '["Odpis aktu małżeństwa", "Odpisy aktów urodzenia dzieci"]'::jsonb),
+     '["Odpis aktu małżeństwa", "Odpisy aktów urodzenia dzieci"]'::jsonb,
+     '[
+       {"id":"t1111111-1111-1111-1111-111111111111","name":"divorce_template_1.pdf","s3Key":"templates/document-examples/11111111-1111-1111-1111-111111111111/t1111111-1111-1111-1111-111111111111.pdf"},
+       {"id":"t1111111-1111-1111-1111-111111111112","name":"divorce_template_2.pdf","s3Key":"templates/document-examples/11111111-1111-1111-1111-111111111111/t1111111-1111-1111-1111-111111111112.pdf"}
+     ]'::jsonb),
 
     ('33333333-3333-3333-3333-333333333333',
      'Ponaglenie płatności',
@@ -346,7 +356,11 @@ VALUES
        {"id":"deadline","text":"Ostateczny termin zapłaty","type":"TEXT"}
      ]'::jsonb,
      '["eli/DU/1964/16/ogl"]'::jsonb,
-     '["Kopia faktury", "Kopia umowy"]'::jsonb),
+     '["Kopia faktury", "Kopia umowy"]'::jsonb,
+     '[
+       {"id":"t3333333-3333-3333-3333-333333333331","name":"payment_reminder_template_1.pdf","s3Key":"templates/document-examples/33333333-3333-3333-3333-333333333333/t3333333-3333-3333-3333-333333333331.pdf"},
+       {"id":"t3333333-3333-3333-3333-333333333332","name":"payment_reminder_template_2.pdf","s3Key":"templates/document-examples/33333333-3333-3333-3333-333333333333/t3333333-3333-3333-3333-333333333332.pdf"}
+     ]'::jsonb),
 
     ('44444444-4444-4444-4444-444444444444',
      'Ponaglenie płatności',
@@ -364,7 +378,11 @@ VALUES
        {"id":"consequences","text":"Skutki braku zapłaty w wyznaczonym terminie","type":"TEXT"}
      ]'::jsonb,
      '["eli/DU/1964/16/ogl"]'::jsonb,
-     '["Faktury", "Dowody doręczenia"]'::jsonb),
+     '["Faktury", "Dowody doręczenia"]'::jsonb,
+     '[
+       {"id":"t4444444-4444-4444-4444-444444444441","name":"final_payment_reminder_template_1.pdf","s3Key":"templates/document-examples/44444444-4444-4444-4444-444444444444/t4444444-4444-4444-4444-444444444441.pdf"},
+       {"id":"t4444444-4444-4444-4444-444444444442","name":"final_payment_reminder_template_2.pdf","s3Key":"templates/document-examples/44444444-4444-4444-4444-444444444444/t4444444-4444-4444-4444-444444444442.pdf"}
+     ]'::jsonb),
 
     ('55555555-5555-5555-5555-555555555555',
      'Wniosek o alimenty',
@@ -382,7 +400,11 @@ VALUES
        {"id":"evidence","text":"Dowody na poparcie żądania","type":"TEXT"}
      ]'::jsonb,
      '["eli/DU/1974/1/ogl"]'::jsonb,
-     '["Odpis aktu urodzenia", "Zaświadczenia o dochodach"]'::jsonb),
+     '["Odpis aktu urodzenia", "Zaświadczenia o dochodach"]'::jsonb,
+     '[
+       {"id":"t5555555-5555-5555-5555-555555555551","name":"alimony_template_1.pdf","s3Key":"templates/document-examples/55555555-5555-5555-5555-555555555555/t5555555-5555-5555-5555-555555555551.pdf"},
+       {"id":"t5555555-5555-5555-5555-555555555552","name":"alimony_template_2.pdf","s3Key":"templates/document-examples/55555555-5555-5555-5555-555555555555/t5555555-5555-5555-5555-555555555552.pdf"}
+     ]'::jsonb),
 
     ('66666666-6666-6666-6666-666666666666',
      'Wniosek o odroczenie kary',
@@ -400,5 +422,9 @@ VALUES
        {"id":"signature","text":"Dane podpisu wnioskodawcy","type":"TEXT"}
      ]'::jsonb,
      '["eli/DU/1997/90/ogl"]'::jsonb,
-     '["Zaświadczenia lekarskie", "Dokumenty rodzinne"]'::jsonb)
+     '["Zaświadczenia lekarskie", "Dokumenty rodzinne"]'::jsonb,
+     '[
+       {"id":"t6666666-6666-6666-6666-666666666661","name":"sentence_delay_template_1.pdf","s3Key":"templates/document-examples/66666666-6666-6666-6666-666666666666/t6666666-6666-6666-6666-666666666661.pdf"},
+       {"id":"t6666666-6666-6666-6666-666666666662","name":"sentence_delay_template_2.pdf","s3Key":"templates/document-examples/66666666-6666-6666-6666-666666666666/t6666666-6666-6666-6666-666666666662.pdf"}
+     ]'::jsonb)
 ON CONFLICT (id) DO NOTHING;

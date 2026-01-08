@@ -12,6 +12,7 @@ import com.bntech.lexai.gateway.data.repository.DocumentGroupRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentRepository;
 import com.bntech.lexai.gateway.data.repository.EventParticipantRepository;
 import com.bntech.lexai.gateway.data.repository.EventRepository;
+import com.bntech.lexai.gateway.data.object.ActionType;
 import com.bntech.lexai.gateway.data.repository.LegalEntityRepository;
 import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
@@ -51,6 +52,7 @@ public class CaseService {
     private final EventParticipantRepository eventParticipantRepository;
     private final DocumentGroupService documentGroupService;
     private final DocumentGroupRepository documentGroupRepository;
+    private final ActivityService activityService;
 
     public Flux<CaseDto> getCases(String teamId) {
         if (teamId != null && !teamId.isBlank() && !teamId.equals("null") && !teamId.equals("undefined")) {
@@ -164,6 +166,22 @@ public class CaseService {
                         }))
                 .map(savedCase -> {
                     savedCase.setNotNew();
+                    if (savedCase.getTeamId() != null) {
+                        try {
+                            // Extract UUID from teamId in Case (assuming Case teamId is UUID, let's check
+                            // Entity)
+                            // LegalCase entity: private UUID teamId;
+                            activityService.logActivity(
+                                    savedCase.getOwnerId(),
+                                    savedCase.getTeamId(),
+                                    ActionType.CASE_NEW,
+                                    savedCase.getId(),
+                                    "LegalCase",
+                                    "Created case: " + savedCase.getTitle());
+                        } catch (Exception e) {
+                            log.error("Failed to log activity for createCase", e);
+                        }
+                    }
                     return caseMapper.toDto(savedCase);
                 })
                 .flatMap(this::enrichCase)
@@ -189,7 +207,18 @@ public class CaseService {
                     }
                     existingCase.setUpdatedAt(LocalDateTime.now());
                     existingCase.setNotNew();
-                    return caseRepository.save(existingCase);
+                    return caseRepository.save(existingCase)
+                            .doOnSuccess(saved -> {
+                                if (saved.getTeamId() != null) {
+                                    activityService.logActivity(
+                                            saved.getOwnerId(),
+                                            saved.getTeamId(),
+                                            ActionType.CASE_UPDATE,
+                                            saved.getId(),
+                                            "LegalCase",
+                                            "Updated case: " + saved.getTitle());
+                                }
+                            });
                 })
                 .map(caseMapper::toDto)
                 .flatMap(this::enrichCase)
@@ -223,6 +252,18 @@ public class CaseService {
     public Mono<Void> deleteCase(String id) {
         UUID uuid = UUID.fromString(id);
         return caseRepository.softDelete(uuid)
+                .flatMap(unused -> caseRepository.findById(uuid)
+                        .doOnSuccess(c -> {
+                            if (c != null && c.getTeamId() != null) {
+                                activityService.logActivity(
+                                        c.getOwnerId(),
+                                        c.getTeamId(),
+                                        ActionType.CASE_DELETE,
+                                        c.getId(),
+                                        "LegalCase",
+                                        "Deleted case: " + c.getTitle());
+                            }
+                        }).then())
                 .doOnSuccess(result -> log.info("✅ LegalCase soft deleted: {}", id))
                 .doOnError(error -> log.error("❌ Error soft deleting case: {}", id, error));
     }
@@ -240,9 +281,18 @@ public class CaseService {
         UUID uuid = UUID.fromString(id);
         return caseRepository.restore(uuid)
                 .then(caseRepository.findById(uuid))
-                .map(restoredCase -> {
+                .flatMap(restoredCase -> {
                     restoredCase.setNotNew();
-                    return caseMapper.toDto(restoredCase);
+                    if (restoredCase.getTeamId() != null) {
+                        activityService.logActivity(
+                                restoredCase.getOwnerId(),
+                                restoredCase.getTeamId(),
+                                ActionType.CASE_RESTORE,
+                                restoredCase.getId(),
+                                "LegalCase",
+                                "Restored case: " + restoredCase.getTitle());
+                    }
+                    return Mono.just(caseMapper.toDto(restoredCase));
                 })
                 .flatMap(this::enrichCase)
                 .doOnSuccess(result -> log.info("✅ LegalCase restored: {}", id))

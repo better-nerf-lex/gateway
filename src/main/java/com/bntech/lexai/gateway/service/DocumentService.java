@@ -4,6 +4,7 @@ import com.bntech.lexai.gateway.data.entity.document.Document;
 import com.bntech.lexai.gateway.data.entity.document.DocumentHistory;
 import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
+import com.bntech.lexai.gateway.data.object.ActionType;
 import com.bntech.lexai.gateway.data.repository.CaseRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentAggregateRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentHistoryRepository;
@@ -52,6 +53,7 @@ public class DocumentService {
     private final CaseRepository caseRepository;
     private final com.bntech.lexai.gateway.mapper.CaseMapper caseMapper;
     private final DocumentExampleService documentExampleService;
+    private final ActivityService activityService;
 
     public DocumentService(
             DocumentRepository documents,
@@ -63,7 +65,8 @@ public class DocumentService {
             TeamMemberRepository teamMemberRepository,
             CaseRepository caseRepository,
             CaseMapper caseMapper,
-            @Autowired(required = false) DocumentExampleService documentExampleService) {
+            @Autowired(required = false) DocumentExampleService documentExampleService,
+            ActivityService activityService) {
         this.documents = documents;
         this.aggregates = aggregates;
         this.documentsHistory = documentsHistory;
@@ -74,6 +77,7 @@ public class DocumentService {
         this.caseRepository = caseRepository;
         this.caseMapper = caseMapper;
         this.documentExampleService = documentExampleService;
+        this.activityService = activityService;
     }
 
     public Flux<DocumentDto> getDocuments() {
@@ -134,10 +138,10 @@ public class DocumentService {
         LocalDateTime startOfMonth = YearMonth.now().atDay(1).atStartOfDay();
 
         return Mono.zip(
-                        aggregates.countAll(),
-                        aggregates.countThisMonth(startOfMonth),
-                        aggregates.countPending(),
-                        aggregates.countCompleted()).map(
+                aggregates.countAll(),
+                aggregates.countThisMonth(startOfMonth),
+                aggregates.countPending(),
+                aggregates.countCompleted()).map(
                         tuple -> DocumentStatsDto.builder()
                                 .totalDocuments(tuple.getT1().intValue())
                                 .thisMonth(tuple.getT2().intValue())
@@ -152,13 +156,13 @@ public class DocumentService {
 
         Mono<SubmitPromptResponse> templateSearch = documentExampleService != null
                 ? documentExampleService.searchTemplates(request.getPrompt())
-                .next()
-                .map(template -> SubmitPromptResponse.builder()
-                        .name(template.getTitle())
-                        .questions(template.getQuestions())
-                        .base(template.getBase())
-                        .requirements(template.getRequirements())
-                        .build())
+                        .next()
+                        .map(template -> SubmitPromptResponse.builder()
+                                .name(template.getTitle())
+                                .questions(template.getQuestions())
+                                .base(template.getBase())
+                                .requirements(template.getRequirements())
+                                .build())
                 : Mono.empty();
 
         return templateSearch
@@ -242,7 +246,16 @@ public class DocumentService {
                     return cleanedContent;
                 })
                 .flatMap(content -> updateDocumentWithContent(document, content))
-                .doOnSuccess(result -> log.info("✅ AI generation completed for: {}", document.getTitle()))
+                .doOnSuccess(result -> {
+                    log.info("✅ AI generation completed for: {}", document.getTitle());
+                    activityService.logActivity(
+                            document.getOwnerId(),
+                            document.getTeamId(),
+                            ActionType.DOCUMENT_NEW,
+                            document.getId(),
+                            "Document",
+                            "Generated document: " + document.getTitle());
+                })
                 .doOnError(error -> log.error("❌ AI generation failed for: {}", document.getTitle(), error))
                 .onErrorResume(error -> failDocument(document)); // Remove documentMapper.toDto() here
     }
@@ -305,7 +318,18 @@ public class DocumentService {
                             doc.setText(request.getContent());
                             doc.setUpdatedAt(LocalDateTime.now());
                             doc.setNotNew();
-                            return documents.save(doc);
+                            return documents.save(doc)
+                                    .doOnSuccess(savedDoc -> {
+                                        if (savedDoc.getTeamId() != null) {
+                                            activityService.logActivity(
+                                                    savedDoc.getOwnerId(),
+                                                    savedDoc.getTeamId(),
+                                                    ActionType.DOCUMENT_UPDATE,
+                                                    savedDoc.getId(),
+                                                    "Document",
+                                                    "Updated document content");
+                                        }
+                                    });
                         })
                         .map(mapper::toDto))
                 .doOnSuccess(result -> log.info("✅ Document updated: {}", id))
@@ -340,6 +364,7 @@ public class DocumentService {
 
     private Mono<DocumentHistory> createHistoryEntry(Document document) {
         return documentsHistory.findMaxHistoryVersionByDocumentId(document.getId())
+                .map(result -> result.value())
                 .defaultIfEmpty(0)
                 .flatMap(maxHistoryVersion -> {
                     DocumentHistory newHistory = DocumentHistory.builder()
@@ -378,7 +403,18 @@ public class DocumentService {
 
         return documents.findById(uuid)
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("Document", id)))
-                .flatMap(document -> documents.softDelete(uuid))
+                .flatMap(document -> documents.softDelete(uuid)
+                        .doOnSuccess(v -> {
+                            if (document.getTeamId() != null) {
+                                activityService.logActivity(
+                                        document.getOwnerId(), // Owner might not be deleter, but good proxy if generic
+                                        document.getTeamId(),
+                                        ActionType.DOCUMENT_DELETE,
+                                        uuid,
+                                        "Document",
+                                        "Deleted document: " + document.getTitle());
+                            }
+                        }))
                 .doOnSuccess(result -> log.info("✅ Document soft deleted: {}", id))
                 .doOnError(error -> log.error("❌ Error soft deleting document: {}", id, error));
     }
@@ -398,9 +434,18 @@ public class DocumentService {
 
         return documents.restore(uuid)
                 .then(documents.findById(uuid))
-                .map(restoredDoc -> {
+                .flatMap(restoredDoc -> {
                     restoredDoc.setNotNew();
-                    return mapper.toDto(restoredDoc);
+                    if (restoredDoc.getTeamId() != null) {
+                        activityService.logActivity(
+                                restoredDoc.getOwnerId(),
+                                restoredDoc.getTeamId(),
+                                ActionType.DOCUMENT_RESTORE,
+                                restoredDoc.getId(),
+                                "Document",
+                                "Restored document: " + restoredDoc.getTitle());
+                    }
+                    return Mono.just(mapper.toDto(restoredDoc));
                 })
                 .flatMap(this::enrichWithCases)
                 .doOnSuccess(result -> log.info("✅ Document restored: {}", id))

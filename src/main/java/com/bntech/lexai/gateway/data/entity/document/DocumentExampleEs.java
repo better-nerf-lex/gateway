@@ -36,4 +36,7 @@ public class DocumentExampleEs {
 
     @Field(type = FieldType.Keyword)
     private List<String> requirements;
+
+    @Field(type = FieldType.Object)
+    private List<DocumentExample.TemplateFile> templateFiles;
 }

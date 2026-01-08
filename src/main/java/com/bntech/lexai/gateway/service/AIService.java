@@ -2,9 +2,13 @@ package com.bntech.lexai.gateway.service;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.anthropic.models.messages.ContentBlock;
+import com.anthropic.models.messages.ImageBlockParam;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.TextBlock;
+import com.anthropic.models.messages.TextBlockParam;
+import com.bntech.lexai.gateway.data.entity.document.DocumentExample;
 import com.bntech.lexai.gateway.data.object.Prompts;
 import com.bntech.lexai.gateway.exception.ServiceException;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentChatRequest;
@@ -18,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
@@ -28,6 +33,7 @@ import com.bntech.lexai.gateway.util.RetryUtils;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +54,7 @@ public class AIService {
     private AnthropicClient client;
     private final ObjectMapper objectMapper;
     private final EliService eliService;
+    private final StorageFileService storageFileService;
 
     @PostConstruct
     private void initializeClient() {
@@ -214,11 +221,18 @@ public class AIService {
                 request.getPrompt(),
                 request.getAnswers(),
                 request.getRequirements(),
-                request.getBase());
+                request.getBase(),
+                request.getTemplateFiles());
     }
 
     public Mono<String> generateDocumentWithAnswers(String title, String originalPrompt,
                                                     Map<String, String> answers, List<String> requirements, List<String> base) {
+        return generateDocumentWithAnswers(title, originalPrompt, answers, requirements, base, null);
+    }
+
+    public Mono<String> generateDocumentWithAnswers(String title, String originalPrompt,
+                                                    Map<String, String> answers, List<String> requirements, 
+                                                    List<String> base, List<DocumentExample.TemplateFile> templateFiles) {
         log.info("Generating document for: {}", title);
         return fetchEliDocumentsContext(base)
                 .flatMap(legalContext -> {
@@ -249,6 +263,30 @@ public class AIService {
                 .retryWhen(buildRetrySpec(title))
                 .doOnSuccess(result -> log.info("✅ Document generated for: {}", title))
                 .doOnError(error -> log.error("❌ Error generating document for: {}", title, error));
+    }
+
+    private Mono<List<byte[]>> fetchTemplateFilesContent(List<DocumentExample.TemplateFile> templateFiles) {
+        if (templateFiles == null || templateFiles.isEmpty()) {
+            return Mono.just(List.of());
+        }
+
+        log.info("Fetching {} template files from S3", templateFiles.size());
+
+        return Flux.fromIterable(templateFiles)
+                .flatMap(templateFile -> {
+                    log.debug("Fetching template file: {}", templateFile.getS3Key());
+                    return storageFileService.getFileContentByKey(templateFile.getS3Key())
+                            .onErrorResume(e -> {
+                                log.warn("Failed to fetch template file {}: {}", templateFile.getS3Key(), e.getMessage());
+                                return Mono.empty();
+                            });
+                })
+                .collectList()
+                .doOnSuccess(contents -> log.info("✅ Fetched {} template files successfully", contents.size()))
+                .onErrorResume(e -> {
+                    log.warn("Failed to fetch template files, proceeding without templates: {}", e.getMessage());
+                    return Mono.just(List.of());
+                });
     }
 
     private Mono<String> fetchEliDocumentsContext(List<String> base) {

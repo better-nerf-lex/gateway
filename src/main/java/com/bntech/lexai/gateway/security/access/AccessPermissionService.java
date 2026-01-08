@@ -39,6 +39,10 @@ public class AccessPermissionService {
         return canListByTeam(authentication, teamId);
     }
 
+    public Mono<Boolean> isTeamMember(Authentication authentication, String teamId) {
+        return canListByTeam(authentication, teamId);
+    }
+
     private Mono<Boolean> canListByTeam(Authentication authentication, String teamId) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return Mono.just(false);

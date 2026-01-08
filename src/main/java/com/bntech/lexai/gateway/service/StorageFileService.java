@@ -259,6 +259,16 @@ public class StorageFileService {
                 .doOnError(error -> log.error("❌ Error generating view URL for file {}: {}", id, error.getMessage()));
     }
 
+    public Mono<byte[]> getFileContentByKey(String s3Key) {
+        log.info("Fetching file content for key: {}", s3Key);
+        return webClientBuilder.build().get()
+                .uri(fileServiceUrl + "/files/" + s3Key)
+                .retrieve()
+                .bodyToMono(byte[].class)
+                .doOnSuccess(content -> log.info("✅ Fetched file content for key: {}, size: {} bytes", s3Key, content.length))
+                .doOnError(error -> log.error("❌ Error fetching file content for key {}: {}", s3Key, error.getMessage()));
+    }
+
     public Mono<StorageFileDto> moveFile(String id, String targetGroupId) {
         UUID fileUuid = UUID.fromString(id);
         UUID targetGroupUuid = UUID.fromString(targetGroupId);
