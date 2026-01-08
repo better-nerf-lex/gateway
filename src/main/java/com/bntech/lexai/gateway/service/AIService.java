@@ -18,24 +18,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.ResourceAccessException;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
 import jakarta.annotation.PostConstruct;
 
-import io.netty.handler.timeout.ReadTimeoutException;
-import io.netty.handler.timeout.WriteTimeoutException;
+import com.bntech.lexai.gateway.util.RetryUtils;
 
-import java.io.IOException;
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeoutException;
 
 @Service
 @RequiredArgsConstructor
@@ -299,7 +293,7 @@ public class AIService {
         return Retry.backoff(3, Duration.ofSeconds(2))
                 .maxBackoff(Duration.ofSeconds(15))
                 .jitter(0.2)
-                .filter(this::isRetryableException)
+                .filter(RetryUtils::isRetryableException)
                 .doBeforeRetry(retrySignal -> {
                     Throwable exception = retrySignal.failure();
                     log.warn("Retrying AI call for {} (attempt {}) due to: {}",
@@ -311,21 +305,6 @@ public class AIService {
                             "AI service unavailable after " + retrySignal.totalRetries() + " attempts",
                             retrySignal.failure());
                 });
-    }
-
-    private boolean isRetryableException(Throwable throwable) {
-        return throwable instanceof ResourceAccessException
-                || throwable instanceof TimeoutException
-                || throwable instanceof IOException
-                || (throwable.getCause() instanceof ReadTimeoutException)
-                || (throwable.getCause() instanceof WriteTimeoutException)
-                || (throwable.getCause() instanceof SocketTimeoutException)
-                || (throwable.getCause() instanceof ConnectException)
-                || (throwable.getMessage() != null && (throwable.getMessage().contains("timeout") ||
-                throwable.getMessage().contains("connection") ||
-                throwable.getMessage().contains("503") ||
-                throwable.getMessage().contains("502") ||
-                throwable.getMessage().contains("rate_limit")));
     }
 
     private String stripMarkdownCodeBlocks(String response) {

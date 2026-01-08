@@ -31,7 +31,7 @@ public class DocumentExampleService {
         }
 
         return esRepository.searchByTitleOrDescription(query)
-                .map(this::toDtoFromEs)
+                .map(mapper::toDtoFromEs)
                 .switchIfEmpty(searchPostgresFallback(query));
     }
 
@@ -44,35 +44,13 @@ public class DocumentExampleService {
                 .map(mapper::toDto);
     }
 
-    private DocumentExampleDto toDtoFromEs(DocumentExampleEs es) {
-        return DocumentExampleDto.builder()
-                .id(es.getId())
-                .title(es.getTitle())
-                .description(es.getDescription())
-                .questions(es.getQuestions())
-                .base(es.getBase())
-                .requirements(es.getRequirements())
-                .build();
-    }
-
     public Mono<Void> syncToEs() {
         log.info("Starting synchronization of document templates to Elasticsearch");
         return repository.findAll()
-                .map(this::toEs)
+                .map(mapper::toEs)
                 .flatMap(esRepository::save)
                 .then()
                 .doOnSuccess(v -> log.info("Successfully synchronized document templates to Elasticsearch"))
                 .doOnError(e -> log.error("Failed to synchronize document templates to Elasticsearch", e));
-    }
-
-    private DocumentExampleEs toEs(DocumentExample entity) {
-        return DocumentExampleEs.builder()
-                .id(entity.getId().toString())
-                .title(entity.getTitle())
-                .description(entity.getDescription())
-                .questions(entity.getQuestions())
-                .base(entity.getBase())
-                .requirements(entity.getRequirements())
-                .build();
     }
 }

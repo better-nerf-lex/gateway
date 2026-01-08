@@ -28,46 +28,24 @@ public class AccessPermissionService {
     private final EventRepository eventRepository;
 
     public Mono<Boolean> canListDocuments(Authentication authentication, String teamId) {
-        if (authentication == null || !authentication.isAuthenticated())
-            return Mono.just(false);
-        if (isBlankTeamId(teamId))
-            return Mono.just(true);
-        try {
-            return hasTeamAccess(authentication, UUID.fromString(teamId), AccessLevel.READ.name());
-        } catch (IllegalArgumentException e) {
-            return Mono.just(false);
-        }
+        return canListByTeam(authentication, teamId);
     }
 
     public Mono<Boolean> canListLegalEntities(Authentication authentication, String teamId) {
-        log.debug("canListLegalEntities called - auth: {}, teamId: {}",
-                authentication != null ? authentication.getName() : "null", teamId);
-
-        if (authentication == null || !authentication.isAuthenticated()) {
-            log.debug("canListLegalEntities: authentication is null or not authenticated");
-            return Mono.just(false);
-        }
-
-        if (isBlankTeamId(teamId)) {
-            log.debug("canListLegalEntities: teamId is blank, allowing access");
-            return Mono.just(true);
-        }
-
-        try {
-            UUID uuid = UUID.fromString(teamId);
-            return hasTeamAccess(authentication, uuid, AccessLevel.READ.name())
-                    .doOnNext(hasAccess -> log.debug("canListLegalEntities: hasTeamAccess returned {}", hasAccess));
-        } catch (IllegalArgumentException e) {
-            log.error("canListLegalEntities: invalid teamId format: {}", teamId);
-            return Mono.just(false);
-        }
+        return canListByTeam(authentication, teamId);
     }
 
     public Mono<Boolean> canListCases(Authentication authentication, String teamId) {
-        if (authentication == null || !authentication.isAuthenticated())
+        return canListByTeam(authentication, teamId);
+    }
+
+    private Mono<Boolean> canListByTeam(Authentication authentication, String teamId) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return Mono.just(false);
-        if (isBlankTeamId(teamId))
+        }
+        if (isBlankTeamId(teamId)) {
             return Mono.just(true);
+        }
         try {
             return hasTeamAccess(authentication, UUID.fromString(teamId), AccessLevel.READ.name());
         } catch (IllegalArgumentException e) {
@@ -121,45 +99,28 @@ public class AccessPermissionService {
     }
 
     public Mono<Boolean> hasTeamAccessByDocument(Authentication authentication, String id, String level) {
-        log.debug("hasTeamAccessByDocument called - id: {}, level: {}", id, level);
-        if (id == null || id.isBlank() || isBlankId(id)) {
-            log.debug("hasTeamAccessByDocument: invalid id: {}", id);
-            return Mono.just(false);
-        }
-        try {
-            UUID uuid = UUID.fromString(id.trim());
-            return documentRepository.findById(uuid)
-                    .flatMap(doc -> {
-                        if (doc.getTeamId() == null) {
-                            log.debug("hasTeamAccessByDocument: document found but has no teamId: {}", id);
-                            return Mono.just(false);
-                        }
-                        log.debug("hasTeamAccessByDocument: document found, teamId: {}, checking team access",
-                                doc.getTeamId());
-                        return hasTeamAccess(authentication, doc.getTeamId(), level);
-                    })
-                    .defaultIfEmpty(false)
-                    .doOnNext(hasAccess -> log.debug("hasTeamAccessByDocument: result for id {}: {}", id, hasAccess))
-                    .onErrorResume(e -> {
-                        log.error("hasTeamAccessByDocument: error occurred for id {}", id, e);
-                        return Mono.just(false);
-                    });
-        } catch (IllegalArgumentException e) {
-            log.error("hasTeamAccessByDocument: invalid UUID format: {}", id);
-            return Mono.just(false);
-        }
+        return hasTeamAccessByEntity(authentication, id, level,
+                uuid -> documentRepository.findById(uuid).map(doc -> doc.getTeamId()));
     }
 
     public Mono<Boolean> hasTeamAccessByLegalEntity(Authentication authentication, String id, String level) {
-        if (id == null || id.isBlank() || isBlankId(id))
+        return hasTeamAccessByEntity(authentication, id, level,
+                uuid -> legalEntityRepository.findById(uuid).map(le -> le.getTeamId()));
+    }
+
+    private Mono<Boolean> hasTeamAccessByEntity(Authentication authentication, String id, String level,
+            java.util.function.Function<UUID, Mono<UUID>> teamIdFinder) {
+        if (id == null || id.isBlank() || isBlankId(id)) {
             return Mono.just(false);
+        }
         try {
             UUID uuid = UUID.fromString(id.trim());
-            return legalEntityRepository.findById(uuid)
-                    .flatMap(le -> {
-                        if (le.getTeamId() == null)
+            return teamIdFinder.apply(uuid)
+                    .flatMap(teamId -> {
+                        if (teamId == null) {
                             return Mono.just(false);
-                        return hasTeamAccess(authentication, le.getTeamId(), level);
+                        }
+                        return hasTeamAccess(authentication, teamId, level);
                     })
                     .defaultIfEmpty(false)
                     .onErrorReturn(false);
@@ -169,62 +130,32 @@ public class AccessPermissionService {
     }
 
     public Mono<Boolean> isOwnerOrAdminOfDocument(Authentication authentication, String id) {
-        log.debug("isOwnerOrAdminOfDocument called - user: {}, id: {}",
-                authentication != null ? authentication.getName() : "null", id);
+        return isOwnerOrAdminOfEntity(authentication, id,
+                uuid -> documentRepository.findById(uuid).map(doc -> doc.getOwnerId()));
+    }
+
+    public Mono<Boolean> isOwnerOrAdminOfLegalEntity(Authentication authentication, String id) {
+        return isOwnerOrAdminOfEntity(authentication, id,
+                uuid -> legalEntityRepository.findById(uuid).map(e -> e.getOwnerId()));
+    }
+
+    private Mono<Boolean> isOwnerOrAdminOfEntity(Authentication authentication, String id,
+            java.util.function.Function<UUID, Mono<Long>> ownerIdFinder) {
         if (authentication == null || !authentication.isAuthenticated()) {
-            log.debug("isOwnerOrAdminOfDocument: authentication is null or not authenticated");
             return Mono.just(false);
         }
         if (id == null || id.isBlank() || isBlankId(id)) {
-            log.debug("isOwnerOrAdminOfDocument: invalid id: {}", id);
             return Mono.just(false);
         }
         if (isAdmin(authentication)) {
-            log.debug("isOwnerOrAdminOfDocument: user is admin, granting access");
             return Mono.just(true);
         }
 
         try {
             UUID uuid = UUID.fromString(id.trim());
             return userRepository.findByUsername(authentication.getName())
-                    .flatMap(user -> {
-                        log.debug("isOwnerOrAdminOfDocument: checking document {} for user id {}", uuid, user.getId());
-                        return documentRepository.findById(uuid)
-                                .map(doc -> {
-                                    boolean isOwner = user.getId().equals(doc.getOwnerId());
-                                    log.debug(
-                                            "isOwnerOrAdminOfDocument: user id: {}, document owner id: {}, isOwner: {}",
-                                            user.getId(), doc.getOwnerId(), isOwner);
-                                    return isOwner;
-                                })
-                                .switchIfEmpty(Mono.defer(() -> {
-                                    log.debug("isOwnerOrAdminOfDocument: document not found: {}", uuid);
-                                    return Mono.just(false);
-                                }));
-                    })
-                    .defaultIfEmpty(false)
-                    .onErrorResume(e -> {
-                        log.error("isOwnerOrAdminOfDocument: error occurred for id {}", id, e);
-                        return Mono.just(false);
-                    });
-        } catch (IllegalArgumentException e) {
-            log.error("isOwnerOrAdminOfDocument: invalid UUID format: {}", id);
-            return Mono.just(false);
-        }
-    }
-
-    public Mono<Boolean> isOwnerOrAdminOfLegalEntity(Authentication authentication, String id) {
-        if (authentication == null || !authentication.isAuthenticated())
-            return Mono.just(false);
-        if (id == null || id.isBlank() || isBlankId(id))
-            return Mono.just(false);
-        if (isAdmin(authentication))
-            return Mono.just(true);
-
-        try {
-            return userRepository.findByUsername(authentication.getName())
-                    .flatMap(user -> legalEntityRepository.findById(UUID.fromString(id.trim()))
-                            .map(e -> user.getId().equals(e.getOwnerId()))
+                    .flatMap(user -> ownerIdFinder.apply(uuid)
+                            .map(ownerId -> user.getId().equals(ownerId))
                             .defaultIfEmpty(false))
                     .defaultIfEmpty(false)
                     .onErrorReturn(false);
@@ -294,66 +225,18 @@ public class AccessPermissionService {
     }
 
     public Mono<Boolean> hasTeamAccessByCase(Authentication authentication, String id, String level) {
-        log.debug("hasTeamAccessByCase check - id: {}, level: {}", id, level);
-        if (id == null || id.isBlank() || isBlankId(id)) {
-            log.debug("hasTeamAccessByCase: invalid id: {}", id);
-            return Mono.just(false);
-        }
-        try {
-            return caseRepository.findById(UUID.fromString(id.trim()))
-                    .flatMap(c -> {
-                        if (c.getTeamId() == null)
-                            return Mono.just(false);
-                        log.debug("hasTeamAccessByCase: case found, teamId: {}, checking team access", c.getTeamId());
-                        return hasTeamAccess(authentication, c.getTeamId(), level);
-                    })
-                    .defaultIfEmpty(false)
-                    .doOnNext(hasAccess -> log.debug("hasTeamAccessByCase result: {}", hasAccess))
-                    .onErrorReturn(false);
-        } catch (IllegalArgumentException e) {
-            log.error("hasTeamAccessByCase: invalid UUID format: {}", id);
-            return Mono.just(false);
-        }
+        return hasTeamAccessByEntity(authentication, id, level,
+                uuid -> caseRepository.findById(uuid).map(c -> c.getTeamId()));
     }
 
     public Mono<Boolean> isOwnerOrAdminOfCase(Authentication authentication, String id) {
-        if (authentication == null || !authentication.isAuthenticated())
-            return Mono.just(false);
-        if (id == null || id.isBlank() || isBlankId(id))
-            return Mono.just(false);
-        if (isAdmin(authentication))
-            return Mono.just(true);
-
-        try {
-            return userRepository.findByUsername(authentication.getName())
-                    .flatMap(user -> caseRepository.findById(UUID.fromString(id.trim()))
-                            .map(c -> user.getId().equals(c.getOwnerId()))
-                            .defaultIfEmpty(false))
-                    .defaultIfEmpty(false)
-                    .onErrorReturn(false);
-        } catch (IllegalArgumentException e) {
-            return Mono.just(false);
-        }
+        return isOwnerOrAdminOfEntity(authentication, id,
+                uuid -> caseRepository.findById(uuid).map(c -> c.getOwnerId()));
     }
 
     public Mono<Boolean> isOwnerOrAdminOfEvent(Authentication authentication, String id) {
-        if (authentication == null || !authentication.isAuthenticated())
-            return Mono.just(false);
-        if (id == null || id.isBlank() || isBlankId(id))
-            return Mono.just(false);
-        if (isAdmin(authentication))
-            return Mono.just(true);
-
-        try {
-            return userRepository.findByUsername(authentication.getName())
-                    .flatMap(user -> eventRepository.findById(UUID.fromString(id.trim()))
-                            .map(e -> user.getId().equals(e.getOwnerId()))
-                            .defaultIfEmpty(false))
-                    .defaultIfEmpty(false)
-                    .onErrorReturn(false);
-        } catch (IllegalArgumentException e) {
-            return Mono.just(false);
-        }
+        return isOwnerOrAdminOfEntity(authentication, id,
+                uuid -> eventRepository.findById(uuid).map(e -> e.getOwnerId()));
     }
 
     public Mono<Boolean> canUpdateCase(Authentication authentication, String id) {

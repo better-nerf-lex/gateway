@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.data.repository;
 
 import com.bntech.lexai.gateway.data.entity.document.DocumentHistory;
+import org.springframework.data.r2dbc.repository.Modifying;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import org.springframework.stereotype.Repository;
@@ -15,7 +16,13 @@ public interface DocumentHistoryRepository extends ReactiveCrudRepository<Docume
     @Query("SELECT * FROM document_history WHERE document_id = :documentId ORDER BY history_version DESC")
     Flux<DocumentHistory> findByDocumentIdOrderByVersionDesc(UUID documentId);
 
-
     @Query("DELETE FROM document_history WHERE document_id = :documentId")
     Mono<Void> deleteByDocumentId(UUID documentId);
+
+    @Query("SELECT COALESCE(MAX(history_version), 0) FROM document_history WHERE document_id = :documentId")
+    Mono<Integer> findMaxHistoryVersionByDocumentId(UUID documentId);
+
+    @Modifying
+    @Query("DELETE FROM document_history WHERE id IN (SELECT id FROM document_history WHERE document_id = :documentId ORDER BY history_version DESC OFFSET 10)")
+    Mono<Void> deleteOldVersions(UUID documentId);
 }

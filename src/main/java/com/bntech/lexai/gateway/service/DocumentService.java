@@ -28,7 +28,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Service;
-import org.springframework.r2dbc.core.DatabaseClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import org.springframework.security.access.AccessDeniedException;
@@ -52,7 +51,6 @@ public class DocumentService {
     private final TeamMemberRepository teamMemberRepository;
     private final CaseRepository caseRepository;
     private final com.bntech.lexai.gateway.mapper.CaseMapper caseMapper;
-    private final DatabaseClient databaseClient;
     private final DocumentExampleService documentExampleService;
 
     public DocumentService(
@@ -65,7 +63,6 @@ public class DocumentService {
             TeamMemberRepository teamMemberRepository,
             CaseRepository caseRepository,
             CaseMapper caseMapper,
-            DatabaseClient databaseClient,
             @Autowired(required = false) DocumentExampleService documentExampleService) {
         this.documents = documents;
         this.aggregates = aggregates;
@@ -76,7 +73,6 @@ public class DocumentService {
         this.teamMemberRepository = teamMemberRepository;
         this.caseRepository = caseRepository;
         this.caseMapper = caseMapper;
-        this.databaseClient = databaseClient;
         this.documentExampleService = documentExampleService;
     }
 
@@ -343,13 +339,7 @@ public class DocumentService {
     }
 
     private Mono<DocumentHistory> createHistoryEntry(Document document) {
-        return databaseClient.sql("SELECT MAX(history_version) FROM document_history WHERE document_id = :documentId")
-                .bind("documentId", document.getId())
-                .map(row -> {
-                    Integer historyVersion = row.get(0, Integer.class);
-                    return historyVersion != null ? historyVersion : 0;
-                })
-                .one()
+        return documentsHistory.findMaxHistoryVersionByDocumentId(document.getId())
                 .defaultIfEmpty(0)
                 .flatMap(maxHistoryVersion -> {
                     DocumentHistory newHistory = DocumentHistory.builder()
@@ -364,24 +354,10 @@ public class DocumentService {
                     return documentsHistory.save(newHistory)
                             .flatMap(savedHistory -> {
                                 savedHistory.setNotNew();
-                                return cleanupOldVersions(document.getId())
+                                return documentsHistory.deleteOldVersions(document.getId())
                                         .thenReturn(savedHistory);
                             });
                 });
-    }
-
-    private Mono<Void> cleanupOldVersions(UUID documentId) {
-        return databaseClient.sql(
-                        "DELETE FROM document_history WHERE id IN (" +
-                                "  SELECT id FROM document_history " +
-                                "  WHERE document_id = :documentId " +
-                                "  ORDER BY history_version DESC " +
-                                "  OFFSET 10" +
-                                ")")
-                .bind("documentId", documentId)
-                .fetch()
-                .rowsUpdated()
-                .then();
     }
 
     private DocumentHistoryDto toHistoryDto(DocumentHistory entity) {
