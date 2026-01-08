@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.rest.dto.document;
 
+import com.bntech.lexai.gateway.data.object.TemplateFile;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,4 +17,6 @@ public class SubmitPromptResponse {
     private List<String> base;
     private List<QuestionDto> questions;
     private List<String> requirements;
+    private List<TemplateFile> templateFiles;
+    private String exampleId;
 }

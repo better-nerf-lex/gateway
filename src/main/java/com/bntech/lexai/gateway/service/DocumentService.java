@@ -162,6 +162,8 @@ public class DocumentService {
                                 .questions(template.getQuestions())
                                 .base(template.getBase())
                                 .requirements(template.getRequirements())
+                                .templateFiles(template.getTemplateFiles())
+                                .exampleId(template.getId())
                                 .build())
                 : Mono.empty();
 
@@ -216,12 +218,24 @@ public class DocumentService {
                                         document.setTeamId(teamId);
                                     }
 
-                                    return documents.save(document)
+                                    Mono<GenerateDocumentRequest> requestMono = Mono.just(request);
+                                    if (request.getExampleId() != null && !request.getExampleId().isBlank()) {
+                                        requestMono = documentExampleService.findById(request.getExampleId())
+                                                .map(example -> {
+                                                    if (request.getTemplateFiles() == null || request.getTemplateFiles().isEmpty()) {
+                                                        request.setTemplateFiles(example.getTemplateFiles());
+                                                    }
+                                                    return request;
+                                                })
+                                                .defaultIfEmpty(request);
+                                    }
+
+                                    return requestMono.flatMap(req -> documents.save(document)
                                             .map(doc -> {
                                                 doc.setNotNew();
                                                 return doc;
                                             })
-                                            .flatMap(savedDocument -> processAIGeneration(savedDocument, request));
+                                            .flatMap(savedDocument -> processAIGeneration(savedDocument, req)));
                                 });
                             });
                 });

@@ -14,6 +14,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Arrays;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +34,10 @@ public class DocumentExampleService {
         return esRepository.searchByTitleOrDescription(query)
                 .map(mapper::toDtoFromEs)
                 .switchIfEmpty(searchPostgresFallback(query));
+    }
+
+    public Mono<DocumentExample> findById(String id) {
+        return repository.findById(UUID.fromString(id));
     }
 
     private Flux<DocumentExampleDto> searchPostgresFallback(String query) {
