@@ -103,11 +103,11 @@ public class StorageFileService {
                                             "DocumentGroup must have caseId for file upload"));
                                 }
                                 String extension = getFileExtension(filePart.filename());
-                                String key = String.format("%s/%s/%s/%s%s", 
-                                        group.getTeamId().toString(), 
+                                String key = String.format("%s/%s/%s/%s%s",
+                                        group.getTeamId().toString(),
                                         group.getCaseId().toString(),
                                         documentGroupId,
-                                        fileId.toString(), 
+                                        fileId.toString(),
                                         extension);
 
                                 log.info("Uploading file with key: {}", key);
@@ -245,17 +245,88 @@ public class StorageFileService {
 
     public Mono<String> generateViewUrl(String id) {
         return getDocumentFileById(id)
-                .map(fileDto -> {
-                    String s3Url = fileDto.getS3Url();
-                    String key = s3Url;
-                    if (s3Url != null && s3Url.startsWith("s3://")) {
-                        String path = s3Url.substring(5);
-                        int firstSlash = path.indexOf('/');
-                        if (firstSlash != -1) {
-                            key = path.substring(firstSlash + 1);
-                        }
+                .flatMap(dto -> {
+                    String s3Url = dto.getS3Url();
+                    if (s3Url == null || !s3Url.startsWith("s3://")) {
+                        return Mono.error(new IllegalStateException("Invalid S3 URL for file: " + id));
                     }
-                    return fileServiceUrl + "/files/" + key;
-                });
+
+                    String path = s3Url.substring(5);
+                    int firstSlash = path.indexOf('/');
+                    String key = (firstSlash != -1) ? path.substring(firstSlash + 1) : path;
+
+                    log.info("Generating view URL for file: {}, key: {}", id, key);
+
+                    return webClientBuilder.build().get()
+                            .uri(fileServiceUrl + "/files/" + key + "/view-url")
+                            .retrieve()
+                            .bodyToMono(String.class);
+                })
+                .doOnError(error -> log.error("❌ Error generating view URL for file {}: {}", id, error.getMessage()));
+    }
+
+    public Mono<StorageFileDto> moveFile(String id, String targetGroupId) {
+        UUID fileUuid = UUID.fromString(id);
+        UUID targetGroupUuid = UUID.fromString(targetGroupId);
+
+        return documentFileRepository.findById(fileUuid)
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("StorageFile", id)))
+                .flatMap(file -> documentGroupRepository.findById(targetGroupUuid)
+                        .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentGroup", targetGroupId)))
+                        .flatMap(targetGroup -> {
+                            // Calculate new key
+                            String oldS3Url = file.getS3Url();
+                            if (oldS3Url == null || !oldS3Url.startsWith("s3://")) {
+                                return Mono.error(new IllegalStateException("Invalid S3 URL"));
+                            }
+
+                            String oldKey = oldS3Url.substring(5); // Remove s3://
+                            int bucketEnd = oldKey.indexOf('/');
+                            String bucketName = oldKey.substring(0, bucketEnd);
+                            String oldPath = oldKey.substring(bucketEnd + 1);
+
+                            // Format: teamId/caseId/groupId/fileId.ext
+                            // We need to keep fileId.ext but change the path prefix
+                            String filename = file.getName();
+                            String extension = getFileExtension(filename);
+
+                            // Ensure target group has required IDs (though they should)
+                            if (targetGroup.getTeamId() == null || targetGroup.getCaseId() == null) {
+                                return Mono.error(
+                                        new IllegalStateException("Target DocumentGroup missing teamId or caseId"));
+                            }
+
+                            String newPath = String.format("%s/%s/%s/%s%s",
+                                    targetGroup.getTeamId().toString(),
+                                    targetGroup.getCaseId().toString(),
+                                    targetGroupId,
+                                    file.getId().toString(),
+                                    extension);
+
+                            String newS3Url = "s3://" + bucketName + "/" + newPath;
+
+                            log.info("Moving file {} from {} to {}", id, oldPath, newPath);
+
+                            return webClientBuilder.build().post()
+                                    .uri(fileServiceUrl + "/files/move")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .bodyValue(new FileServiceMoveRequest(oldPath, newPath))
+                                    .retrieve()
+                                    .toBodilessEntity()
+                                    .then(Mono.defer(() -> {
+                                        file.setDocumentGroupId(targetGroupUuid);
+                                        file.setS3Url(newS3Url);
+                                        file.setTeamId(targetGroup.getTeamId());
+                                        return documentFileRepository.save(file);
+                                    }))
+                                    .map(documentFileMapper::toDto);
+                        }));
+    }
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    private static class FileServiceMoveRequest {
+        private String sourceKey;
+        private String destinationKey;
     }
 }

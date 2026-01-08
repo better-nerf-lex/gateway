@@ -297,21 +297,21 @@ public class DocumentService {
     public Mono<DocumentDto> updateDocument(String id, UpdateDocumentRequest request) {
         log.info("Updating document: {}", id);
 
+        if (request == null || request.getContent() == null) {
+            return Mono.error(new IllegalArgumentException("Content cannot be null"));
+        }
+
         return documents.findById(UUID.fromString(id))
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("Document", id)))
-                .flatMap(document -> {
-                    return createHistoryEntry(document)
-                            .then(Mono.just(document))
-                            .flatMap(doc -> {
-                                if (request.getContent() != null) {
-                                    doc.setText(request.getContent());
-                                }
-                                doc.setUpdatedAt(LocalDateTime.now());
-                                doc.setNotNew();
-                                return documents.save(doc);
-                            })
-                            .map(mapper::toDto);
-                })
+                .flatMap(document -> createHistoryEntry(document)
+                        .then(Mono.just(document))
+                        .flatMap(doc -> {
+                            doc.setText(request.getContent());
+                            doc.setUpdatedAt(LocalDateTime.now());
+                            doc.setNotNew();
+                            return documents.save(doc);
+                        })
+                        .map(mapper::toDto))
                 .doOnSuccess(result -> log.info("✅ Document updated: {}", id))
                 .doOnError(error -> log.error("❌ Error updating document: {}", id, error));
     }
@@ -337,7 +337,10 @@ public class DocumentService {
     private Mono<DocumentHistory> createHistoryEntry(Document document) {
         return databaseClient.sql("SELECT MAX(version) FROM document_history WHERE document_id = :documentId")
                 .bind("documentId", document.getId())
-                .map(row -> row.get(0, Integer.class))
+                .map(row -> {
+                    Integer version = row.get(0, Integer.class);
+                    return version != null ? version : 0;
+                })
                 .one()
                 .defaultIfEmpty(0)
                 .map(maxVersion -> DocumentHistory.builder()

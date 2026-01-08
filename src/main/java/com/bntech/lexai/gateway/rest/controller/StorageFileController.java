@@ -57,4 +57,9 @@ public class StorageFileController {
     public Mono<String> getViewUrl(@PathVariable String id) {
         return documentFileService.generateViewUrl(id);
     }
+
+    @PostMapping("/{id}/move")
+    public Mono<StorageFileDto> moveFile(@PathVariable String id, @RequestParam String targetGroupId) {
+        return documentFileService.moveFile(id, targetGroupId);
+    }
 }
