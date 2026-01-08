@@ -1,9 +1,11 @@
 package com.bntech.lexai.gateway.security.access;
 
-import com.bntech.lexai.gateway.data.entity.document.LegalCase;
-import com.bntech.lexai.gateway.data.entity.document.Document;
-import com.bntech.lexai.gateway.data.entity.document.LegalEntity;
-import com.bntech.lexai.gateway.data.repository.*;
+import com.bntech.lexai.gateway.data.repository.CaseRepository;
+import com.bntech.lexai.gateway.data.repository.DocumentRepository;
+import com.bntech.lexai.gateway.data.repository.EventRepository;
+import com.bntech.lexai.gateway.data.repository.LegalEntityRepository;
+import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
+import com.bntech.lexai.gateway.data.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;

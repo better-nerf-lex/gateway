@@ -9,6 +9,5 @@ import java.util.UUID;
 
 @Repository
 public interface ActivityRepository extends R2dbcRepository<Activity, UUID> {
-
     Flux<Activity> findAllByOrderByCreatedAtDesc();
 }

@@ -70,7 +70,6 @@ public class LegalEntityService {
                                     .flatMap(members -> {
                                         UUID targetTeamId = null;
 
-                                        // Use requested teamId if user is a member of that team
                                         if (legalEntityDto.getTeamId() != null
                                                 && !legalEntityDto.getTeamId().isBlank()
                                                 && !legalEntityDto.getTeamId().equals("null")
@@ -83,7 +82,6 @@ public class LegalEntityService {
                                             }
                                         }
 
-                                        // Fallback to first team if no specific team requested or not a member
                                         if (targetTeamId == null && !members.isEmpty()) {
                                             targetTeamId = members.get(0).getTeamId();
                                         }

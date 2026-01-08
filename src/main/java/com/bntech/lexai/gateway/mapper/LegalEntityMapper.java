@@ -18,7 +18,6 @@ import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 
 import java.util.List;
-import java.util.UUID;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface LegalEntityMapper {
@@ -48,21 +47,26 @@ public interface LegalEntityMapper {
     LawFirmDetails toEntity(LawFirmDetailsDto detailsDto);
 
     default EntityDetailsDto mapDetailsToDto(EntityDetails details) {
-        if (details == null) return null;
-        if (details instanceof PersonDetails pd) return toDto(pd);
-        if (details instanceof CompanyDetails cd) return toDto(cd);
-        if (details instanceof CourtDetails cd2) return toDto(cd2);
-        if (details instanceof LawFirmDetails lf) return toDto(lf);
-        throw new IllegalArgumentException("Unsupported EntityDetails subtype: " + details.getClass());
+        return switch (details) {
+            case null -> null;
+            case PersonDetails pd -> toDto(pd);
+            case CompanyDetails cd -> toDto(cd);
+            case CourtDetails cd2 -> toDto(cd2);
+            case LawFirmDetails lf -> toDto(lf);
+            default -> throw new IllegalArgumentException("Unsupported EntityDetails subtype: " + details.getClass());
+        };
     }
 
     default EntityDetails mapDetailsToEntity(EntityDetailsDto detailsDto) {
-        if (detailsDto == null) return null;
-        if (detailsDto instanceof PersonDetailsDto pd) return toEntity(pd);
-        if (detailsDto instanceof CompanyDetailsDto cd) return toEntity(cd);
-        if (detailsDto instanceof CourtDetailsDto cd2) return toEntity(cd2);
-        if (detailsDto instanceof LawFirmDetailsDto lf) return toEntity(lf);
-        throw new IllegalArgumentException("Unsupported EntityDetailsDto subtype: " + detailsDto.getClass());
+        return switch (detailsDto) {
+            case null -> null;
+            case PersonDetailsDto pd -> toEntity(pd);
+            case CompanyDetailsDto cd -> toEntity(cd);
+            case CourtDetailsDto cd2 -> toEntity(cd2);
+            case LawFirmDetailsDto lf -> toEntity(lf);
+            default ->
+                    throw new IllegalArgumentException("Unsupported EntityDetailsDto subtype: " + detailsDto.getClass());
+        };
     }
 
     default RelevanceType mapRelevance(String relevance) {
@@ -71,15 +75,27 @@ public interface LegalEntityMapper {
     }
 
     default String mapName(EntityDetails details) {
-        if (details == null) return null;
-        if (details instanceof PersonDetails pd) {
-            String first = pd.getFirstName() != null ? pd.getFirstName() : "";
-            String last = pd.getLastName() != null ? pd.getLastName() : "";
-            return (first + " " + last).trim();
+        switch (details) {
+            case null -> {
+                return null;
+            }
+            case PersonDetails pd -> {
+                String first = pd.getFirstName() != null ? pd.getFirstName() : "";
+                String last = pd.getLastName() != null ? pd.getLastName() : "";
+                return (first + " " + last).trim();
+            }
+            case CompanyDetails cd -> {
+                return cd.getFullName();
+            }
+            case CourtDetails cd -> {
+                return cd.getFullName();
+            }
+            case LawFirmDetails lf -> {
+                return lf.getFullName();
+            }
+            default -> {
+            }
         }
-        if (details instanceof CompanyDetails cd) return cd.getFullName();
-        if (details instanceof CourtDetails cd) return cd.getFullName();
-        if (details instanceof LawFirmDetails lf) return lf.getFullName();
         return null;
     }
 }

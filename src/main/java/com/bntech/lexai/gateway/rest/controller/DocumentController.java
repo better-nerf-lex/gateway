@@ -1,6 +1,14 @@
 package com.bntech.lexai.gateway.rest.controller;
 
-import com.bntech.lexai.gateway.rest.dto.document.*;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentChatRequest;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentChatResponse;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentHistoryDto;
+import com.bntech.lexai.gateway.rest.dto.document.DocumentStatsDto;
+import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
+import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
+import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
+import com.bntech.lexai.gateway.rest.dto.document.UpdateDocumentRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import com.bntech.lexai.gateway.service.DocumentService;
 import lombok.RequiredArgsConstructor;

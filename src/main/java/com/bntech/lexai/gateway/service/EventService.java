@@ -2,7 +2,11 @@ package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.Event;
 import com.bntech.lexai.gateway.data.entity.document.EventParticipant;
-import com.bntech.lexai.gateway.data.repository.*;
+import com.bntech.lexai.gateway.data.repository.EventParticipantRepository;
+import com.bntech.lexai.gateway.data.repository.EventRepository;
+import com.bntech.lexai.gateway.data.repository.LegalEntityRepository;
+import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
+import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.mapper.EventMapper;
 import com.bntech.lexai.gateway.mapper.LegalEntityMapper;
 import com.bntech.lexai.gateway.rest.dto.document.EventDto;

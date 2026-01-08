@@ -1,6 +1,8 @@
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.StorageFile;
+import com.bntech.lexai.gateway.data.object.FileServiceMoveRequest;
+import com.bntech.lexai.gateway.data.object.FileServiceUploadResponse;
 import com.bntech.lexai.gateway.data.object.StorageFileType;
 import com.bntech.lexai.gateway.data.repository.DocumentGroupRepository;
 import com.bntech.lexai.gateway.data.repository.StorageFileRepository;
@@ -62,7 +64,6 @@ public class StorageFileService {
 
     public Mono<StorageFileDto> createDocumentFile(StorageFileDto dto, Long ownerId) {
         StorageFile entity = documentFileMapper.toEntity(dto);
-        // ID should already be set if creating from uploadFile, but safety check
         if (entity.getId() == null) {
             entity.setId(UUID.randomUUID());
         }
@@ -160,13 +161,6 @@ public class StorageFileService {
         return StorageFileType.OTHER;
     }
 
-    @lombok.Data
-    @lombok.NoArgsConstructor
-    @lombok.AllArgsConstructor
-    public static class FileServiceUploadResponse {
-        private String key;
-        private String s3Url;
-    }
 
     public Mono<StorageFileDto> updateDocumentFile(String id, StorageFileDto dto) {
         UUID uuid = UUID.fromString(id);
@@ -274,23 +268,18 @@ public class StorageFileService {
                 .flatMap(file -> documentGroupRepository.findById(targetGroupUuid)
                         .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentGroup", targetGroupId)))
                         .flatMap(targetGroup -> {
-                            // Calculate new key
                             String oldS3Url = file.getS3Url();
                             if (oldS3Url == null || !oldS3Url.startsWith("s3://")) {
                                 return Mono.error(new IllegalStateException("Invalid S3 URL"));
                             }
 
-                            String oldKey = oldS3Url.substring(5); // Remove s3://
+                            String oldKey = oldS3Url.substring(5);
                             int bucketEnd = oldKey.indexOf('/');
                             String bucketName = oldKey.substring(0, bucketEnd);
                             String oldPath = oldKey.substring(bucketEnd + 1);
-
-                            // Format: teamId/caseId/groupId/fileId.ext
-                            // We need to keep fileId.ext but change the path prefix
                             String filename = file.getName();
                             String extension = getFileExtension(filename);
 
-                            // Ensure target group has required IDs (though they should)
                             if (targetGroup.getTeamId() == null || targetGroup.getCaseId() == null) {
                                 return Mono.error(
                                         new IllegalStateException("Target DocumentGroup missing teamId or caseId"));
@@ -322,12 +311,5 @@ public class StorageFileService {
                                     }))
                                     .map(documentFileMapper::toDto);
                         }));
-    }
-
-    @lombok.Data
-    @lombok.AllArgsConstructor
-    private static class FileServiceMoveRequest {
-        private String sourceKey;
-        private String destinationKey;
     }
 }

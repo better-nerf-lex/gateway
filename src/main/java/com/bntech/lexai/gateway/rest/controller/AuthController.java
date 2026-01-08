@@ -1,13 +1,22 @@
 package com.bntech.lexai.gateway.rest.controller;
 
-import com.bntech.lexai.gateway.rest.dto.security.*;
+import com.bntech.lexai.gateway.rest.dto.security.LoginRequest;
+import com.bntech.lexai.gateway.rest.dto.security.LoginResponse;
+import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenRequest;
+import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenResponse;
+import com.bntech.lexai.gateway.rest.dto.security.UserDto;
 import com.bntech.lexai.gateway.service.AuthService;
 import com.bntech.lexai.gateway.service.OAuth2AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 @RestController
@@ -39,6 +48,7 @@ public class AuthController {
                 .then(Mono.just(ResponseEntity.ok().build()));
     }
 
+    //todo: think about oauth providers after cognito was made.
     @GetMapping("/google")
     public Mono<Void> redirectToGoogle() {
         // This will redirect to /oauth2/authorization/google

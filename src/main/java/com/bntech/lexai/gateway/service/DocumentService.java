@@ -4,7 +4,12 @@ import com.bntech.lexai.gateway.data.entity.document.Document;
 import com.bntech.lexai.gateway.data.entity.document.DocumentHistory;
 import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
-import com.bntech.lexai.gateway.data.repository.*;
+import com.bntech.lexai.gateway.data.repository.CaseRepository;
+import com.bntech.lexai.gateway.data.repository.DocumentAggregateRepository;
+import com.bntech.lexai.gateway.data.repository.DocumentHistoryRepository;
+import com.bntech.lexai.gateway.data.repository.DocumentRepository;
+import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
+import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
 import com.bntech.lexai.gateway.mapper.CaseMapper;
 import com.bntech.lexai.gateway.mapper.DocumentMapper;
@@ -90,16 +95,16 @@ public class DocumentService {
                 .map(SecurityContext::getAuthentication)
                 .flatMapMany(auth -> userRepository.findByUsername(auth.getName())
                         .flatMapMany(user -> {
-                            reactor.core.publisher.Flux<Document> byUser = documents
+                            Flux<Document> byUser = documents
                                     .findByOwnerIdOrderByCreatedAtDesc(user.getId());
 
-                            reactor.core.publisher.Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
+                            Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
                                     .map(TeamMember::getTeamId);
 
-                            reactor.core.publisher.Flux<Document> byTeams = teamIds
+                            Flux<Document> byTeams = teamIds
                                     .flatMap(documents::findByTeamIdOrderByCreatedAtDesc);
 
-                            return reactor.core.publisher.Flux.merge(byUser, byTeams);
+                            return Flux.merge(byUser, byTeams);
                         }))
                 .distinct(Document::getId)
                 .map(mapper::toDto)
@@ -133,10 +138,10 @@ public class DocumentService {
         LocalDateTime startOfMonth = YearMonth.now().atDay(1).atStartOfDay();
 
         return Mono.zip(
-                aggregates.countAll(),
-                aggregates.countThisMonth(startOfMonth),
-                aggregates.countPending(),
-                aggregates.countCompleted()).map(
+                        aggregates.countAll(),
+                        aggregates.countThisMonth(startOfMonth),
+                        aggregates.countPending(),
+                        aggregates.countCompleted()).map(
                         tuple -> DocumentStatsDto.builder()
                                 .totalDocuments(tuple.getT1().intValue())
                                 .thisMonth(tuple.getT2().intValue())
@@ -151,13 +156,13 @@ public class DocumentService {
 
         Mono<SubmitPromptResponse> templateSearch = documentExampleService != null
                 ? documentExampleService.searchTemplates(request.getPrompt())
-                        .next()
-                        .map(template -> SubmitPromptResponse.builder()
-                                .name(template.getTitle())
-                                .questions(template.getQuestions())
-                                .base(template.getBase())
-                                .requirements(template.getRequirements())
-                                .build())
+                .next()
+                .map(template -> SubmitPromptResponse.builder()
+                        .name(template.getTitle())
+                        .questions(template.getQuestions())
+                        .base(template.getBase())
+                        .requirements(template.getRequirements())
+                        .build())
                 : Mono.empty();
 
         return templateSearch
@@ -200,7 +205,7 @@ public class DocumentService {
                                     Document document = mapper.toEntity(DocumentDto.builder()
                                             .id(UUID.randomUUID().toString())
                                             .title(request.getTitle())
-                                            .type(null) // No predefined type, it's prompt-based
+                                            .type(null)
                                             .status(DocumentStatus.PENDING)
                                             .createdAt(LocalDateTime.now())
                                             .updatedAt(LocalDateTime.now())
@@ -226,17 +231,12 @@ public class DocumentService {
         return aiService.generateDocumentWithAnswers(request)
                 .map(content -> {
                     log.info("Generated document content raw: {}", content);
-                    // Clean up HTML using Jsoup to ensure we only have the body content
-                    // and no html/head/body tags that confuse editors
                     String cleanedContent = content;
                     try {
                         org.jsoup.nodes.Document doc = Jsoup.parse(content);
-                        // If there is a body, use its html, otherwise use the whole thing (it might be
-                        // a fragment)
                         if (doc.body() != null && !doc.body().html().isBlank()) {
                             cleanedContent = doc.body().html();
                         } else {
-                            // Fallback if body is empty but doc has content
                             cleanedContent = doc.html();
                         }
                     } catch (Exception e) {
@@ -360,7 +360,7 @@ public class DocumentService {
                             .createdAt(LocalDateTime.now())
                             .isNew(true)
                             .build();
-                    
+
                     return documentsHistory.save(newHistory)
                             .flatMap(savedHistory -> {
                                 savedHistory.setNotNew();
@@ -372,12 +372,12 @@ public class DocumentService {
 
     private Mono<Void> cleanupOldVersions(UUID documentId) {
         return databaseClient.sql(
-                "DELETE FROM document_history WHERE id IN (" +
-                "  SELECT id FROM document_history " +
-                "  WHERE document_id = :documentId " +
-                "  ORDER BY history_version DESC " +
-                "  OFFSET 10" +
-                ")")
+                        "DELETE FROM document_history WHERE id IN (" +
+                                "  SELECT id FROM document_history " +
+                                "  WHERE document_id = :documentId " +
+                                "  ORDER BY history_version DESC " +
+                                "  OFFSET 10" +
+                                ")")
                 .bind("documentId", documentId)
                 .fetch()
                 .rowsUpdated()

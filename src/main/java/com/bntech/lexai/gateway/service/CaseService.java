@@ -5,17 +5,19 @@ import com.bntech.lexai.gateway.data.entity.document.CaseDocument;
 import com.bntech.lexai.gateway.data.entity.document.CaseParty;
 import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.object.CasePartyRole;
-import com.bntech.lexai.gateway.data.repository.*;
+import com.bntech.lexai.gateway.data.repository.CaseDocumentRepository;
+import com.bntech.lexai.gateway.data.repository.CasePartyRepository;
+import com.bntech.lexai.gateway.data.repository.CaseRepository;
+import com.bntech.lexai.gateway.data.repository.DocumentGroupRepository;
+import com.bntech.lexai.gateway.data.repository.DocumentRepository;
+import com.bntech.lexai.gateway.data.repository.EventParticipantRepository;
+import com.bntech.lexai.gateway.data.repository.EventRepository;
+import com.bntech.lexai.gateway.data.repository.LegalEntityRepository;
+import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
+import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
-import com.bntech.lexai.gateway.mapper.CaseMapper;
-import com.bntech.lexai.gateway.mapper.CasePartyMapper;
-import com.bntech.lexai.gateway.mapper.EventMapper;
-import com.bntech.lexai.gateway.mapper.LegalEntityMapper;
-import com.bntech.lexai.gateway.rest.dto.document.AddPartiesRequest;
-import com.bntech.lexai.gateway.rest.dto.document.CaseDto;
-import com.bntech.lexai.gateway.rest.dto.document.CasePartyDto;
-import com.bntech.lexai.gateway.rest.dto.document.DocumentGroupDto;
-import com.bntech.lexai.gateway.rest.dto.document.EventDto;
+import com.bntech.lexai.gateway.mapper.*;
+import com.bntech.lexai.gateway.rest.dto.document.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -39,7 +41,7 @@ public class CaseService {
     private final TeamMemberRepository teamMemberRepository;
     private final CaseDocumentRepository caseDocumentRepository;
     private final DocumentRepository documentRepository;
-    private final com.bntech.lexai.gateway.mapper.DocumentMapper documentMapper;
+    private final DocumentMapper documentMapper;
     private final CasePartyRepository casePartyRepository;
     private final CasePartyMapper casePartyMapper;
     private final LegalEntityRepository legalEntityRepository;
@@ -112,7 +114,7 @@ public class CaseService {
         Mono<List<DocumentGroupDto>> documentGroupsMono = documentGroupService.getDocumentGroupsByCaseId(caseId)
                 .collectList();
 
-        Mono<List<com.bntech.lexai.gateway.rest.dto.document.DocumentDto>> documentsMono = documentRepository.findByCaseId(caseId)
+        Mono<List<DocumentDto>> documentsMono = documentRepository.findByCaseId(caseId)
                 .filterWhen(doc -> {
                     if (doc.getDocumentGroupId() == null) {
                         return Mono.just(true);

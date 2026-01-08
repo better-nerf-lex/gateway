@@ -21,14 +21,25 @@ import java.util.UUID;
 public class DocumentExample {
     @Id
     private UUID id;
+
+    @Column()
     private String title;
+
+    @Column()
     private String description;
+
     @Column("questions")
     private List<QuestionDto> questions;
+
+    @Column()
     private List<String> base;
+
+    @Column()
     private List<String> requirements;
+
     @Column("created_at")
     private LocalDateTime createdAt;
+
     @Column("updated_at")
     private LocalDateTime updatedAt;
 }

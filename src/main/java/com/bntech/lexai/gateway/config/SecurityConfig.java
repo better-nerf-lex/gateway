@@ -20,9 +20,9 @@ import org.springframework.security.web.server.authorization.HttpStatusServerAcc
 import org.springframework.security.web.server.authentication.RedirectServerAuthenticationSuccessHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
-import org.springframework.web.server.ServerWebExchange;
 
 import java.util.List;
+
 import org.springframework.http.HttpMethod;
 
 @Configuration(proxyBeanMethods = false)
@@ -57,9 +57,7 @@ public class SecurityConfig {
                         .pathMatchers("/auth/**", "/oauth2/**", "/login", "/.well-known/**").permitAll()
                         .anyExchange().authenticated()
                 )
-                // Add your custom JWT filter
                 .addFilterBefore(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
-                // Configure OAuth2 Login for Google authentication only
                 .oauth2Login(oauth2Login ->
                         oauth2Login.authenticationSuccessHandler(
                                 new RedirectServerAuthenticationSuccessHandler("/auth/oauth2/success")
@@ -76,17 +74,14 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        return new CorsConfigurationSource() {
-            @Override
-            public CorsConfiguration getCorsConfiguration(ServerWebExchange exchange) {
-                CorsConfiguration cfg = new CorsConfiguration();
-                cfg.setAllowedOrigins(List.of("http://localhost:8080"));
-                cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-                cfg.setAllowedHeaders(List.of("*"));
-                cfg.setAllowCredentials(true);
-                cfg.setMaxAge(3600L);
-                return cfg;
-            }
+        return exchange -> {
+            CorsConfiguration cfg = new CorsConfiguration();
+            cfg.setAllowedOrigins(List.of("http://localhost:8080"));
+            cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+            cfg.setAllowedHeaders(List.of("*"));
+            cfg.setAllowCredentials(true);
+            cfg.setMaxAge(3600L);
+            return cfg;
         };
     }
 }

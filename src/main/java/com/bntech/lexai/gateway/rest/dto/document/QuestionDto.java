@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.rest.dto.document;
 
+import com.bntech.lexai.gateway.data.object.QuestionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,10 +11,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class QuestionDto {
-    public enum QuestionType {
-        TEXT, PERSON, COMPANY, COURT, LAW_FIRM, ENTITY
-    }
-
     private String id;
     private String text;
     private QuestionType type;

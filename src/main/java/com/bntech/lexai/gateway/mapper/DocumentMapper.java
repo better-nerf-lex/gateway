@@ -1,4 +1,3 @@
-
 package com.bntech.lexai.gateway.mapper;
 
 import com.bntech.lexai.gateway.data.entity.document.Activity;

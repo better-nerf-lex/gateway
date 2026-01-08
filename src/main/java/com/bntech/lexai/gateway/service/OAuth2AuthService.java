@@ -1,4 +1,3 @@
-
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.security.AuthorizationCode;
@@ -14,9 +13,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 
@@ -66,7 +63,7 @@ public class OAuth2AuthService {
         User user = new User();
         user.setUsername(email);
         user.setEmail(email);
-        user.setPassword(""); // OAuth2 users don't have passwords
+        user.setPassword("");
         user.setEnabled(true);
 
         return users.save(user);
@@ -135,7 +132,6 @@ public class OAuth2AuthService {
                 .filter(authCode -> authCode.getClientId().equals(clientId))
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("Client ID mismatch")))
                 .flatMap(authCode -> {
-                    // Mark code as used
                     authCode.setUsed(true);
                     authCode.setNotNew();
                     return authCodes.save(authCode)

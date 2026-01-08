@@ -48,7 +48,7 @@ public class AIService {
     @Value("${spring.ai.anthropic.chat.options.model}")
     private String genModel;
 
-    @Value("${spring.ai.anthropic.chat.options.model}")
+    @Value("${spring.ai.anthropic.chat.options.chat-model}")
     private String chatModel;
 
     private AnthropicClient client;
@@ -76,26 +76,26 @@ public class AIService {
     public Mono<LegalBasisResponse> extractLegalBasis(String prompt) {
         log.info("Extracting legal basis for prompt: {}", prompt);
         return Mono.fromCallable(() -> {
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(2048L)
-                    .system(Prompts.EN_EXTRACT_LEGAL_BASIS)
-                    .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
-                    .model(genModel)
-                    .temperature(0.2)
-                    .build();
+                    MessageCreateParams params = MessageCreateParams.builder()
+                            .maxTokens(2048L)
+                            .system(Prompts.EN_EXTRACT_LEGAL_BASIS)
+                            .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
+                            .model(genModel)
+                            .temperature(0.2)
+                            .build();
 
-            log.debug("Sending legal basis extraction request to Anthropic API");
-            Message message = client.messages().create(params);
-            String jsonResponse = message.content().getFirst()
-                    .text()
-                    .map(TextBlock::text)
-                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+                    log.debug("Sending legal basis extraction request to Anthropic API");
+                    Message message = client.messages().create(params);
+                    String jsonResponse = message.content().getFirst()
+                            .text()
+                            .map(TextBlock::text)
+                            .orElseThrow(() -> new IllegalStateException("No text content found in message"));
 
-            LegalBasisResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
-                    LegalBasisResponse.class);
-            log.info("✅ Extracted {} legal bases: {}", response.getBase().size(), response.getBase());
-            return response;
-        })
+                    LegalBasisResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
+                            LegalBasisResponse.class);
+                    log.info("✅ Extracted {} legal bases: {}", response.getBase().size(), response.getBase());
+                    return response;
+                })
                 .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofMinutes(1))
                 .retryWhen(buildRetrySpec("legal basis extraction"))
@@ -141,35 +141,35 @@ public class AIService {
     private Mono<SubmitPromptResponse> generateQuestionsWithBasis(String prompt, List<String> verifiedBasis) {
         log.info("Generating questions with verified legal basis: {}", verifiedBasis);
         return Mono.fromCallable(() -> {
-            String basisJson;
-            try {
-                basisJson = objectMapper.writeValueAsString(verifiedBasis);
-            } catch (Exception e) {
-                basisJson = "[]";
-            }
+                    String basisJson;
+                    try {
+                        basisJson = objectMapper.writeValueAsString(verifiedBasis);
+                    } catch (Exception e) {
+                        basisJson = "[]";
+                    }
 
-            String systemPrompt = String.format(Prompts.EN_GENERATE_QUESTIONS, basisJson, basisJson);
+                    String systemPrompt = String.format(Prompts.EN_GENERATE_QUESTIONS, basisJson, basisJson);
 
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(4096L)
-                    .system(systemPrompt)
-                    .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
-                    .model(genModel)
-                    .temperature(0.3)
-                    .build();
+                    MessageCreateParams params = MessageCreateParams.builder()
+                            .maxTokens(4096L)
+                            .system(systemPrompt)
+                            .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
+                            .model(genModel)
+                            .temperature(0.3)
+                            .build();
 
-            log.debug("Sending prompt analysis request to Anthropic API");
-            Message message = client.messages().create(params);
-            String jsonResponse = message.content().getFirst()
-                    .text()
-                    .map(TextBlock::text)
-                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+                    log.debug("Sending prompt analysis request to Anthropic API");
+                    Message message = client.messages().create(params);
+                    String jsonResponse = message.content().getFirst()
+                            .text()
+                            .map(TextBlock::text)
+                            .orElseThrow(() -> new IllegalStateException("No text content found in message"));
 
-            SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
-                    SubmitPromptResponse.class);
-            log.info("✅ Parsed response with {} questions", response.getQuestions().size());
-            return response;
-        })
+                    SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
+                            SubmitPromptResponse.class);
+                    log.info("✅ Parsed response with {} questions", response.getQuestions().size());
+                    return response;
+                })
                 .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofMinutes(2))
                 .retryWhen(buildRetrySpec("prompt analysis"))
@@ -179,34 +179,34 @@ public class AIService {
     public Mono<DocumentChatResponse> chatWithDocument(DocumentChatRequest request) {
         log.info("Chatting with document: {}", request.getDocumentId());
         return Mono.fromCallable(() -> {
-            String inputJson;
-            try {
-                inputJson = objectMapper.writeValueAsString(Map.of(
-                        "currentContent", request.getCurrentContent(),
-                        "userRequest", request.getUserMessage()));
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException("Error serializing chat request", e);
-            }
+                    String inputJson;
+                    try {
+                        inputJson = objectMapper.writeValueAsString(Map.of(
+                                "currentContent", request.getCurrentContent(),
+                                "userRequest", request.getUserMessage()));
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException("Error serializing chat request", e);
+                    }
 
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(8192L)
-                    .system(Prompts.EN_CHAT_WITH_DOCUMENT)
-                    .addUserMessage(inputJson)
-                    .model(chatModel)
-                    .temperature(0.2)
-                    .build();
+                    MessageCreateParams params = MessageCreateParams.builder()
+                            .maxTokens(8192L)
+                            .system(Prompts.EN_CHAT_WITH_DOCUMENT)
+                            .addUserMessage(inputJson)
+                            .model(chatModel)
+                            .temperature(0.2)
+                            .build();
 
-            log.debug("Sending chat request to Anthropic API for document: {}", request.getDocumentId());
-            Message message = client.messages().create(params);
+                    log.debug("Sending chat request to Anthropic API for document: {}", request.getDocumentId());
+                    Message message = client.messages().create(params);
 
-            String rawContent = message.content().getFirst()
-                    .text()
-                    .map(TextBlock::text)
-                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+                    String rawContent = message.content().getFirst()
+                            .text()
+                            .map(TextBlock::text)
+                            .orElseThrow(() -> new IllegalStateException("No text content found in message"));
 
-            String jsonContent = stripMarkdownCodeBlocks(rawContent);
-            return objectMapper.readValue(jsonContent, DocumentChatResponse.class);
-        })
+                    String jsonContent = stripMarkdownCodeBlocks(rawContent);
+                    return objectMapper.readValue(jsonContent, DocumentChatResponse.class);
+                })
                 .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofMinutes(2))
                 .retryWhen(buildRetrySpec("document chat"))
@@ -224,7 +224,7 @@ public class AIService {
     }
 
     public Mono<String> generateDocumentWithAnswers(String title, String originalPrompt,
-            Map<String, String> answers, List<String> requirements, List<String> base) {
+                                                    Map<String, String> answers, List<String> requirements, List<String> base) {
         log.info("Generating document for: {}", title);
         return fetchEliDocumentsContext(base)
                 .flatMap(legalContext -> {
@@ -280,7 +280,7 @@ public class AIService {
     }
 
     private String buildJsonForGeneration(String title, String originalPrompt,
-            Map<String, String> answers, List<String> requirements, List<String> base) {
+                                          Map<String, String> answers, List<String> requirements, List<String> base) {
         try {
             Map<String, Object> jsonData = Map.of(
                     "name", title,
@@ -322,10 +322,10 @@ public class AIService {
                 || (throwable.getCause() instanceof SocketTimeoutException)
                 || (throwable.getCause() instanceof ConnectException)
                 || (throwable.getMessage() != null && (throwable.getMessage().contains("timeout") ||
-                        throwable.getMessage().contains("connection") ||
-                        throwable.getMessage().contains("503") ||
-                        throwable.getMessage().contains("502") ||
-                        throwable.getMessage().contains("rate_limit")));
+                throwable.getMessage().contains("connection") ||
+                throwable.getMessage().contains("503") ||
+                throwable.getMessage().contains("502") ||
+                throwable.getMessage().contains("rate_limit")));
     }
 
     private String stripMarkdownCodeBlocks(String response) {
