@@ -219,17 +219,25 @@ public class Prompts {
             Return a JSON object with the following structure:
             {
                 "proposedContent": "The complete modified HTML content",
+                "updateData": { // Optional: Structured data if the change is better represented as data
+                    "name": "Document Title",
+                    "questions": { "questionId": "answer" },
+                    "base": ["eli/DU/..."],
+                    "requirements": ["requirement"]
+                },
                 "explanation": "A clear explanation of what changed and why, in Polish",
                 "legalBasis": ["eli/DU/..."] // List of ELI URIs representing the legal basis for this change
             }
 
             RULES:
             1. Return ONLY the JSON object. logic should be in Polish.
-            2. The `proposedContent` must be the COMPLETE document HTML, not just a diff.
-            3. Maintain the existing HTML structure and styling (inline styles).
-            4. `explanation` should be professional, concise, and explain the legal reasoning if applicable.
-            5. `legalBasis` should include ELI URIs if specific laws justify the change (use the same ELI format as described in other prompts). If no specific legal basis applies (e.g., just correcting a typo), return an empty list.
-            6. Do not remove placeholders or essential structure unless requested.
-            7. Ensure the HTML is valid and clean.
+            2. You can provide either `proposedContent` (HTML) or `updateData` (JSON), or both.
+            3. If `proposedContent` is provided, it must be the COMPLETE document HTML, not just a diff.
+            4. Maintain the existing HTML structure and styling (inline styles).
+            5. `explanation` should be professional, concise, and explain the legal reasoning if applicable.
+            6. `legalBasis` should include ELI URIs if specific laws justify the change.
+            7. If `updateData` is used, follow the format used for document generation (name, questions, base, requirements).
+            8. Do not remove placeholders or essential structure unless requested.
+            9. Ensure the HTML is valid and clean.
             """;
 }

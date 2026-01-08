@@ -53,7 +53,7 @@ public class DocumentController {
     @PatchMapping("/{id}")
     @PreAuthorize("@access.canUpdateDocument(authentication, #id)")
     public Mono<DocumentDto> updateDocument(@PathVariable String id, @RequestBody UpdateDocumentRequest request) {
-        return documentService.updateDocument(id, request.getContent());
+        return documentService.updateDocument(id, request);
     }
 
     @PostMapping("/{id}/chat")

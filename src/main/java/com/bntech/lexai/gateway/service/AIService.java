@@ -286,7 +286,7 @@ public class AIService {
                     "name", title,
                     "questions", answers != null ? answers : Map.of(),
                     "requirements", requirements != null ? requirements : List.of(),
-                    "base", base);
+                    "base", base != null ? base : List.of());
 
             return objectMapper.writeValueAsString(jsonData);
         } catch (Exception e) {

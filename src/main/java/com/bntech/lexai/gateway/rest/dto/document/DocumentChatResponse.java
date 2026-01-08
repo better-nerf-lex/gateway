@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -12,6 +13,7 @@ import java.util.List;
 @AllArgsConstructor
 public class DocumentChatResponse {
     private String proposedContent;
+    private Map<String, Object> updateData;
     private String explanation;
     private List<String> legalBasis;
 }

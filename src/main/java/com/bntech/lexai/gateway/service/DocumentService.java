@@ -16,6 +16,7 @@ import com.bntech.lexai.gateway.rest.dto.document.DocumentChatResponse;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
+import com.bntech.lexai.gateway.rest.dto.document.UpdateDocumentRequest;
 import org.jsoup.Jsoup;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -290,21 +291,27 @@ public class DocumentService {
     }
 
     public Mono<DocumentDto> updateDocument(String id, String content) {
+        return updateDocument(id, new UpdateDocumentRequest(content));
+    }
+
+    public Mono<DocumentDto> updateDocument(String id, UpdateDocumentRequest request) {
         log.info("Updating document: {}", id);
 
         return documents.findById(UUID.fromString(id))
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("Document", id)))
                 .flatMap(document -> {
                     return createHistoryEntry(document)
-                            .then(Mono.just(document));
+                            .then(Mono.just(document))
+                            .flatMap(doc -> {
+                                if (request.getContent() != null) {
+                                    doc.setText(request.getContent());
+                                }
+                                doc.setUpdatedAt(LocalDateTime.now());
+                                doc.setNotNew();
+                                return documents.save(doc);
+                            })
+                            .map(mapper::toDto);
                 })
-                .flatMap(document -> {
-                    document.setText(content);
-                    document.setUpdatedAt(LocalDateTime.now());
-                    document.setNotNew();
-                    return documents.save(document);
-                })
-                .map(mapper::toDto)
                 .doOnSuccess(result -> log.info("✅ Document updated: {}", id))
                 .doOnError(error -> log.error("❌ Error updating document: {}", id, error));
     }
