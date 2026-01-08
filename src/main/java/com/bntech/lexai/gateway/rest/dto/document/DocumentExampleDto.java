@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.rest.dto.document;
 
 import com.bntech.lexai.gateway.data.entity.document.DocumentExample;
+import com.bntech.lexai.gateway.data.object.TemplateFile;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,5 +20,5 @@ public class DocumentExampleDto {
     private List<QuestionDto> questions;
     private List<String> base;
     private List<String> requirements;
-    private List<DocumentExample.TemplateFile> templateFiles;
+    private List<TemplateFile> templateFiles;
 }

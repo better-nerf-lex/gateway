@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.config.converter;
 
 import com.bntech.lexai.gateway.data.entity.document.DocumentExample;
+import com.bntech.lexai.gateway.data.object.TemplateFile;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.r2dbc.postgresql.codec.Json;
@@ -14,16 +15,16 @@ import java.util.List;
 
 @ReadingConverter
 @RequiredArgsConstructor
-public class JsonToTemplateFileListConverter implements Converter<Json, List<DocumentExample.TemplateFile>> {
+public class JsonToTemplateFileListConverter implements Converter<Json, List<TemplateFile>> {
     private final ObjectMapper objectMapper;
 
     @Override
-    public List<DocumentExample.TemplateFile> convert(@NonNull Json source) {
+    public List<TemplateFile> convert(@NonNull Json source) {
         try {
-            return objectMapper.readValue(source.asString(), new TypeReference<List<DocumentExample.TemplateFile>>() {
+            return objectMapper.readValue(source.asString(), new TypeReference<List<TemplateFile>>() {
             });
         } catch (IOException e) {
-            throw new RuntimeException("Error converting JSON to List<DocumentExample.TemplateFile>", e);
+            throw new RuntimeException("Error converting JSON to List<TemplateFile>", e);
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.data.entity.document;
 
+import com.bntech.lexai.gateway.data.object.TemplateFile;
 import com.bntech.lexai.gateway.rest.dto.document.QuestionDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -45,14 +46,4 @@ public class DocumentExample {
 
     @Column("updated_at")
     private LocalDateTime updatedAt;
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class TemplateFile {
-        private String id;
-        private String name;
-        private String s3Key;
-    }
 }

@@ -120,12 +120,22 @@ public class LegalEntityService {
     public Mono<LegalEntityDto> updateLegalEntity(String id, LegalEntityDto legalEntityDto) {
         UUID uuid = UUID.fromString(id);
         return legalEntityRepository.findById(uuid)
-                .flatMap(existingEntity -> {
-                    LegalEntity<EntityDetails> updatedEntity = legalEntityMapper.toEntity(legalEntityDto);
-                    updatedEntity.setId(uuid);
-                    updatedEntity.setNotNew();
+                .flatMap(entity -> {
+                    @SuppressWarnings("unchecked")
+                    LegalEntity<EntityDetails> existingEntity = (LegalEntity<EntityDetails>) entity;
+                    if (legalEntityDto.getRelevance() != null) {
+                        existingEntity.setRelevance(legalEntityMapper.mapRelevance(legalEntityDto.getRelevance()));
+                    }
+                    if (legalEntityDto.getDetails() != null) {
+                        existingEntity.setDetails(legalEntityMapper.mapDetailsToEntity(legalEntityDto.getDetails()));
+                    }
+                    if (legalEntityDto.getTeamId() != null) {
+                        existingEntity.setTeamId(UUID.fromString(legalEntityDto.getTeamId()));
+                    }
 
-                    return legalEntityRepository.save(updatedEntity)
+                    existingEntity.setNotNew();
+
+                    return legalEntityRepository.save(existingEntity)
                             .doOnSuccess(saved -> {
                                 if (saved.getTeamId() != null) {
                                     activityService.logActivity(
@@ -142,10 +152,12 @@ public class LegalEntityService {
     }
 
     public Mono<Void> deleteLegalEntity(String id) {
-        return legalEntityRepository.softDelete(UUID.fromString(id))
-                .flatMap(unused -> legalEntityRepository.findById(UUID.fromString(id))
-                        .doOnSuccess(e -> {
-                            if (e != null && e.getTeamId() != null) {
+        UUID uuid = UUID.fromString(id);
+        return legalEntityRepository.findById(uuid)
+                .switchIfEmpty(Mono.error(new com.bntech.lexai.gateway.exception.ResourceNotFoundException("LegalEntity", id)))
+                .flatMap(e -> legalEntityRepository.softDelete(uuid)
+                        .doOnSuccess(unused -> {
+                            if (e.getTeamId() != null) {
                                 activityService.logActivity(
                                         e.getOwnerId(),
                                         e.getTeamId(),
@@ -154,7 +166,7 @@ public class LegalEntityService {
                                         "LegalEntity",
                                         "Deleted entity: " + legalEntityMapper.mapName(e.getDetails()));
                             }
-                        }).then())
+                        }))
                 .doOnSuccess(v -> log.info("✅ LegalEntity soft deleted: {}", id));
     }
 

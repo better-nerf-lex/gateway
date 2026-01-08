@@ -2,14 +2,11 @@ package com.bntech.lexai.gateway.service;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.ContentBlock;
-import com.anthropic.models.messages.ImageBlockParam;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.TextBlock;
-import com.anthropic.models.messages.TextBlockParam;
-import com.bntech.lexai.gateway.data.entity.document.DocumentExample;
 import com.bntech.lexai.gateway.data.object.Prompts;
+import com.bntech.lexai.gateway.data.object.TemplateFile;
 import com.bntech.lexai.gateway.exception.ServiceException;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentChatRequest;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentChatResponse;
@@ -33,7 +30,6 @@ import com.bntech.lexai.gateway.util.RetryUtils;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -231,19 +227,58 @@ public class AIService {
     }
 
     public Mono<String> generateDocumentWithAnswers(String title, String originalPrompt,
-                                                    Map<String, String> answers, List<String> requirements, 
-                                                    List<String> base, List<DocumentExample.TemplateFile> templateFiles) {
-        log.info("Generating document for: {}", title);
-        return fetchEliDocumentsContext(base)
-                .flatMap(legalContext -> {
+                                                    Map<String, String> answers, List<String> requirements,
+                                                    List<String> base, List<TemplateFile> templateFiles) {
+        log.info("Generating document for: {} with {} template files", title,
+                templateFiles != null ? templateFiles.size() : 0);
+
+        Mono<String> legalContextMono = fetchEliDocumentsContext(base);
+        Mono<List<TemplateFileContent>> templateContentsMono = fetchTemplateFilesWithMetadata(templateFiles);
+
+        return Mono.zip(legalContextMono, templateContentsMono)
+                .flatMap(tuple -> {
+                    String legalContext = tuple.getT1();
+                    List<TemplateFileContent> templateContents = tuple.getT2();
+
                     String jsonData = buildJsonForGeneration(title, originalPrompt, answers, requirements, base);
-                    String userMessage = jsonData + legalContext;
 
                     return Mono.fromCallable(() -> {
+                        if (base != null && !base.isEmpty()) {
+                            log.info("Attaching {} ELI documents to prompt: {}", base.size(), base);
+                        }
+
+                        if (!templateContents.isEmpty()) {
+                            List<String> fileNames = templateContents.stream()
+                                    .map(TemplateFileContent::name)
+                                    .toList();
+                            log.info("Attaching {} template files to prompt: {}", templateContents.size(), fileNames);
+                        }
+
+                        StringBuilder userMessage = new StringBuilder();
+                        userMessage.append(jsonData);
+
+                        if (!legalContext.isBlank()) {
+                            userMessage.append("\n\n").append(legalContext);
+                        }
+
+                        if (!templateContents.isEmpty()) {
+                            userMessage.append("\n\n--- TEMPLATE DOCUMENTS ---\n");
+                            userMessage.append("The following template documents are provided as visual and structural references. ");
+                            userMessage.append("Use them to understand the expected document layout, formatting style, and section organization. ");
+                            userMessage.append("Match the visual structure while filling in the actual data from the questions above.\n\n");
+
+                            for (int i = 0; i < templateContents.size(); i++) {
+                                TemplateFileContent tfc = templateContents.get(i);
+                                userMessage.append(String.format("Template %d: %s (S3: %s)\n", i + 1, tfc.name(), tfc.s3Key()));
+                            }
+
+                            log.info("Including {} template files as context references", templateContents.size());
+                        }
+
                         MessageCreateParams params = MessageCreateParams.builder()
                                 .maxTokens(8192L)
                                 .system(Prompts.EN_GENERATE_DOCUMENT)
-                                .addUserMessage(userMessage)
+                                .addUserMessage(userMessage.toString())
                                 .model(genModel)
                                 .temperature(0.2)
                                 .build();
@@ -265,7 +300,9 @@ public class AIService {
                 .doOnError(error -> log.error("❌ Error generating document for: {}", title, error));
     }
 
-    private Mono<List<byte[]>> fetchTemplateFilesContent(List<DocumentExample.TemplateFile> templateFiles) {
+    private record TemplateFileContent(String name, String s3Key, byte[] content) {}
+
+    private Mono<List<TemplateFileContent>> fetchTemplateFilesWithMetadata(List<TemplateFile> templateFiles) {
         if (templateFiles == null || templateFiles.isEmpty()) {
             return Mono.just(List.of());
         }
@@ -274,8 +311,12 @@ public class AIService {
 
         return Flux.fromIterable(templateFiles)
                 .flatMap(templateFile -> {
-                    log.debug("Fetching template file: {}", templateFile.getS3Key());
+                    log.debug("Fetching template file: {} ({})", templateFile.getName(), templateFile.getS3Key());
                     return storageFileService.getFileContentByKey(templateFile.getS3Key())
+                            .map(content -> new TemplateFileContent(
+                                    templateFile.getName(),
+                                    templateFile.getS3Key(),
+                                    content))
                             .onErrorResume(e -> {
                                 log.warn("Failed to fetch template file {}: {}", templateFile.getS3Key(), e.getMessage());
                                 return Mono.empty();

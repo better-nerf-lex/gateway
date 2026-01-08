@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.data.entity.document;
 
 import com.bntech.lexai.gateway.rest.dto.document.QuestionDto;
+import com.bntech.lexai.gateway.data.object.TemplateFile;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -38,5 +39,5 @@ public class DocumentExampleEs {
     private List<String> requirements;
 
     @Field(type = FieldType.Object)
-    private List<DocumentExample.TemplateFile> templateFiles;
+    private List<TemplateFile> templateFiles;
 }

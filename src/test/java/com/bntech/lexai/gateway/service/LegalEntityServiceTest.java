@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.service;
 
+import com.bntech.lexai.gateway.data.object.ActionType;
 import com.bntech.lexai.gateway.data.entity.document.LegalEntity;
 import com.bntech.lexai.gateway.data.object.RelevanceType;
 import com.bntech.lexai.gateway.data.object.details.EntityDetails;
@@ -80,7 +81,6 @@ class LegalEntityServiceTest {
         // mappedEntity has version = null, ownerId = null by default
 
         when(legalEntityRepository.findById(id)).thenReturn(Mono.just(existingEntity));
-        when(legalEntityMapper.toEntity(updateDto)).thenReturn(mappedEntity);
         when(legalEntityRepository.save(any())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
         when(legalEntityMapper.toDto(any(LegalEntity.class))).thenReturn(new LegalEntityDto());
 
@@ -90,12 +90,35 @@ class LegalEntityServiceTest {
 
         ArgumentCaptor<LegalEntity> captor = ArgumentCaptor.forClass(LegalEntity.class);
         verify(legalEntityRepository).save(captor.capture());
-        
+
         LegalEntity saved = captor.getValue();
-        
+
         // These assertions are expected to FAIL before the fix
         assertThat(saved.getVersion()).isEqualTo(version);
         assertThat(saved.getOwnerId()).isEqualTo(ownerId);
         assertThat(saved.getTeamId()).isEqualTo(teamId);
+    }
+
+    @Test
+    void deleteLegalEntity_ShouldLogActivity() {
+        UUID id = UUID.randomUUID();
+        UUID teamId = UUID.randomUUID();
+        LegalEntity<EntityDetails> entity = new LegalEntity<>();
+        entity.setId(id);
+        entity.setTeamId(teamId);
+        entity.setOwnerId(1L);
+        entity.setDetails(new PersonDetails());
+
+        when(legalEntityRepository.softDelete(id)).thenReturn(Mono.empty());
+        // In the current buggy implementation, findById is called AFTER softDelete via flatMap
+        // But since softDelete returns Mono.empty(), findById is NEVER called.
+        when(legalEntityRepository.findById(id)).thenReturn(Mono.just(entity));
+        when(legalEntityMapper.mapName(any())).thenReturn("Test Entity");
+
+        StepVerifier.create(legalEntityService.deleteLegalEntity(id.toString()))
+                .verifyComplete();
+
+        // This verification will fail if the flatMap is skipped
+        verify(activityService).logActivity(any(), eq(teamId), eq(ActionType.ENTITY_DELETE), eq(id), eq("LegalEntity"), anyString());
     }
 }

@@ -251,10 +251,11 @@ public class CaseService {
 
     public Mono<Void> deleteCase(String id) {
         UUID uuid = UUID.fromString(id);
-        return caseRepository.softDelete(uuid)
-                .flatMap(unused -> caseRepository.findById(uuid)
-                        .doOnSuccess(c -> {
-                            if (c != null && c.getTeamId() != null) {
+        return caseRepository.findById(uuid)
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("Case", id)))
+                .flatMap(c -> caseRepository.softDelete(uuid)
+                        .doOnSuccess(unused -> {
+                            if (c.getTeamId() != null) {
                                 activityService.logActivity(
                                         c.getOwnerId(),
                                         c.getTeamId(),
@@ -263,7 +264,7 @@ public class CaseService {
                                         "LegalCase",
                                         "Deleted case: " + c.getTitle());
                             }
-                        }).then())
+                        }))
                 .doOnSuccess(result -> log.info("✅ LegalCase soft deleted: {}", id))
                 .doOnError(error -> log.error("❌ Error soft deleting case: {}", id, error));
     }

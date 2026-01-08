@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.config.converter;
 
 import com.bntech.lexai.gateway.data.entity.document.DocumentExample;
+import com.bntech.lexai.gateway.data.object.TemplateFile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.r2dbc.postgresql.codec.Json;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,13 +26,13 @@ class ConverterTest {
 
     @Test
     void shouldConvertTemplateFileListToJsonAndBack() {
-        List<DocumentExample.TemplateFile> sourceList = List.of(
-                DocumentExample.TemplateFile.builder()
+        List<TemplateFile> sourceList = List.of(
+                TemplateFile.builder()
                         .id("t1")
                         .name("test1.pdf")
                         .s3Key("key1")
                         .build(),
-                DocumentExample.TemplateFile.builder()
+                TemplateFile.builder()
                         .id("t2")
                         .name("test2.pdf")
                         .s3Key("key2")
@@ -41,7 +42,7 @@ class ConverterTest {
         Json json = writingConverter.convert(sourceList);
         assertNotNull(json);
 
-        List<DocumentExample.TemplateFile> resultList = readingConverter.convert(json);
+        List<TemplateFile> resultList = readingConverter.convert(json);
         assertNotNull(resultList);
         assertEquals(2, resultList.size());
         assertEquals("t1", resultList.get(0).getId());

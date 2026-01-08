@@ -87,9 +87,21 @@ public class Prompts {
             2. The main body of the document must contain the data from "questions", written in proper legal and formal style. Each {"question": "answer"} should be converted into a coherent paragraph.
             3. The document layout and appearance must follow the structure described in "requirements". Treat "requirements" as layout and formatting guidelines (e.g., margins, sections, titles).
             4. At the end, include a section titled "Podstawa prawna", listing all elements from "base" as legal bases with their ELI URIs formatted as clickable links to https://eli.gov.pl/{uri}.
-            5. If template documents are provided as images below, use them as visual reference for document structure, layout, formatting style, and section organization. Match the visual appearance and structure of the templates while filling in the actual data from "questions".
-            6. If legal documents are attached below (from eli.gov.pl), use them as authoritative reference for legal terminology, article citations, and proper legal phrasing. Cite specific articles when relevant.
-            7. If some legal documents could not be fetched (marked as "DOKUMENTY NIEDOSTĘPNE"), still include them in the "Podstawa prawna" section with their ELI URIs. Use your knowledge of Polish law to reference appropriate articles from these acts.
+            5. If legal documents are attached below (from eli.gov.pl), use them as authoritative reference for legal terminology, article citations, and proper legal phrasing. Cite specific articles when relevant.
+            6. If some legal documents could not be fetched (marked as "DOKUMENTY NIEDOSTĘPNE"), still include them in the "Podstawa prawna" section with their ELI URIs. Use your knowledge of Polish law to reference appropriate articles from these acts.
+
+            TEMPLATE DOCUMENTS USAGE:
+            If a "TEMPLATE DOCUMENTS" section is provided below, these are reference documents that serve as:
+            - Visual and structural guides for the document you are generating
+            - Examples of proper formatting, section organization, and layout conventions
+            - Reference for the expected document structure and professional appearance
+            
+            When template documents are provided:
+            - Match the general structure and section organization of the templates
+            - Follow similar formatting patterns (headers, paragraphs, spacing)
+            - Use the templates as a guide for professional legal document presentation
+            - Fill in the actual data from "questions" while maintaining the template's structural approach
+            - The templates represent the expected output format - generate a document that would look similar in structure
 
             Additional notes:
             - Use only formal legal language, no casual or informal tone.
