@@ -20,10 +20,4 @@ public interface DocumentMapper {
     @Mapping(target = "status", source = "status")
     @Mapping(target = "documentGroupId", expression = "java(dto.getDocumentGroupId() != null ? UUID.fromString(dto.getDocumentGroupId()) : null)")
     Document toEntity(DocumentDto dto);
-
-    ActivityDto toDto(Activity entity);
-
-    @Mapping(target = "action", expression = "java(ActionType.fromValue(dto.getAction()))")
-    @Mapping(target = "createdAt", source = "date")
-    Activity toEntity(ActivityDto dto);
 }

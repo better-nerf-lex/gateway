@@ -102,7 +102,6 @@ CREATE TABLE IF NOT EXISTS storage_files
 (
     id                UUID PRIMARY KEY,
     name              VARCHAR(255),
-    s3_url            VARCHAR(1000),
     file_type         VARCHAR(20) CHECK (file_type IN ('PDF', 'JPG', 'JPEG', 'PNG', 'GIF', 'TXT', 'DOC', 'DOCX', 'XLS', 'XLSX', 'OTHER')),
     document_group_id UUID REFERENCES document_groups (id) ON DELETE CASCADE,
     file_size         BIGINT,
@@ -333,7 +332,7 @@ VALUES
        {"id":"fault","text":"Czy rozwód z orzekaniem o winie?","type":"TEXT"},
        {"id":"separation_date","text":"Kiedy nastąpił zupełny i trwały rozkład pożycia?","type":"TEXT"}
      ]'::jsonb,
-     '["eli/DU/1964/9/ogl", "eli/DU/1964/43/ogl"]'::jsonb,
+     '["eli/MP/1964/155/ogl", "eli/MP/1964/155/ogl"]'::jsonb,
      '["Odpis aktu małżeństwa", "Odpisy aktów urodzenia dzieci", "Zaświadczenie o zarobkach"]'::jsonb,
      '[
        {"id":"t1111111-1111-1111-1111-111111111111","name":"pozew_rozwod_alimenty.pdf","s3Key":"templates/document-examples/11111111-1111-1111-1111-111111111111/pozew_rozwod_alimenty.pdf"}
@@ -354,7 +353,7 @@ VALUES
        {"id":"reasons","text":"Główne przyczyny rozkładu pożycia","type":"TEXT"},
        {"id":"witnesses","text":"Dane świadków (jeśli dotyczy)","type":"TEXT"}
      ]'::jsonb,
-     '["eli/DU/1964/9/ogl", "eli/DU/1964/43/ogl"]'::jsonb,
+     '["eli/MP/1964/155/ogl", "eli/MP/1964/155/ogl"]'::jsonb,
      '["Skrócony odpis aktu małżeństwa"]'::jsonb,
      '[
        {"id":"t2222222-2222-2222-2222-222222222222","name":"pozew_rozwod_bez-dzieci.pdf","s3Key":"templates/document-examples/22222222-2222-2222-2222-222222222222/pozew_rozwod_bez-dzieci.pdf"}
@@ -375,7 +374,7 @@ VALUES
        {"id":"payment_method","text":"Preferowany sposób dokonania płatności","type":"TEXT"},
        {"id":"deadline","text":"Ostateczny termin zapłaty","type":"TEXT"}
      ]'::jsonb,
-     '["eli/DU/1964/16/ogl"]'::jsonb,
+     '["eli/MP/1964/155/ogl"]'::jsonb,
      '["Kopia faktury", "Kopia umowy"]'::jsonb,
      '[
        {"id":"t3333333-3333-3333-3333-333333333331","name":"payment_reminder_template_1.pdf","s3Key":"templates/document-examples/33333333-3333-3333-3333-333333333333/t3333333-3333-3333-3333-333333333331.pdf"},
@@ -397,7 +396,7 @@ VALUES
        {"id":"deadline","text":"Termin zapłaty pozwalający uniknąć dalszych kroków prawnych","type":"TEXT"},
        {"id":"consequences","text":"Skutki braku zapłaty w wyznaczonym terminie","type":"TEXT"}
      ]'::jsonb,
-     '["eli/DU/1964/16/ogl"]'::jsonb,
+     '["eli/MP/1964/155/ogl"]'::jsonb,
      '["Faktury", "Dowody doręczenia"]'::jsonb,
      '[
        {"id":"t4444444-4444-4444-4444-444444444441","name":"final_payment_reminder_template_1.pdf","s3Key":"templates/document-examples/44444444-4444-4444-4444-444444444444/t4444444-4444-4444-4444-444444444441.pdf"},
@@ -419,7 +418,7 @@ VALUES
        {"id":"court","text":"Właściwy sąd do rozpoznania sprawy","type":"ENTITY"},
        {"id":"evidence","text":"Dowody na poparcie żądania","type":"TEXT"}
      ]'::jsonb,
-     '["eli/DU/1974/1/ogl"]'::jsonb,
+     '["eli/MP/1964/155/ogl"]'::jsonb,
      '["Odpis aktu urodzenia", "Zaświadczenia o dochodach"]'::jsonb,
      '[
        {"id":"t5555555-5555-5555-5555-555555555551","name":"alimony_template_1.pdf","s3Key":"templates/document-examples/55555555-5555-5555-5555-555555555555/t5555555-5555-5555-5555-555555555551.pdf"},
@@ -441,7 +440,7 @@ VALUES
        {"id":"evidence","text":"Dowody potwierdzające wskazane okoliczności","type":"TEXT"},
        {"id":"signature","text":"Dane podpisu wnioskodawcy","type":"TEXT"}
      ]'::jsonb,
-     '["eli/DU/1997/90/ogl"]'::jsonb,
+     '["eli/MP/1964/155/ogl"]'::jsonb,
      '["Zaświadczenia lekarskie", "Dokumenty rodzinne"]'::jsonb,
      '[
        {"id":"t6666666-6666-6666-6666-666666666661","name":"sentence_delay_template_1.pdf","s3Key":"templates/document-examples/66666666-6666-6666-6666-666666666666/t6666666-6666-6666-6666-666666666661.pdf"},

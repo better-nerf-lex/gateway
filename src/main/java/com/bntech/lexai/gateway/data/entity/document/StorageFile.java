@@ -29,9 +29,6 @@ public class StorageFile extends Auditable<UUID> implements OwnableEntity, SoftD
     private String name;
 
     @Column()
-    private String s3Url;
-
-    @Column()
     private StorageFileType fileType;
 
     @Column()

@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.service;
 
+import com.bntech.lexai.gateway.data.entity.document.DocumentGroup;
 import com.bntech.lexai.gateway.data.entity.document.StorageFile;
 import com.bntech.lexai.gateway.data.object.FileServiceMoveRequest;
 import com.bntech.lexai.gateway.data.object.FileServiceUploadResponse;
@@ -68,19 +69,25 @@ public class StorageFileService {
             entity.setId(UUID.randomUUID());
         }
         entity.setOwnerId(ownerId);
-        entity.setCreatedAt(LocalDateTime.now());
+        if (entity.getCreatedAt() == null) {
+            entity.setCreatedAt(LocalDateTime.now());
+        }
         entity.setUpdatedAt(LocalDateTime.now());
-
-        if (dto.getDocumentGroupId() != null) {
-            entity.setDocumentGroupId(UUID.fromString(dto.getDocumentGroupId()));
-        }
-        if (dto.getTeamId() != null) {
-            entity.setTeamId(UUID.fromString(dto.getTeamId()));
-        }
 
         return documentFileRepository.save(entity)
                 .map(documentFileMapper::toDto)
-                .doOnSuccess(result -> log.info("✅ StorageFile created: {}", result.getId()));
+                .doOnSuccess(result -> log.info("✅ StorageFile created: {}", result.getId()))
+                .doOnError(error -> log.error("❌ Error saving StorageFile to database: {}", error.getMessage(), error));
+    }
+
+    private String getS3Key(UUID teamId, UUID caseId, UUID documentGroupId, UUID fileId, String fileName) {
+        String extension = getFileExtension(fileName);
+        return String.format("%s/%s/%s/%s%s",
+                teamId.toString(),
+                caseId.toString(),
+                documentGroupId.toString(),
+                fileId.toString(),
+                extension);
     }
 
     public Mono<StorageFileDto> uploadFile(FilePart filePart, Long ownerId, String documentGroupId) {
@@ -103,13 +110,9 @@ public class StorageFileService {
                                     return Mono.error(new IllegalStateException(
                                             "DocumentGroup must have caseId for file upload"));
                                 }
-                                String extension = getFileExtension(filePart.filename());
-                                String key = String.format("%s/%s/%s/%s%s",
-                                        group.getTeamId().toString(),
-                                        group.getCaseId().toString(),
-                                        documentGroupId,
-                                        fileId.toString(),
-                                        extension);
+
+                                String key = getS3Key(group.getTeamId(), group.getCaseId(), group.getId(), fileId,
+                                        filePart.filename());
 
                                 log.info("Uploading file with key: {}", key);
 
@@ -129,18 +132,22 @@ public class StorageFileService {
                                         .retrieve()
                                         .bodyToMono(FileServiceUploadResponse.class)
                                         .flatMap(response -> {
+                                            log.info("File uploaded to file-service successfully. S3 URL: {}",
+                                                    response.getS3Url());
                                             StorageFileDto dto = StorageFileDto.builder()
                                                     .id(fileId.toString())
                                                     .name(filePart.filename())
-                                                    .s3Url(response.getS3Url())
                                                     .fileType(determineFileType(filePart.filename()))
                                                     .fileSize((long) bytes.length)
                                                     .createdAt(LocalDateTime.now())
                                                     .updatedAt(LocalDateTime.now())
                                                     .documentGroupId(documentGroupId)
+                                                    .teamId(group.getTeamId().toString())
                                                     .build();
                                             return createDocumentFile(dto, ownerId);
-                                        });
+                                        })
+                                        .doOnError(error -> log.error("❌ Error during file upload process: {}",
+                                                error.getMessage(), error));
                             });
                 });
     }
@@ -161,14 +168,12 @@ public class StorageFileService {
         return StorageFileType.OTHER;
     }
 
-
     public Mono<StorageFileDto> updateDocumentFile(String id, StorageFileDto dto) {
         UUID uuid = UUID.fromString(id);
         return documentFileRepository.findById(uuid)
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("StorageFile", id)))
                 .flatMap(existing -> {
                     existing.setName(dto.getName());
-                    existing.setS3Url(dto.getS3Url());
                     existing.setFileType(dto.getFileType());
                     existing.setFileSize(dto.getFileSize());
                     existing.setUpdatedAt(LocalDateTime.now());
@@ -206,56 +211,36 @@ public class StorageFileService {
     }
 
     public Mono<Void> permanentlyDeleteDocumentFile(String id) {
-        return getDocumentFileById(id)
-                .flatMap(dto -> {
-                    String s3Url = dto.getS3Url();
-                    if (s3Url != null && s3Url.startsWith("s3://")) {
-                        String key = s3Url;
-                        String path = s3Url.substring(5);
-                        int firstSlash = path.indexOf('/');
-                        if (firstSlash != -1) {
-                            key = path.substring(firstSlash + 1);
-                        }
-                        String finalKey = key;
-                        return webClientBuilder.build().delete()
-                                .uri(fileServiceUrl + "/files/" + finalKey)
-                                .retrieve()
-                                .toBodilessEntity()
-                                .onErrorResume(e -> {
-                                    log.warn("Failed to delete file from file-service: {}", e.getMessage());
-                                    return Mono.empty();
-                                })
-                                .then(Mono.defer(() -> {
-                                    UUID uuid = UUID.fromString(id);
-                                    return documentFileRepository.deleteById(uuid);
-                                }));
-                    } else {
-                        UUID uuid = UUID.fromString(id);
-                        return documentFileRepository.deleteById(uuid);
-                    }
-                })
+        return documentFileRepository.findById(UUID.fromString(id))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("StorageFile", id)))
+                .flatMap(file -> documentGroupRepository.findById(file.getDocumentGroupId())
+                        .flatMap(group -> {
+                            String key = getS3Key(file.getTeamId(), group.getCaseId(), group.getId(), file.getId(),
+                                    file.getName());
+                            log.info("Deleting file from file-service with key: {}", key);
+                            return webClientBuilder.build().delete()
+                                    .uri(fileServiceUrl + "/files/" + key)
+                                    .retrieve()
+                                    .toBodilessEntity()
+                                    .onErrorResume(e -> {
+                                        log.warn("Failed to delete file from file-service: {}", e.getMessage());
+                                        return Mono.empty();
+                                    })
+                                    .then(documentFileRepository.deleteById(file.getId()));
+                        }))
                 .doOnSuccess(v -> log.info("✅ StorageFile permanently deleted: {}", id));
     }
 
     public Mono<String> generateViewUrl(String id) {
-        return getDocumentFileById(id)
-                .flatMap(dto -> {
-                    String s3Url = dto.getS3Url();
-                    if (s3Url == null || !s3Url.startsWith("s3://")) {
-                        return Mono.error(new IllegalStateException("Invalid S3 URL for file: " + id));
-                    }
-
-                    String path = s3Url.substring(5);
-                    int firstSlash = path.indexOf('/');
-                    String key = (firstSlash != -1) ? path.substring(firstSlash + 1) : path;
-
-                    log.info("Generating view URL for file: {}, key: {}", id, key);
-
-                    return webClientBuilder.build().get()
-                            .uri(fileServiceUrl + "/files/" + key + "/view-url")
-                            .retrieve()
-                            .bodyToMono(String.class);
-                })
+        return documentFileRepository.findById(UUID.fromString(id))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("StorageFile", id)))
+                .flatMap(file -> documentGroupRepository.findById(file.getDocumentGroupId())
+                        .map(group -> {
+                            String key = getS3Key(file.getTeamId(), group.getCaseId(), group.getId(), file.getId(),
+                                    file.getName());
+                            log.info("Generating view URL for file: {}, key: {}", id, key);
+                            return fileServiceUrl + "/files/" + key;
+                        }))
                 .doOnError(error -> log.error("❌ Error generating view URL for file {}: {}", id, error.getMessage()));
     }
 
@@ -265,8 +250,10 @@ public class StorageFileService {
                 .uri(fileServiceUrl + "/files/" + s3Key)
                 .retrieve()
                 .bodyToMono(byte[].class)
-                .doOnSuccess(content -> log.info("✅ Fetched file content for key: {}, size: {} bytes", s3Key, content.length))
-                .doOnError(error -> log.error("❌ Error fetching file content for key {}: {}", s3Key, error.getMessage()));
+                .doOnSuccess(content -> log.info("✅ Fetched file content for key: {}, size: {} bytes", s3Key,
+                        content.length))
+                .doOnError(
+                        error -> log.error("❌ Error fetching file content for key {}: {}", s3Key, error.getMessage()));
     }
 
     public Mono<StorageFileDto> moveFile(String id, String targetGroupId) {
@@ -275,46 +262,38 @@ public class StorageFileService {
 
         return documentFileRepository.findById(fileUuid)
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("StorageFile", id)))
-                .flatMap(file -> documentGroupRepository.findById(targetGroupUuid)
-                        .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentGroup", targetGroupId)))
-                        .flatMap(targetGroup -> {
-                            String oldS3Url = file.getS3Url();
-                            if (oldS3Url == null || !oldS3Url.startsWith("s3://")) {
-                                return Mono.error(new IllegalStateException("Invalid S3 URL"));
-                            }
+                .flatMap(file -> Mono.zip(
+                        documentGroupRepository.findById(file.getDocumentGroupId())
+                                .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentGroup",
+                                        file.getDocumentGroupId().toString()))),
+                        documentGroupRepository.findById(targetGroupUuid)
+                                .switchIfEmpty(
+                                        Mono.error(new ResourceNotFoundException("DocumentGroup", targetGroupId))))
+                        .flatMap(tuple -> {
+                            DocumentGroup oldGroup = tuple.getT1();
+                            DocumentGroup targetGroup = tuple.getT2();
 
-                            String oldKey = oldS3Url.substring(5);
-                            int bucketEnd = oldKey.indexOf('/');
-                            String bucketName = oldKey.substring(0, bucketEnd);
-                            String oldPath = oldKey.substring(bucketEnd + 1);
-                            String filename = file.getName();
-                            String extension = getFileExtension(filename);
+                            String oldKey = getS3Key(file.getTeamId(), oldGroup.getCaseId(), oldGroup.getId(),
+                                    file.getId(), file.getName());
 
                             if (targetGroup.getTeamId() == null || targetGroup.getCaseId() == null) {
                                 return Mono.error(
                                         new IllegalStateException("Target DocumentGroup missing teamId or caseId"));
                             }
 
-                            String newPath = String.format("%s/%s/%s/%s%s",
-                                    targetGroup.getTeamId().toString(),
-                                    targetGroup.getCaseId().toString(),
-                                    targetGroupId,
-                                    file.getId().toString(),
-                                    extension);
+                            String newPath = getS3Key(targetGroup.getTeamId(), targetGroup.getCaseId(),
+                                    targetGroup.getId(), file.getId(), file.getName());
 
-                            String newS3Url = "s3://" + bucketName + "/" + newPath;
-
-                            log.info("Moving file {} from {} to {}", id, oldPath, newPath);
+                            log.info("Moving file {} from {} to {}", id, oldKey, newPath);
 
                             return webClientBuilder.build().post()
                                     .uri(fileServiceUrl + "/files/move")
                                     .contentType(MediaType.APPLICATION_JSON)
-                                    .bodyValue(new FileServiceMoveRequest(oldPath, newPath))
+                                    .bodyValue(new FileServiceMoveRequest(oldKey, newPath))
                                     .retrieve()
                                     .toBodilessEntity()
                                     .then(Mono.defer(() -> {
                                         file.setDocumentGroupId(targetGroupUuid);
-                                        file.setS3Url(newS3Url);
                                         file.setTeamId(targetGroup.getTeamId());
                                         file.setNotNew();
                                         return documentFileRepository.save(file);

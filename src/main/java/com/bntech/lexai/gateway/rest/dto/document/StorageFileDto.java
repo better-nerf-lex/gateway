@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 public class StorageFileDto {
     private String id;
     private String name;
-    private String s3Url;
     private StorageFileType fileType;
     private String documentGroupId;
     private String teamId;

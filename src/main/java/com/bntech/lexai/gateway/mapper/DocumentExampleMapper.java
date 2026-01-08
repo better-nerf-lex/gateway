@@ -3,6 +3,7 @@ package com.bntech.lexai.gateway.mapper;
 import com.bntech.lexai.gateway.data.entity.document.DocumentExample;
 import com.bntech.lexai.gateway.data.entity.document.DocumentExampleEs;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentExampleDto;
+import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
@@ -11,6 +12,18 @@ import org.mapstruct.ReportingPolicy;
 public interface DocumentExampleMapper {
     @Mapping(target = "id", expression = "java(entity.getId() != null ? entity.getId().toString() : null)")
     DocumentExampleDto toDto(DocumentExample entity);
+
+    @Mapping(target = "name", source = "title")
+    @Mapping(target = "exampleId", expression = "java(entity.getId() != null ? entity.getId().toString() : null)")
+    SubmitPromptResponse toSubmitPromptResponse(DocumentExample entity);
+
+    @Mapping(target = "name", source = "title")
+    @Mapping(target = "exampleId", source = "id")
+    SubmitPromptResponse toSubmitPromptResponseFromEs(DocumentExampleEs es);
+
+    @Mapping(target = "name", source = "title")
+    @Mapping(target = "exampleId", source = "id")
+    SubmitPromptResponse toSubmitPromptResponseFromDto(DocumentExampleDto dto);
 
     @Mapping(target = "id", expression = "java(dto.getId() != null ? java.util.UUID.fromString(dto.getId()) : null)")
     DocumentExample toEntity(DocumentExampleDto dto);

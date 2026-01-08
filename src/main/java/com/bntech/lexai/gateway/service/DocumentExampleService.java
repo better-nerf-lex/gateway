@@ -8,7 +8,8 @@ import com.bntech.lexai.gateway.mapper.DocumentExampleMapper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentExampleDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -18,22 +19,35 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-@ConditionalOnProperty(name = "elasticsearch.enabled", havingValue = "true")
-@RequiredArgsConstructor
 @Slf4j
 public class DocumentExampleService {
     private final DocumentExampleRepository repository;
     private final DocumentExampleEsRepository esRepository;
     private final DocumentExampleMapper mapper;
 
+    @Value("${elasticsearch.enabled:false}")
+    private boolean esEnabled;
+
+    public DocumentExampleService(
+            DocumentExampleRepository repository,
+            @Autowired(required = false) DocumentExampleEsRepository esRepository,
+            DocumentExampleMapper mapper) {
+        this.repository = repository;
+        this.esRepository = esRepository;
+        this.mapper = mapper;
+    }
+
     public Flux<DocumentExampleDto> searchTemplates(String query) {
         if (query == null || query.trim().length() < 3) {
             return Flux.empty();
         }
 
-        return esRepository.searchByTitleOrDescription(query)
-                .map(mapper::toDtoFromEs)
-                .switchIfEmpty(searchPostgresFallback(query));
+        Flux<DocumentExampleDto> esSearch = (esEnabled && esRepository != null)
+                ? esRepository.searchByTitleOrDescription(query)
+                        .map(mapper::toDtoFromEs)
+                : Flux.empty();
+
+        return esSearch.switchIfEmpty(searchPostgresFallback(query));
     }
 
     public Mono<DocumentExample> findById(String id) {
@@ -50,6 +64,11 @@ public class DocumentExampleService {
     }
 
     public Mono<Void> syncToEs() {
+        if (!esEnabled || esRepository == null) {
+            log.info("Elasticsearch is disabled, skipping synchronization");
+            return Mono.empty();
+        }
+
         log.info("Starting synchronization of document templates to Elasticsearch");
         return repository.findAll()
                 .map(mapper::toEs)

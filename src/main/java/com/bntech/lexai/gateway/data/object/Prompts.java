@@ -86,13 +86,15 @@ public class Prompts {
             1. Use the value of "name" as the exact document title, centered and bold.
             2. The main body of the document must contain the data from "questions", written in proper legal and formal style. Each {"question": "answer"} should be converted into a coherent paragraph.
             3. The document layout and appearance must follow the structure described in "requirements". Treat "requirements" as layout and formatting guidelines (e.g., margins, sections, titles).
+            4. IMPORTANT: Do NOT include any citations, legal bases, or ELI URIs in the generated document content.
 
             LEGAL BASIS USAGE (IMPORTANT):
-            - The "base" field and any attached legal documents from eli.gov.pl are provided ONLY as context and reference for you to understand the legal framework.
+            - The "base" field contains ELI URIs with links to legal documents on eli.gov.pl.
+            - These links are provided ONLY as reference for you to understand the legal framework.
             - DO NOT include a "Podstawa prawna" section in the generated document.
-            - DO NOT list or cite the legal bases (ELI URIs) in the document output.
-            - Use the legal documents only to ensure correct legal terminology, proper phrasing, and accurate article references where naturally appropriate in the document text.
-            - The legal basis information helps you write legally accurate content, but should not appear as a separate section in the output.
+            - DO NOT list or cite the legal bases (ELI URIs) or their links in the document output.
+            - Use your knowledge of these legal acts to ensure correct legal terminology, proper phrasing, and accurate article references where naturally appropriate in the document text.
+            - The legal basis information helps you write legally accurate content, but should NOT appear as a separate section or explicit citation in the output.
 
             TEMPLATE DOCUMENTS USAGE:
             If a "TEMPLATE DOCUMENTS" section is provided below, these are reference documents that serve as:

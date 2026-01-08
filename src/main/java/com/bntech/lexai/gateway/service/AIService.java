@@ -73,26 +73,26 @@ public class AIService {
     public Mono<LegalBasisResponse> extractLegalBasis(String prompt) {
         log.info("Extracting legal basis for prompt: {}", prompt);
         return Mono.fromCallable(() -> {
-                    MessageCreateParams params = MessageCreateParams.builder()
-                            .maxTokens(2048L)
-                            .system(Prompts.EN_EXTRACT_LEGAL_BASIS)
-                            .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
-                            .model(genModel)
-                            .temperature(0.2)
-                            .build();
+            MessageCreateParams params = MessageCreateParams.builder()
+                    .maxTokens(2048L)
+                    .system(Prompts.EN_EXTRACT_LEGAL_BASIS)
+                    .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
+                    .model(genModel)
+                    .temperature(0.2)
+                    .build();
 
-                    log.debug("Sending legal basis extraction request to Anthropic API");
-                    Message message = client.messages().create(params);
-                    String jsonResponse = message.content().getFirst()
-                            .text()
-                            .map(TextBlock::text)
-                            .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+            log.debug("Sending legal basis extraction request to Anthropic API");
+            Message message = client.messages().create(params);
+            String jsonResponse = message.content().getFirst()
+                    .text()
+                    .map(TextBlock::text)
+                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
 
-                    LegalBasisResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
-                            LegalBasisResponse.class);
-                    log.info("✅ Extracted {} legal bases: {}", response.getBase().size(), response.getBase());
-                    return response;
-                })
+            LegalBasisResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
+                    LegalBasisResponse.class);
+            log.info("✅ Extracted {} legal bases: {}", response.getBase().size(), response.getBase());
+            return response;
+        })
                 .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofMinutes(1))
                 .retryWhen(buildRetrySpec("legal basis extraction"))
@@ -104,69 +104,42 @@ public class AIService {
             return Mono.just(List.of());
         }
 
-        log.info("Verifying {} legal bases against ELI API", bases.size());
-
-        return eliService.fetchLegalDocuments(bases)
-                .collectList()
-                .map(documents -> {
-                    List<String> verifiedBases = new ArrayList<>();
-                    List<String> failedBases = new ArrayList<>();
-
-                    for (EliService.EliDocument doc : documents) {
-                        if (doc.found()) {
-                            verifiedBases.add(doc.uri());
-                        } else {
-                            failedBases.add(doc.uri());
-                        }
-                    }
-
-                    if (!failedBases.isEmpty()) {
-                        log.warn("Failed to verify {} legal bases: {}", failedBases.size(), failedBases);
-                    }
-                    if (!verifiedBases.isEmpty()) {
-                        log.info("✅ Verified {} legal bases: {}", verifiedBases.size(), verifiedBases);
-                    }
-
-                    return verifiedBases.isEmpty() ? bases : verifiedBases;
-                })
-                .onErrorResume(e -> {
-                    log.warn("ELI API verification failed, using unverified bases: {}", e.getMessage());
-                    return Mono.just(bases);
-                });
+        log.info("Using {} legal bases for document generation", bases.size());
+        return Mono.just(bases);
     }
 
     private Mono<SubmitPromptResponse> generateQuestionsWithBasis(String prompt, List<String> verifiedBasis) {
         log.info("Generating questions with verified legal basis: {}", verifiedBasis);
         return Mono.fromCallable(() -> {
-                    String basisJson;
-                    try {
-                        basisJson = objectMapper.writeValueAsString(verifiedBasis);
-                    } catch (Exception e) {
-                        basisJson = "[]";
-                    }
+            String basisJson;
+            try {
+                basisJson = objectMapper.writeValueAsString(verifiedBasis);
+            } catch (Exception e) {
+                basisJson = "[]";
+            }
 
-                    String systemPrompt = String.format(Prompts.EN_GENERATE_QUESTIONS, basisJson, basisJson);
+            String systemPrompt = String.format(Prompts.EN_GENERATE_QUESTIONS, basisJson, basisJson);
 
-                    MessageCreateParams params = MessageCreateParams.builder()
-                            .maxTokens(4096L)
-                            .system(systemPrompt)
-                            .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
-                            .model(genModel)
-                            .temperature(0.3)
-                            .build();
+            MessageCreateParams params = MessageCreateParams.builder()
+                    .maxTokens(4096L)
+                    .system(systemPrompt)
+                    .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
+                    .model(genModel)
+                    .temperature(0.3)
+                    .build();
 
-                    log.debug("Sending prompt analysis request to Anthropic API");
-                    Message message = client.messages().create(params);
-                    String jsonResponse = message.content().getFirst()
-                            .text()
-                            .map(TextBlock::text)
-                            .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+            log.debug("Sending prompt analysis request to Anthropic API");
+            Message message = client.messages().create(params);
+            String jsonResponse = message.content().getFirst()
+                    .text()
+                    .map(TextBlock::text)
+                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
 
-                    SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
-                            SubmitPromptResponse.class);
-                    log.info("✅ Parsed response with {} questions", response.getQuestions().size());
-                    return response;
-                })
+            SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
+                    SubmitPromptResponse.class);
+            log.info("✅ Parsed response with {} questions", response.getQuestions().size());
+            return response;
+        })
                 .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofMinutes(2))
                 .retryWhen(buildRetrySpec("prompt analysis"))
@@ -176,34 +149,34 @@ public class AIService {
     public Mono<DocumentChatResponse> chatWithDocument(DocumentChatRequest request) {
         log.info("Chatting with document: {}", request.getDocumentId());
         return Mono.fromCallable(() -> {
-                    String inputJson;
-                    try {
-                        inputJson = objectMapper.writeValueAsString(Map.of(
-                                "currentContent", request.getCurrentContent(),
-                                "userRequest", request.getUserMessage()));
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException("Error serializing chat request", e);
-                    }
+            String inputJson;
+            try {
+                inputJson = objectMapper.writeValueAsString(Map.of(
+                        "currentContent", request.getCurrentContent(),
+                        "userRequest", request.getUserMessage()));
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException("Error serializing chat request", e);
+            }
 
-                    MessageCreateParams params = MessageCreateParams.builder()
-                            .maxTokens(8192L)
-                            .system(Prompts.EN_CHAT_WITH_DOCUMENT)
-                            .addUserMessage(inputJson)
-                            .model(chatModel)
-                            .temperature(0.2)
-                            .build();
+            MessageCreateParams params = MessageCreateParams.builder()
+                    .maxTokens(8192L)
+                    .system(Prompts.EN_CHAT_WITH_DOCUMENT)
+                    .addUserMessage(inputJson)
+                    .model(chatModel)
+                    .temperature(0.2)
+                    .build();
 
-                    log.debug("Sending chat request to Anthropic API for document: {}", request.getDocumentId());
-                    Message message = client.messages().create(params);
+            log.debug("Sending chat request to Anthropic API for document: {}", request.getDocumentId());
+            Message message = client.messages().create(params);
 
-                    String rawContent = message.content().getFirst()
-                            .text()
-                            .map(TextBlock::text)
-                            .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+            String rawContent = message.content().getFirst()
+                    .text()
+                    .map(TextBlock::text)
+                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
 
-                    String jsonContent = stripMarkdownCodeBlocks(rawContent);
-                    return objectMapper.readValue(jsonContent, DocumentChatResponse.class);
-                })
+            String jsonContent = stripMarkdownCodeBlocks(rawContent);
+            return objectMapper.readValue(jsonContent, DocumentChatResponse.class);
+        })
                 .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofMinutes(2))
                 .retryWhen(buildRetrySpec("document chat"))
@@ -212,25 +185,31 @@ public class AIService {
     }
 
     public Mono<String> generateDocumentWithAnswers(GenerateDocumentRequest request) {
+        int templateCount = request.getTemplateFiles() != null ? request.getTemplateFiles().size() : 0;
+        int contextCount = request.getContextFileIds() != null ? request.getContextFileIds().size() : 0;
+        log.info("Template files: {}", templateCount);
+        log.info("Context file IDs: {}", contextCount);
         return generateDocumentWithAnswers(
                 request.getTitle(),
                 request.getPrompt(),
                 request.getAnswers(),
                 request.getRequirements(),
                 request.getBase(),
-                request.getTemplateFiles());
+                request.getTemplateFiles(),
+                request.getContextFileIds());
     }
 
     public Mono<String> generateDocumentWithAnswers(String title, String originalPrompt,
-                                                    Map<String, String> answers, List<String> requirements, List<String> base) {
-        return generateDocumentWithAnswers(title, originalPrompt, answers, requirements, base, null);
+            Map<String, String> answers, List<String> requirements, List<String> base) {
+        return generateDocumentWithAnswers(title, originalPrompt, answers, requirements, base, null, null);
     }
 
     public Mono<String> generateDocumentWithAnswers(String title, String originalPrompt,
-                                                    Map<String, String> answers, List<String> requirements,
-                                                    List<String> base, List<TemplateFile> templateFiles) {
-        log.info("Generating document for: {} with {} template files", title,
-                templateFiles != null ? templateFiles.size() : 0);
+            Map<String, String> answers, List<String> requirements,
+            List<String> base, List<TemplateFile> templateFiles, List<String> contextFileIds) {
+        log.info("Generating document for: {} with {} template files and {} context files", title,
+                templateFiles != null ? templateFiles.size() : 0,
+                contextFileIds != null ? contextFileIds.size() : 0);
 
         Mono<String> legalContextMono = fetchEliDocumentsContext(base);
         Mono<List<TemplateFileContent>> templateContentsMono = fetchTemplateFilesWithMetadata(templateFiles);
@@ -243,10 +222,6 @@ public class AIService {
                     String jsonData = buildJsonForGeneration(title, originalPrompt, answers, requirements, base);
 
                     return Mono.fromCallable(() -> {
-                        if (base != null && !base.isEmpty()) {
-                            log.info("Attaching {} ELI documents to prompt: {}", base.size(), base);
-                        }
-
                         if (!templateContents.isEmpty()) {
                             List<String> fileNames = templateContents.stream()
                                     .map(TemplateFileContent::name)
@@ -263,13 +238,17 @@ public class AIService {
 
                         if (!templateContents.isEmpty()) {
                             userMessage.append("\n\n--- TEMPLATE DOCUMENTS ---\n");
-                            userMessage.append("The following template documents are provided as visual and structural references. ");
-                            userMessage.append("Use them to understand the expected document layout, formatting style, and section organization. ");
-                            userMessage.append("Match the visual structure while filling in the actual data from the questions above.\n\n");
+                            userMessage.append(
+                                    "The following template documents are provided as visual and structural references. ");
+                            userMessage.append(
+                                    "Use them to understand the expected document layout, formatting style, and section organization. ");
+                            userMessage.append(
+                                    "Match the visual structure while filling in the actual data from the questions above.\n\n");
 
                             for (int i = 0; i < templateContents.size(); i++) {
                                 TemplateFileContent tfc = templateContents.get(i);
-                                userMessage.append(String.format("Template %d: %s (S3: %s)\n", i + 1, tfc.name(), tfc.s3Key()));
+                                userMessage.append(
+                                        String.format("Template %d: %s (S3: %s)\n", i + 1, tfc.name(), tfc.s3Key()));
                             }
 
                             log.info("Including {} template files as context references", templateContents.size());
@@ -300,10 +279,12 @@ public class AIService {
                 .doOnError(error -> log.error("❌ Error generating document for: {}", title, error));
     }
 
-    private record TemplateFileContent(String name, String s3Key, byte[] content) {}
+    private record TemplateFileContent(String name, String s3Key, byte[] content) {
+    }
 
     private Mono<List<TemplateFileContent>> fetchTemplateFilesWithMetadata(List<TemplateFile> templateFiles) {
         if (templateFiles == null || templateFiles.isEmpty()) {
+            // no template?
             return Mono.just(List.of());
         }
 
@@ -318,7 +299,8 @@ public class AIService {
                                     templateFile.getS3Key(),
                                     content))
                             .onErrorResume(e -> {
-                                log.warn("Failed to fetch template file {}: {}", templateFile.getS3Key(), e.getMessage());
+                                log.warn("Failed to fetch template file {}: {}", templateFile.getS3Key(),
+                                        e.getMessage());
                                 return Mono.empty();
                             });
                 })
@@ -335,25 +317,23 @@ public class AIService {
             return Mono.just("");
         }
 
-        log.info("Fetching ELI documents for legal bases: {}", base);
+        log.info("Generating URLs for {} legal bases", base.size());
 
         return eliService.fetchLegalDocuments(base)
                 .collectList()
-                .map(eliService::buildLegalDocumentsContext)
-                .doOnSuccess(context -> {
-                    if (!context.isBlank()) {
-                        log.info("✅ Fetched {} legal documents from eli.gov.pl",
-                                base.stream().filter(uri -> context.contains(uri)).count());
-                    }
+                .map(documents -> {
+                    log.info("✅ Generated {} legal document URLs", documents.size());
+                    return eliService.buildLegalDocumentsContext(documents);
                 })
                 .onErrorResume(e -> {
-                    log.warn("Failed to fetch ELI documents, proceeding without legal context: {}", e.getMessage());
+                    log.warn("Failed to generate ELI document URLs, proceeding without legal context: {}",
+                            e.getMessage());
                     return Mono.just("");
                 });
     }
 
     private String buildJsonForGeneration(String title, String originalPrompt,
-                                          Map<String, String> answers, List<String> requirements, List<String> base) {
+            Map<String, String> answers, List<String> requirements, List<String> base) {
         try {
             Map<String, Object> jsonData = Map.of(
                     "name", title,

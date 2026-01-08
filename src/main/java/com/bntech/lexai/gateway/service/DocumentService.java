@@ -14,6 +14,7 @@ import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
 import com.bntech.lexai.gateway.mapper.CaseMapper;
 import com.bntech.lexai.gateway.mapper.DocumentMapper;
+import com.bntech.lexai.gateway.mapper.DocumentExampleMapper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentHistoryDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentStatsDto;
@@ -47,6 +48,7 @@ public class DocumentService {
     private final DocumentAggregateRepository aggregates;
     private final DocumentHistoryRepository documentsHistory;
     private final DocumentMapper mapper;
+    private final DocumentExampleMapper documentExampleMapper;
     private final AIService aiService;
     private final UserRepository userRepository;
     private final TeamMemberRepository teamMemberRepository;
@@ -65,12 +67,14 @@ public class DocumentService {
             TeamMemberRepository teamMemberRepository,
             CaseRepository caseRepository,
             CaseMapper caseMapper,
+            DocumentExampleMapper documentExampleMapper,
             @Autowired(required = false) DocumentExampleService documentExampleService,
             ActivityService activityService) {
         this.documents = documents;
         this.aggregates = aggregates;
         this.documentsHistory = documentsHistory;
         this.mapper = mapper;
+        this.documentExampleMapper = documentExampleMapper;
         this.aiService = aiService;
         this.userRepository = userRepository;
         this.teamMemberRepository = teamMemberRepository;
@@ -157,14 +161,12 @@ public class DocumentService {
         Mono<SubmitPromptResponse> templateSearch = documentExampleService != null
                 ? documentExampleService.searchTemplates(request.getPrompt())
                         .next()
-                        .map(template -> SubmitPromptResponse.builder()
-                                .name(template.getTitle())
-                                .questions(template.getQuestions())
-                                .base(template.getBase())
-                                .requirements(template.getRequirements())
-                                .templateFiles(template.getTemplateFiles())
-                                .exampleId(template.getId())
-                                .build())
+                        .map(template -> {
+                            log.info("Matched template: {} ({}) with {} template files",
+                                    template.getTitle(), template.getId(),
+                                    template.getTemplateFiles() != null ? template.getTemplateFiles().size() : 0);
+                            return documentExampleMapper.toSubmitPromptResponseFromDto(template);
+                        })
                 : Mono.empty();
 
         return templateSearch
@@ -224,6 +226,19 @@ public class DocumentService {
                                                 .map(example -> {
                                                     if (request.getTemplateFiles() == null || request.getTemplateFiles().isEmpty()) {
                                                         request.setTemplateFiles(example.getTemplateFiles());
+                                                    }
+                                                    return request;
+                                                })
+                                                .defaultIfEmpty(request);
+                                    } else if (request.getTitle() != null && !request.getTitle().isBlank()) {
+                                        // Fallback: match by title if exampleId is missing
+                                        requestMono = documentExampleService.searchTemplates(request.getTitle())
+                                                .next()
+                                                .map(templateDto -> {
+                                                    log.info("Matched template by title fallback: {}", templateDto.getTitle());
+                                                    request.setExampleId(templateDto.getId());
+                                                    if (request.getTemplateFiles() == null || request.getTemplateFiles().isEmpty()) {
+                                                        request.setTemplateFiles(templateDto.getTemplateFiles());
                                                     }
                                                     return request;
                                                 })

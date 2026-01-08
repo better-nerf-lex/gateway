@@ -56,11 +56,19 @@ public class StorageFileServiceTest {
         UUID teamId = UUID.randomUUID();
         UUID caseId = UUID.randomUUID();
 
+        UUID oldGroupId = UUID.randomUUID();
         StorageFile file = StorageFile.builder()
                 .id(fileId)
                 .name("test.pdf")
-                .s3Url("s3://bucket/old/path/test.pdf")
-                .isNew(true) // Default is true
+                .documentGroupId(oldGroupId)
+                .teamId(teamId)
+                .isNew(true)
+                .build();
+
+        DocumentGroup oldGroup = DocumentGroup.builder()
+                .id(oldGroupId)
+                .teamId(teamId)
+                .caseId(caseId)
                 .build();
 
         DocumentGroup targetGroup = DocumentGroup.builder()
@@ -70,6 +78,7 @@ public class StorageFileServiceTest {
                 .build();
 
         when(storageFileRepository.findById(fileId)).thenReturn(Mono.just(file));
+        when(documentGroupRepository.findById(oldGroupId)).thenReturn(Mono.just(oldGroup));
         when(documentGroupRepository.findById(targetGroupId)).thenReturn(Mono.just(targetGroup));
 
         // Mock WebClient

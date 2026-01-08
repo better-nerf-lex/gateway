@@ -23,4 +23,5 @@ public class GenerateDocumentRequest {
     private String teamId;
     private String exampleId;
     private List<TemplateFile> templateFiles;
+    private List<String> contextFileIds;
 }

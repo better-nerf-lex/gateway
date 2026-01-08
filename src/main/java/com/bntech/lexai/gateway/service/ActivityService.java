@@ -5,6 +5,7 @@ import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.object.ActionType;
 import com.bntech.lexai.gateway.data.repository.ActivityRepository;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.mapper.ActivityMapper;
 import com.bntech.lexai.gateway.rest.dto.ActivityDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ public class ActivityService {
 
     private final ActivityRepository activityRepository;
     private final UserRepository userRepository;
+    private final ActivityMapper activityMapper;
 
     public void logActivity(Long userId, UUID teamId, ActionType action, UUID entityId, String entityType,
             String details) {
@@ -63,16 +65,10 @@ public class ActivityService {
                         .defaultIfEmpty("Unknown")
                 : Mono.just("System");
 
-        return usernameMono.map(username -> ActivityDto.builder()
-                .id(activity.getId().toString())
-                .action(activity.getAction().getValue())
-                .date(activity.getCreatedAt())
-                .userId(activity.getUserId())
-                .username(username)
-                .teamId(activity.getTeamId() != null ? activity.getTeamId().toString() : null)
-                .entityId(activity.getEntityId() != null ? activity.getEntityId().toString() : null)
-                .entityType(activity.getEntityType())
-                .details(activity.getDetails())
-                .build());
+        return usernameMono.map(username -> {
+            ActivityDto dto = activityMapper.toDto(activity);
+            dto.setUsername(username);
+            return dto;
+        });
     }
 }
