@@ -42,8 +42,15 @@ public class AuthorizationCode extends BaseEntity<UUID> {
     @Column("used")
     private boolean used;
 
+    @org.springframework.data.annotation.Transient
+    private boolean isNew = true;
+
     @Override
     public boolean isNew() {
-        return false;
+        return isNew || getId() == null;
+    }
+
+    public void setNotNew() {
+        this.isNew = false;
     }
 }

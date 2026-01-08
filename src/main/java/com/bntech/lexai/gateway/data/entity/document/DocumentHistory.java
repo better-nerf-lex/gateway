@@ -28,6 +28,9 @@ public class DocumentHistory extends Auditable<UUID> {
     @Column()
     private String content;
 
+    @Column("history_version")
+    private Integer historyVersion;
+
     @Transient
     @Builder.Default
     private boolean isNew = true;

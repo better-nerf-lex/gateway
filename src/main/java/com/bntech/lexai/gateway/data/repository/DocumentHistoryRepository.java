@@ -12,7 +12,7 @@ import java.util.UUID;
 @Repository
 public interface DocumentHistoryRepository extends ReactiveCrudRepository<DocumentHistory, UUID> {
 
-    @Query("SELECT * FROM document_history WHERE document_id = :documentId ORDER BY version DESC")
+    @Query("SELECT * FROM document_history WHERE document_id = :documentId ORDER BY history_version DESC")
     Flux<DocumentHistory> findByDocumentIdOrderByVersionDesc(UUID documentId);
 
 

@@ -317,6 +317,7 @@ public class StorageFileService {
                                         file.setDocumentGroupId(targetGroupUuid);
                                         file.setS3Url(newS3Url);
                                         file.setTeamId(targetGroup.getTeamId());
+                                        file.setNotNew();
                                         return documentFileRepository.save(file);
                                     }))
                                     .map(documentFileMapper::toDto);

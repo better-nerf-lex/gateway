@@ -83,6 +83,7 @@ public class TeamService {
                 return teamMemberRepository.findByUserIdAndTeamId(userId, teamId)
                                 .flatMap(member -> {
                                         member.setAccessLevel(newLevel);
+                                        member.setNotNew();
                                         return teamMemberRepository.save(member);
                                 })
                                 .then();

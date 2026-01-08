@@ -18,6 +18,7 @@ public class DocumentHistoryDto {
     private UUID documentId;
     private String content;
     private Integer version;
+    private Integer historyVersion;
     private LocalDateTime createdAt;
     private Long createdBy;
 }

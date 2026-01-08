@@ -329,33 +329,59 @@ public class DocumentService {
 
         return documentsHistory.findById(UUID.fromString(versionId))
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentVersion", versionId)))
-                .flatMap(history -> updateDocument(documentId, history.getContent()))
+                .flatMap(history -> documents.findById(UUID.fromString(documentId))
+                        .switchIfEmpty(Mono.error(new ResourceNotFoundException("Document", documentId)))
+                        .flatMap(document -> {
+                            document.setText(history.getContent());
+                            document.setUpdatedAt(LocalDateTime.now());
+                            document.setNotNew();
+                            return documents.save(document);
+                        })
+                        .map(mapper::toDto))
                 .doOnSuccess(result -> log.info("✅ Document restored to version: {}", versionId))
                 .doOnError(error -> log.error("❌ Error restoring document version", error));
     }
 
     private Mono<DocumentHistory> createHistoryEntry(Document document) {
-        return databaseClient.sql("SELECT MAX(version) FROM document_history WHERE document_id = :documentId")
+        return databaseClient.sql("SELECT MAX(history_version) FROM document_history WHERE document_id = :documentId")
                 .bind("documentId", document.getId())
                 .map(row -> {
-                    Integer version = row.get(0, Integer.class);
-                    return version != null ? version : 0;
+                    Integer historyVersion = row.get(0, Integer.class);
+                    return historyVersion != null ? historyVersion : 0;
                 })
                 .one()
                 .defaultIfEmpty(0)
-                .map(maxVersion -> DocumentHistory.builder()
-                        .id(UUID.randomUUID())
-                        .documentId(document.getId())
-                        .content(document.getText())
-                        .version(maxVersion + 1)
-                        .createdAt(LocalDateTime.now())
-                        .isNew(true)
-                        .build())
-                .flatMap(documentsHistory::save)
-                .map(history -> {
-                    history.setNotNew();
-                    return history;
+                .flatMap(maxHistoryVersion -> {
+                    DocumentHistory newHistory = DocumentHistory.builder()
+                            .id(UUID.randomUUID())
+                            .documentId(document.getId())
+                            .content(document.getText())
+                            .historyVersion(maxHistoryVersion + 1)
+                            .createdAt(LocalDateTime.now())
+                            .isNew(true)
+                            .build();
+                    
+                    return documentsHistory.save(newHistory)
+                            .flatMap(savedHistory -> {
+                                savedHistory.setNotNew();
+                                return cleanupOldVersions(document.getId())
+                                        .thenReturn(savedHistory);
+                            });
                 });
+    }
+
+    private Mono<Void> cleanupOldVersions(UUID documentId) {
+        return databaseClient.sql(
+                "DELETE FROM document_history WHERE id IN (" +
+                "  SELECT id FROM document_history " +
+                "  WHERE document_id = :documentId " +
+                "  ORDER BY history_version DESC " +
+                "  OFFSET 10" +
+                ")")
+                .bind("documentId", documentId)
+                .fetch()
+                .rowsUpdated()
+                .then();
     }
 
     private DocumentHistoryDto toHistoryDto(DocumentHistory entity) {
@@ -364,6 +390,7 @@ public class DocumentService {
                 .documentId(entity.getDocumentId())
                 .content(entity.getContent())
                 .version(entity.getVersion())
+                .historyVersion(entity.getHistoryVersion())
                 .createdAt(entity.getCreatedAt())
                 .createdBy(entity.getCreatedBy())
                 .build();

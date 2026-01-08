@@ -111,7 +111,7 @@ public class LegalEntityService {
                 .flatMap(existingEntity -> {
                     LegalEntity<EntityDetails> updatedEntity = legalEntityMapper.toEntity(legalEntityDto);
                     updatedEntity.setId(uuid);
-                    updatedEntity.setNew(false);
+                    updatedEntity.setNotNew();
 
                     return legalEntityRepository.save(updatedEntity);
                 })

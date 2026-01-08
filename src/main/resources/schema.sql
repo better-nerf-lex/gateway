@@ -87,12 +87,13 @@ CREATE TABLE IF NOT EXISTS documents
 
 CREATE TABLE IF NOT EXISTS document_history
 (
-    id          UUID PRIMARY KEY,
-    document_id UUID    NOT NULL,
-    content     TEXT,
-    created_at  TIMESTAMP,
-    created_by  BIGINT,
-    version     INTEGER NOT NULL,
+    id              UUID PRIMARY KEY,
+    document_id     UUID    NOT NULL,
+    content         TEXT,
+    created_at      TIMESTAMP,
+    created_by      BIGINT,
+    version         INTEGER NOT NULL,
+    history_version INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
 );
 
@@ -230,7 +231,7 @@ CREATE TABLE IF NOT EXISTS authorization_codes
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents (status);
 CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents (created_at);
 CREATE INDEX IF NOT EXISTS idx_document_history_document_id ON document_history (document_id);
-CREATE INDEX IF NOT EXISTS idx_document_history_version ON document_history (document_id, version);
+CREATE INDEX IF NOT EXISTS idx_document_history_version ON document_history (document_id, history_version);
 CREATE INDEX IF NOT EXISTS idx_activity_date ON activity (created_at);
 CREATE INDEX IF NOT EXISTS idx_documents_owner_id ON documents (owner_id);
 CREATE INDEX IF NOT EXISTS idx_documents_team_id ON documents (team_id);

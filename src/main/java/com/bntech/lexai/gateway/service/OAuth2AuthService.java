@@ -137,6 +137,7 @@ public class OAuth2AuthService {
                 .flatMap(authCode -> {
                     // Mark code as used
                     authCode.setUsed(true);
+                    authCode.setNotNew();
                     return authCodes.save(authCode)
                             .then(users.findById(authCode.getUserId()));
                 })
