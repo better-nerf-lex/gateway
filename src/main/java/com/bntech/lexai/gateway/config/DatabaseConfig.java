@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.r2dbc.spi.ConnectionFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.convert.CustomConversions;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
+@EnableR2dbcRepositories(basePackages = "com.bntech.lexai.gateway.data.repository")
 public class DatabaseConfig {
 
     @Bean

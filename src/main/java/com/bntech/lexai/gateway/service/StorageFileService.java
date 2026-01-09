@@ -82,9 +82,10 @@ public class StorageFileService {
 
     private String getS3Key(UUID teamId, UUID caseId, UUID documentGroupId, UUID fileId, String fileName) {
         String extension = getFileExtension(fileName);
+        String casePath = caseId != null ? "cases/" + caseId.toString() : "standalone";
         return String.format("%s/%s/%s/%s%s",
                 teamId.toString(),
-                caseId.toString(),
+                casePath,
                 documentGroupId.toString(),
                 fileId.toString(),
                 extension);
@@ -105,10 +106,6 @@ public class StorageFileService {
                                 if (group.getTeamId() == null) {
                                     return Mono.error(new IllegalStateException(
                                             "DocumentGroup must have teamId for file upload"));
-                                }
-                                if (group.getCaseId() == null) {
-                                    return Mono.error(new IllegalStateException(
-                                            "DocumentGroup must have caseId for file upload"));
                                 }
 
                                 String key = getS3Key(group.getTeamId(), group.getCaseId(), group.getId(), fileId,
@@ -276,9 +273,9 @@ public class StorageFileService {
                             String oldKey = getS3Key(file.getTeamId(), oldGroup.getCaseId(), oldGroup.getId(),
                                     file.getId(), file.getName());
 
-                            if (targetGroup.getTeamId() == null || targetGroup.getCaseId() == null) {
+                            if (targetGroup.getTeamId() == null) {
                                 return Mono.error(
-                                        new IllegalStateException("Target DocumentGroup missing teamId or caseId"));
+                                        new IllegalStateException("Target DocumentGroup missing teamId"));
                             }
 
                             String newPath = getS3Key(targetGroup.getTeamId(), targetGroup.getCaseId(),
@@ -300,5 +297,31 @@ public class StorageFileService {
                                     }))
                                     .map(documentFileMapper::toDto);
                         }));
+    }
+
+    public Mono<Void> moveGroupFiles(UUID groupId, UUID oldCaseId, UUID newCaseId) {
+        if ((oldCaseId == null && newCaseId == null) || (oldCaseId != null && oldCaseId.equals(newCaseId))) {
+            return Mono.empty();
+        }
+
+        return documentGroupRepository.findById(groupId)
+                .flatMap(group -> documentFileRepository.findByDocumentGroupIdOrderByCreatedAtDesc(groupId)
+                        .flatMap(file -> {
+                            String oldKey = getS3Key(group.getTeamId(), oldCaseId, groupId, file.getId(),
+                                    file.getName());
+                            String newKey = getS3Key(group.getTeamId(), newCaseId, groupId, file.getId(),
+                                    file.getName());
+
+                            log.info("Moving file {} for group update: {} -> {}", file.getId(), oldKey, newKey);
+
+                            return webClientBuilder.build().post()
+                                    .uri(fileServiceUrl + "/files/move")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .bodyValue(new FileServiceMoveRequest(oldKey, newKey))
+                                    .retrieve()
+                                    .toBodilessEntity()
+                                    .map(response -> file);
+                        })
+                        .then());
     }
 }

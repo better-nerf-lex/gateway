@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -62,5 +63,15 @@ public class DocumentGroupController {
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
         dto.setDocumentGroupId(id);
         return documentFileService.createDocumentFile(dto, principal.getUserId());
+    }
+
+    @PutMapping("/{id}/case/{caseId}")
+    public Mono<DocumentGroupDto> assignToCase(@PathVariable String id, @PathVariable String caseId) {
+        return documentGroupService.assignToCase(id, caseId);
+    }
+
+    @DeleteMapping("/{id}/case")
+    public Mono<DocumentGroupDto> removeFromCase(@PathVariable String id) {
+        return documentGroupService.removeFromCase(id);
     }
 }
