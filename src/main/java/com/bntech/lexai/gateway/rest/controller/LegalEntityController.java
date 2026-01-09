@@ -30,6 +30,7 @@ public class LegalEntityController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@access.legalEntityRead(authentication, #id)")
     public Mono<LegalEntityDto> getLegalEntity(@PathVariable String id) {
         return legalEntityService.getLegalEntity(id);
     }
@@ -40,11 +41,13 @@ public class LegalEntityController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("@access.legalEntityWrite(authentication, #id)")
     public Mono<LegalEntityDto> updateLegalEntity(@PathVariable String id, @RequestBody LegalEntityDto legalEntityDto) {
         return legalEntityService.updateLegalEntity(id, legalEntityDto);
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@access.legalEntityWrite(authentication, #id)")
     public Mono<Void> deleteLegalEntity(@PathVariable String id) {
         return legalEntityService.deleteLegalEntity(id);
     }

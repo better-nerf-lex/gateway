@@ -2,6 +2,8 @@ package com.bntech.lexai.gateway.rest.controller;
 
 import com.bntech.lexai.gateway.rest.dto.team.CreateTeamRequest;
 import com.bntech.lexai.gateway.rest.dto.team.TeamDto;
+import com.bntech.lexai.gateway.rest.dto.team.TeamMemberDto;
+import com.bntech.lexai.gateway.security.access.AccessLevel;
 import com.bntech.lexai.gateway.service.TeamService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import lombok.RequiredArgsConstructor;
@@ -35,14 +37,14 @@ public class TeamController {
 
     @GetMapping("/{id}/members")
     @PreAuthorize("@access.teamRead(authentication, #id)")
-    public Flux<com.bntech.lexai.gateway.rest.dto.team.TeamMemberDto> getTeamMembers(@PathVariable java.util.UUID id) {
+    public Flux<TeamMemberDto> getTeamMembers(@PathVariable java.util.UUID id) {
         return teamService.getTeamMembers(id);
     }
 
     @PutMapping("/{id}/members/{userId}")
     @PreAuthorize("@access.teamAdmin(authentication, #id)")
     public Mono<Void> updateMemberRole(@PathVariable java.util.UUID id, @PathVariable Long userId,
-            @RequestBody com.bntech.lexai.gateway.security.access.AccessLevel newLevel) {
+            @RequestBody AccessLevel newLevel) {
         return teamService.updateMemberRole(id, userId, newLevel);
     }
 

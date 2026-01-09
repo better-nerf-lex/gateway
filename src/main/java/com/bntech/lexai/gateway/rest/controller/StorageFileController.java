@@ -4,6 +4,7 @@ import com.bntech.lexai.gateway.security.UserPrincipal;
 import com.bntech.lexai.gateway.rest.dto.document.StorageFileDto;
 import com.bntech.lexai.gateway.service.StorageFileService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.multipart.FilePart;
@@ -33,6 +34,7 @@ public class StorageFileController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@access.storageFileRead(authentication, #id)")
     public Mono<StorageFileDto> getDocumentFile(@PathVariable String id) {
         return documentFileService.getDocumentFileById(id);
     }
@@ -53,21 +55,25 @@ public class StorageFileController {
     }
 
     @PatchMapping("/{id}")
+    @PreAuthorize("@access.storageFileWrite(authentication, #id)")
     public Mono<StorageFileDto> updateDocumentFile(@PathVariable String id, @RequestBody StorageFileDto dto) {
         return documentFileService.updateDocumentFile(id, dto);
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@access.storageFileWrite(authentication, #id)")
     public Mono<Void> deleteDocumentFile(@PathVariable String id) {
         return documentFileService.deleteDocumentFile(id);
     }
 
     @GetMapping("/{id}/view-url")
+    @PreAuthorize("@access.storageFileRead(authentication, #id)")
     public Mono<String> getViewUrl(@PathVariable String id) {
         return documentFileService.generateViewUrl(id);
     }
 
     @PostMapping("/{id}/move")
+    @PreAuthorize("@access.storageFileWrite(authentication, #id)")
     public Mono<StorageFileDto> moveFile(@PathVariable String id, @RequestParam String targetGroupId) {
         return documentFileService.moveFile(id, targetGroupId);
     }

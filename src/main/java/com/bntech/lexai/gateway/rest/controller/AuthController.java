@@ -78,7 +78,7 @@ public class AuthController {
             Authentication authentication) {
 
         return oAuth2AuthService.authorize(clientId, redirectUri, responseType, scope, state, authentication)
-                .map(authorizationCode -> ResponseEntity.ok(authorizationCode));
+                .map(ResponseEntity::ok);
     }
 
     @PostMapping("/token")

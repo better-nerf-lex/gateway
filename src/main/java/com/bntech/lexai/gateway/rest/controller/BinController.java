@@ -46,66 +46,79 @@ public class BinController {
     }
 
     @PostMapping("/cases/{id}/restore")
+    @PreAuthorize("@access.teamWrite(authentication, #teamId)")
     public Mono<CaseDto> restoreCase(@PathVariable String id) {
         return caseService.restoreCase(id);
     }
 
     @DeleteMapping("/cases/{id}")
+    @PreAuthorize("@access.teamAdmin(authentication, #teamId)")
     public Mono<Void> permanentlyDeleteCase(@PathVariable String id) {
         return caseService.permanentlyDeleteCase(id);
     }
 
     @GetMapping("/documents")
+    @PreAuthorize("@access.teamRead(authentication, #teamId)")
     public Flux<DocumentDto> getDeletedDocuments(@RequestParam(required = false) String teamId) {
         return documentService.getDeletedDocuments(teamId);
     }
 
     @PostMapping("/documents/{id}/restore")
+    @PreAuthorize("@access.teamWrite(authentication, #teamId)")
     public Mono<DocumentDto> restoreDocument(@PathVariable String id) {
         return documentService.restoreDocument(id);
     }
 
     @DeleteMapping("/documents/{id}")
+    @PreAuthorize("@access.teamAdmin(authentication, #teamId)")
     public Mono<Void> permanentlyDeleteDocument(@PathVariable String id) {
         return documentService.permanentlyDeleteDocument(id);
     }
 
     @GetMapping("/document-groups")
+    @PreAuthorize("@access.teamRead(authentication, #teamId)")
     public Flux<DocumentGroupDto> getDeletedDocumentGroups(@RequestParam(required = false) String teamId) {
         return documentGroupService.getDeletedDocumentGroups(teamId);
     }
 
     @PostMapping("/document-groups/{id}/restore")
+    @PreAuthorize("@access.teamWrite(authentication, #teamId)")
     public Mono<DocumentGroupDto> restoreDocumentGroup(@PathVariable String id) {
         return documentGroupService.restoreDocumentGroup(id);
     }
 
     @DeleteMapping("/document-groups/{id}")
+    @PreAuthorize("@access.teamAdmin(authentication, #teamId)")
     public Mono<Void> permanentlyDeleteDocumentGroup(@PathVariable String id) {
         return documentGroupService.permanentlyDeleteDocumentGroup(id);
     }
 
     @GetMapping("/storage-files")
+    @PreAuthorize("@access.teamRead(authentication, #teamId)")
     public Flux<StorageFileDto> getDeletedStorageFiles(@RequestParam(required = false) String teamId) {
         return storageFileService.getDeletedDocumentFiles(teamId);
     }
 
     @PostMapping("/storage-files/{id}/restore")
+    @PreAuthorize("@access.teamWrite(authentication, #teamId)")
     public Mono<StorageFileDto> restoreStorageFile(@PathVariable String id) {
         return storageFileService.restoreDocumentFile(id);
     }
 
     @DeleteMapping("/storage-files/{id}")
+    @PreAuthorize("@access.teamAdmin(authentication, #teamId)")
     public Mono<Void> permanentlyDeleteStorageFile(@PathVariable String id) {
         return storageFileService.permanentlyDeleteDocumentFile(id);
     }
 
     @GetMapping("/legal-entities")
+    @PreAuthorize("@access.teamRead(authentication, #teamId)")
     public Flux<LegalEntityDto> getDeletedLegalEntities(@RequestParam(required = false) String teamId) {
         return legalEntityService.getDeletedLegalEntities(teamId);
     }
 
     @PostMapping("/legal-entities/{id}/restore")
+    @PreAuthorize("@access.teamWrite(authentication, #teamId)")
     public Mono<LegalEntityDto> restoreLegalEntity(@PathVariable String id) {
         return legalEntityService.restoreLegalEntity(id);
     }
@@ -141,6 +154,7 @@ public class BinController {
     }
 
     @DeleteMapping("/teams/{id}")
+    @PreAuthorize("@access.teamAdmin(authentication, #teamId)")
     public Mono<Void> permanentlyDeleteTeam(@PathVariable String id) {
         return teamService.permanentlyDeleteTeam(id);
     }

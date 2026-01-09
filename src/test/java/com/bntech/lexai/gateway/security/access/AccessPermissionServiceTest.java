@@ -1,6 +1,14 @@
 package com.bntech.lexai.gateway.security.access;
 
+import com.bntech.lexai.gateway.data.entity.document.LegalCase;
+import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.entity.security.User;
+import com.bntech.lexai.gateway.data.repository.CaseRepository;
+import com.bntech.lexai.gateway.data.repository.DocumentGroupRepository;
+import com.bntech.lexai.gateway.data.repository.DocumentRepository;
+import com.bntech.lexai.gateway.data.repository.EventRepository;
+import com.bntech.lexai.gateway.data.repository.LegalEntityRepository;
+import com.bntech.lexai.gateway.data.repository.StorageFileRepository;
 import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +34,18 @@ class AccessPermissionServiceTest {
     @Mock
     private TeamMemberRepository teamMemberRepository;
     @Mock
+    private CaseRepository caseRepository;
+    @Mock
+    private DocumentRepository documentRepository;
+    @Mock
+    private DocumentGroupRepository documentGroupRepository;
+    @Mock
+    private EventRepository eventRepository;
+    @Mock
+    private LegalEntityRepository legalEntityRepository;
+    @Mock
+    private StorageFileRepository storageFileRepository;
+    @Mock
     private Authentication authentication;
 
     private AccessPermissionService accessPermissionService;
@@ -34,7 +54,13 @@ class AccessPermissionServiceTest {
     void setUp() {
         accessPermissionService = new AccessPermissionService(
                 userRepository,
-                teamMemberRepository
+                teamMemberRepository,
+                caseRepository,
+                documentRepository,
+                documentGroupRepository,
+                eventRepository,
+                legalEntityRepository,
+                storageFileRepository
         );
     }
 
@@ -66,6 +92,72 @@ class AccessPermissionServiceTest {
         when(teamMemberRepository.findByUserIdAndTeamId(userId, teamId)).thenReturn(Mono.empty());
 
         StepVerifier.create(accessPermissionService.teamRead(authentication, teamId.toString()))
+                .expectNext(false)
+                .verifyComplete();
+    }
+
+    @Test
+    void caseRead_ShouldReturnTrue_WhenUserHasTeamAccess() {
+        String username = "testuser";
+        Long userId = 1L;
+        UUID caseId = UUID.randomUUID();
+        UUID teamId = UUID.randomUUID();
+
+        LegalCase legalCase = LegalCase.builder().id(caseId).teamId(teamId).build();
+        User user = User.builder().id(userId).username(username).build();
+        TeamMember teamMember = TeamMember.builder()
+                .userId(userId)
+                .teamId(teamId)
+                .accessLevel(AccessLevel.READ)
+                .build();
+
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getName()).thenReturn(username);
+        when(authentication.getAuthorities()).thenReturn(Collections.emptyList());
+        when(caseRepository.findById(caseId)).thenReturn(Mono.just(legalCase));
+        when(userRepository.findByUsername(username)).thenReturn(Mono.just(user));
+        when(teamMemberRepository.findByUserIdAndTeamId(userId, teamId)).thenReturn(Mono.just(teamMember));
+
+        StepVerifier.create(accessPermissionService.caseRead(authentication, caseId.toString()))
+                .expectNext(true)
+                .verifyComplete();
+    }
+
+    @Test
+    void caseRead_ShouldReturnFalse_WhenCaseNotFound() {
+        UUID caseId = UUID.randomUUID();
+
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(caseRepository.findById(caseId)).thenReturn(Mono.empty());
+
+        StepVerifier.create(accessPermissionService.caseRead(authentication, caseId.toString()))
+                .expectNext(false)
+                .verifyComplete();
+    }
+
+    @Test
+    void caseWrite_ShouldReturnFalse_WhenUserHasOnlyReadAccess() {
+        String username = "testuser";
+        Long userId = 1L;
+        UUID caseId = UUID.randomUUID();
+        UUID teamId = UUID.randomUUID();
+
+        LegalCase legalCase = LegalCase.builder().id(caseId).teamId(teamId).build();
+        User user = User.builder().id(userId).username(username).build();
+        TeamMember teamMember = TeamMember.builder()
+                .userId(userId)
+                .teamId(teamId)
+                .accessLevel(AccessLevel.READ)
+                .build();
+
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getName()).thenReturn(username);
+        when(authentication.getAuthorities()).thenReturn(Collections.emptyList());
+        when(caseRepository.findById(caseId)).thenReturn(Mono.just(legalCase));
+        when(userRepository.findByUsername(username)).thenReturn(Mono.just(user));
+        when(teamMemberRepository.findByUserIdAndTeamId(userId, teamId)).thenReturn(Mono.just(teamMember));
+
+        StepVerifier.create(accessPermissionService.caseWrite(authentication, caseId.toString()))
                 .expectNext(false)
                 .verifyComplete();
     }

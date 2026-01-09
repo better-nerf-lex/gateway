@@ -18,7 +18,7 @@ public class ActivityController {
     private final ActivityService activityService;
 
     @GetMapping
-    @PreAuthorize("@access.teamRead(authentication, #teamId)")
+    @PreAuthorize("@access.teamAdmin(authentication, #teamId)")
     public Flux<ActivityDto> getActivities(@RequestParam String teamId) {
         return activityService.getActivities(teamId);
     }
