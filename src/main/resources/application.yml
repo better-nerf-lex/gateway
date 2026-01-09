@@ -19,9 +19,11 @@ spring:
       api-key: dummy-key
       chat:
         options:
-          model: claude-opus-4-5-20251101
+#          model: claude-opus-4-5-20251101
+          model: claude-sonnet-4-5-20250929
           chat-model: claude-sonnet-4-5-20250929
-          temperature: 0.2
+          reasoning-temperature: 0.2
+          creativity-temperature: 0.4
           max-tokens: 4096
       version: 2023-06-01
 

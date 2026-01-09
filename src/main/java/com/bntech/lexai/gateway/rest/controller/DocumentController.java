@@ -32,13 +32,12 @@ public class DocumentController {
     private final DocumentService documentService;
 
     @GetMapping()
-    @PreAuthorize("@access.canListDocuments(authentication, #teamId)")
+    @PreAuthorize("@access.teamRead(authentication, #teamId)")
     public Flux<DocumentDto> getDocuments(@RequestParam(required = false) String teamId) {
         return documentService.getDocuments(teamId);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@access.canViewDocument(authentication, #id)")
     public Mono<DocumentDto> getDocument(@PathVariable String id) {
         return documentService.getDocument(id);
     }
@@ -59,13 +58,11 @@ public class DocumentController {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("@access.canUpdateDocument(authentication, #id)")
     public Mono<DocumentDto> updateDocument(@PathVariable String id, @RequestBody UpdateDocumentRequest request) {
         return documentService.updateDocument(id, request);
     }
 
     @PostMapping("/{id}/chat")
-    @PreAuthorize("@access.canUpdateDocument(authentication, #id)")
     public Mono<DocumentChatResponse> chatWithDocument(@PathVariable String id,
             @RequestBody DocumentChatRequest request) {
         request.setDocumentId(id);
@@ -73,19 +70,16 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}/history")
-    @PreAuthorize("@access.canViewDocument(authentication, #id)")
     public Flux<DocumentHistoryDto> getDocumentHistory(@PathVariable String id) {
         return documentService.getDocumentHistory(id);
     }
 
     @PostMapping("/{id}/restore/{versionId}")
-    @PreAuthorize("@access.canUpdateDocument(authentication, #id)")
     public Mono<DocumentDto> restoreDocumentVersion(@PathVariable String id, @PathVariable String versionId) {
         return documentService.restoreDocumentVersion(id, versionId);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("@access.canDeleteDocument(authentication, #id)")
     public Mono<Void> deleteDocument(@PathVariable String id) {
         return documentService.deleteDocument(id);
     }

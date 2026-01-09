@@ -34,20 +34,20 @@ public class TeamController {
     }
 
     @GetMapping("/{id}/members")
-    @PreAuthorize("@access.hasTeamAccess(authentication, #id, 'READ')")
+    @PreAuthorize("@access.teamRead(authentication, #id)")
     public Flux<com.bntech.lexai.gateway.rest.dto.team.TeamMemberDto> getTeamMembers(@PathVariable java.util.UUID id) {
         return teamService.getTeamMembers(id);
     }
 
     @PutMapping("/{id}/members/{userId}")
-    @PreAuthorize("@access.hasTeamAccess(authentication, #id, 'ADMIN')")
+    @PreAuthorize("@access.teamAdmin(authentication, #id)")
     public Mono<Void> updateMemberRole(@PathVariable java.util.UUID id, @PathVariable Long userId,
             @RequestBody com.bntech.lexai.gateway.security.access.AccessLevel newLevel) {
         return teamService.updateMemberRole(id, userId, newLevel);
     }
 
     @DeleteMapping("/{id}/members/{userId}")
-    @PreAuthorize("@access.hasTeamAccess(authentication, #id, 'ADMIN')")
+    @PreAuthorize("@access.teamAdmin(authentication, #id)")
     public Mono<Void> removeMember(@PathVariable java.util.UUID id, @PathVariable Long userId) {
         return teamService.removeMember(id, userId);
     }

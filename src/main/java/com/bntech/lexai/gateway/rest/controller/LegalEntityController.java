@@ -24,13 +24,12 @@ public class LegalEntityController {
     private final LegalEntityService legalEntityService;
 
     @GetMapping
-    @PreAuthorize("@access.canListLegalEntities(authentication, #teamId)")
+    @PreAuthorize("@access.teamRead(authentication, #teamId)")
     public Flux<LegalEntityDto> getAllLegalEntities(@RequestParam(required = false) String teamId) {
         return legalEntityService.getAllLegalEntities(teamId);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@access.canViewLegalEntity(authentication, #id)")
     public Mono<LegalEntityDto> getLegalEntity(@PathVariable String id) {
         return legalEntityService.getLegalEntity(id);
     }
@@ -41,13 +40,11 @@ public class LegalEntityController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("@access.canUpdateLegalEntity(authentication, #id)")
     public Mono<LegalEntityDto> updateLegalEntity(@PathVariable String id, @RequestBody LegalEntityDto legalEntityDto) {
         return legalEntityService.updateLegalEntity(id, legalEntityDto);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("@access.canDeleteLegalEntity(authentication, #id)")
     public Mono<Void> deleteLegalEntity(@PathVariable String id) {
         return legalEntityService.deleteLegalEntity(id);
     }

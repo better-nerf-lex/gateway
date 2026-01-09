@@ -25,19 +25,16 @@ public class EventController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("@access.isOwnerOrAdminOfEvent(authentication, #id)")
     public Mono<Void> deleteEvent(@PathVariable String id) {
         return eventService.deleteEvent(id);
     }
 
     @PostMapping("/{id}/participants/{legalEntityId}")
-    @PreAuthorize("@access.isOwnerOrAdminOfEvent(authentication, #id)")
     public Mono<Void> addParticipant(@PathVariable String id, @PathVariable String legalEntityId) {
         return eventService.addParticipant(id, legalEntityId);
     }
 
     @DeleteMapping("/{id}/participants/{legalEntityId}")
-    @PreAuthorize("@access.isOwnerOrAdminOfEvent(authentication, #id)")
     public Mono<Void> removeParticipant(@PathVariable String id, @PathVariable String legalEntityId) {
         return eventService.removeParticipant(id, legalEntityId);
     }

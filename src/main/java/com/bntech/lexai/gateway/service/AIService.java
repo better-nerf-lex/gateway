@@ -29,6 +29,7 @@ import jakarta.annotation.PostConstruct;
 import com.bntech.lexai.gateway.util.RetryUtils;
 
 import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -45,6 +46,12 @@ public class AIService {
 
     @Value("${spring.ai.anthropic.chat.options.chat-model}")
     private String chatModel;
+
+    @Value("${spring.ai.anthropic.chat.options.creativity-temperature}")
+    private double creativityTemperature;
+
+    @Value("${spring.ai.anthropic.chat.options.reasoning-temperature}")
+    private double reasoningTemperature;
 
     private AnthropicClient client;
     private final ObjectMapper objectMapper;
@@ -68,7 +75,7 @@ public class AIService {
     public Mono<SubmitPromptResponse> analyzePrompt(String prompt, List<String> fileIds) {
         log.info("Analyzing prompt: {} with {} files", prompt, fileIds != null ? fileIds.size() : 0);
 
-        return fetchContextFilesWithMetadata(fileIds)
+        return fetchContextFiles(fileIds)
                 .flatMap(files -> {
                     StringBuilder promptBuilder = new StringBuilder(prompt);
                     if (!files.isEmpty()) {
@@ -91,7 +98,7 @@ public class AIService {
                     .system(Prompts.EN_EXTRACT_LEGAL_BASIS)
                     .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
                     .model(genModel)
-                    .temperature(0.2)
+                    .temperature(reasoningTemperature)
                     .build();
 
             log.debug("Sending legal basis extraction request to Anthropic API");
@@ -138,7 +145,7 @@ public class AIService {
                     .system(systemPrompt)
                     .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
                     .model(genModel)
-                    .temperature(0.3)
+                    .temperature(creativityTemperature)
                     .build();
 
             log.debug("Sending prompt analysis request to Anthropic API");
@@ -176,7 +183,7 @@ public class AIService {
                     .system(Prompts.EN_CHAT_WITH_DOCUMENT)
                     .addUserMessage(inputJson)
                     .model(chatModel)
-                    .temperature(0.2)
+                    .temperature(creativityTemperature)
                     .build();
 
             log.debug("Sending chat request to Anthropic API for document: {}", request.getDocumentId());
@@ -198,118 +205,116 @@ public class AIService {
     }
 
     public Mono<String> generateDocumentWithAnswers(GenerateDocumentRequest request) {
-        int templateCount = request.getTemplateFiles() != null ? request.getTemplateFiles().size() : 0;
-        int contextCount = request.getContextFileIds() != null ? request.getContextFileIds().size() : 0;
-        log.info("Template files: {}", templateCount);
-        log.info("Context file IDs: {}", contextCount);
-        return generateDocumentWithAnswers(
-                request.getTitle(),
-                request.getPrompt(),
-                request.getAnswers(),
-                request.getRequirements(),
-                request.getBase(),
-                request.getTemplateFiles(),
-                request.getContextFileIds());
-    }
+        List<TemplateFile> templateFiles = request.getTemplateFiles();
+        List<String> contextFileIds = request.getContextFileIds();
 
-    public Mono<String> generateDocumentWithAnswers(String title, String originalPrompt,
-            Map<String, String> answers, List<String> requirements, List<String> base) {
-        return generateDocumentWithAnswers(title, originalPrompt, answers, requirements, base, null, null);
-    }
+        int templateCount = templateFiles != null ? templateFiles.size() : 0;
+        int contextCount = contextFileIds != null ? contextFileIds.size() : 0;
 
-    public Mono<String> generateDocumentWithAnswers(String title, String originalPrompt,
-            Map<String, String> answers, List<String> requirements,
-            List<String> base, List<TemplateFile> templateFiles, List<String> contextFileIds) {
-        log.info("Generating document for: {} with {} template files and {} context files", title,
-                templateFiles != null ? templateFiles.size() : 0,
-                contextFileIds != null ? contextFileIds.size() : 0);
+        log.info("Generating document: {} with {} template files, {} context files",
+                request.getTitle(), templateCount, contextCount);
 
-        Mono<String> legalContextMono = fetchEliDocumentsContext(base);
-        Mono<List<TemplateFileContent>> templateContentsMono = fetchTemplateFilesWithMetadata(templateFiles);
-        Mono<List<TemplateFileContent>> contextFilesMono = fetchContextFilesWithMetadata(contextFileIds);
+        Mono<String> legalContextMono = fetchEliDocumentsContext(request.getBase());
+        Mono<List<FileContent>> templateContentsMono = fetchTemplateFiles(templateFiles);
+        Mono<List<FileContent>> contextFilesMono = fetchContextFiles(contextFileIds);
 
         return Mono.zip(legalContextMono, templateContentsMono, contextFilesMono)
                 .flatMap(tuple -> {
                     String legalContext = tuple.getT1();
-                    List<TemplateFileContent> templateContents = tuple.getT2();
-                    List<TemplateFileContent> contextFiles = tuple.getT3();
-
-                    String jsonData = buildJsonForGeneration(title, originalPrompt, answers, requirements, base);
+                    List<FileContent> templates = tuple.getT2();
+                    List<FileContent> contextFiles = tuple.getT3();
 
                     return Mono.fromCallable(() -> {
-                        if (!templateContents.isEmpty()) {
-                            List<String> fileNames = templateContents.stream()
-                                    .map(TemplateFileContent::name)
-                                    .toList();
-                            log.info("Attaching {} template files to prompt: {}", templateContents.size(), fileNames);
-                        }
-
-                        StringBuilder userMessage = new StringBuilder();
-                        userMessage.append(jsonData);
-
-                        if (!legalContext.isBlank()) {
-                            userMessage.append("\n\n").append(legalContext);
-                        }
-
-                        if (!contextFiles.isEmpty()) {
-                            userMessage.append("\n\n--- ATTACHED CONTEXT FILES ---\n");
-                            userMessage.append(
-                                    "The following files are attached by the user as context for the document generation:\n");
-                            for (int i = 0; i < contextFiles.size(); i++) {
-                                TemplateFileContent tfc = contextFiles.get(i);
-                                userMessage.append(String.format("File %d: %s\n", i + 1, tfc.name()));
-                            }
-                        }
-
-                        if (!templateContents.isEmpty()) {
-                            userMessage.append("\n\n--- TEMPLATE DOCUMENTS ---\n");
-                            userMessage.append(
-                                    "The following template documents are provided as visual and structural references. ");
-                            userMessage.append(
-                                    "Use them to understand the expected document layout, formatting style, and section organization. ");
-                            userMessage.append(
-                                    "Match the visual structure while filling in the actual data from the questions above.\n\n");
-
-                            for (int i = 0; i < templateContents.size(); i++) {
-                                TemplateFileContent tfc = templateContents.get(i);
-                                userMessage.append(
-                                        String.format("Template %d: %s (S3: %s)\n", i + 1, tfc.name(), tfc.s3Key()));
-                            }
-
-                            log.info("Including {} template files as context references", templateContents.size());
-                        }
-
-                        MessageCreateParams params = MessageCreateParams.builder()
-                                .maxTokens(8192L)
-                                .system(Prompts.EN_GENERATE_DOCUMENT)
-                                .addUserMessage(userMessage.toString())
-                                .model(genModel)
-                                .temperature(0.2)
-                                .build();
-
-                        log.debug("Sending document generation request to Anthropic API for: {}", title);
-                        Message message = client.messages().create(params);
-                        log.debug("Received document generation response from Anthropic API for: {}", title);
-
-                        String rawContent = message.content().getFirst()
-                                .text()
-                                .map(TextBlock::text)
-                                .orElseThrow(() -> new IllegalStateException("No text content found in message"));
-                        return stripMarkdownCodeBlocks(rawContent);
+                        String userMessage = buildUserMessage(request, legalContext, templates, contextFiles);
+                        return generateViaAnthropic(request.getTitle(), userMessage);
                     }).subscribeOn(Schedulers.boundedElastic());
                 })
                 .timeout(Duration.ofMinutes(5))
-                .retryWhen(buildRetrySpec(title))
-                .doOnSuccess(result -> log.info("✅ Document generated for: {}", title))
-                .doOnError(error -> log.error("❌ Error generating document for: {}", title, error));
+                .retryWhen(buildRetrySpec(request.getTitle()))
+                .doOnSuccess(result -> log.info("✅ Document generated for: {}", request.getTitle()))
+                .doOnError(error -> log.error("❌ Error generating document for: {}", request.getTitle(), error));
     }
 
-    private record TemplateFileContent(String name, String s3Key, byte[] content) {
+    private String buildUserMessage(GenerateDocumentRequest request, String legalContext,
+            List<FileContent> templates, List<FileContent> contextFiles) {
+        StringBuilder message = new StringBuilder();
+
+        String jsonData = buildJsonForGeneration(request);
+        message.append(jsonData);
+
+        if (legalContext != null && !legalContext.isBlank()) {
+            message.append("\n\n").append(legalContext);
+        }
+
+        appendContextFiles(message, contextFiles);
+        appendTemplateFiles(message, templates);
+
+        return message.toString();
     }
 
-    private Mono<List<TemplateFileContent>> fetchTemplateFilesWithMetadata(List<TemplateFile> templateFiles) {
+    private void appendContextFiles(StringBuilder message, List<FileContent> contextFiles) {
+        if (contextFiles == null || contextFiles.isEmpty()) {
+            return;
+        }
+
+        log.info("Attaching {} context files to prompt", contextFiles.size());
+        message.append("\n\n--- ATTACHED CONTEXT FILES ---\n");
+        message.append("The following files are attached by the user as additional context for document generation.\n");
+        message.append("Use the information from these files to inform the content of the generated document.\n\n");
+
+        for (int i = 0; i < contextFiles.size(); i++) {
+            FileContent file = contextFiles.get(i);
+            message.append(String.format("=== Context File %d: %s ===\n", i + 1, file.name()));
+            message.append(String.format("Content (Base64 encoded): %s\n\n", file.base64Content()));
+        }
+    }
+
+    private void appendTemplateFiles(StringBuilder message, List<FileContent> templates) {
+        if (templates == null || templates.isEmpty()) {
+            return;
+        }
+
+        List<String> fileNames = templates.stream().map(FileContent::name).toList();
+        log.info("Attaching {} template files to prompt: {}", templates.size(), fileNames);
+
+        message.append("\n\n--- TEMPLATE DOCUMENTS ---\n");
+        message.append("The following template documents are provided as visual and structural references.\n");
+        message.append("Use them to understand the expected document layout, formatting style, and section organization.\n");
+        message.append("Match the visual structure while filling in the actual data from the questions above.\n\n");
+
+        for (int i = 0; i < templates.size(); i++) {
+            FileContent template = templates.get(i);
+            message.append(String.format("=== Template %d: %s ===\n", i + 1, template.name()));
+            message.append(String.format("Content (Base64 encoded): %s\n\n", template.base64Content()));
+        }
+    }
+
+    private String generateViaAnthropic(String title, String userMessage) {
+        MessageCreateParams params = MessageCreateParams.builder()
+                .maxTokens(8192L)
+                .system(Prompts.EN_GENERATE_DOCUMENT)
+                .addUserMessage(userMessage)
+                .model(genModel)
+                .temperature(reasoningTemperature)
+                .build();
+
+        log.debug("Sending document generation request to Anthropic API for: {}", title);
+        Message response = client.messages().create(params);
+        log.debug("Received document generation response from Anthropic API for: {}", title);
+
+        String rawContent = response.content().getFirst()
+                .text()
+                .map(TextBlock::text)
+                .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+
+        return stripMarkdownCodeBlocks(rawContent);
+    }
+
+    private record FileContent(String name, String base64Content) {
+    }
+
+    private Mono<List<FileContent>> fetchTemplateFiles(List<TemplateFile> templateFiles) {
         if (templateFiles == null || templateFiles.isEmpty()) {
-            // no template?
             return Mono.just(List.of());
         }
 
@@ -319,10 +324,9 @@ public class AIService {
                 .flatMap(templateFile -> {
                     log.debug("Fetching template file: {} ({})", templateFile.getName(), templateFile.getS3Key());
                     return storageFileService.getFileContentByKey(templateFile.getS3Key())
-                            .map(content -> new TemplateFileContent(
+                            .map(content -> new FileContent(
                                     templateFile.getName(),
-                                    templateFile.getS3Key(),
-                                    content))
+                                    Base64.getEncoder().encodeToString(content)))
                             .onErrorResume(e -> {
                                 log.warn("Failed to fetch template file {}: {}", templateFile.getS3Key(),
                                         e.getMessage());
@@ -337,25 +341,25 @@ public class AIService {
                 });
     }
 
-    private Mono<List<TemplateFileContent>> fetchContextFilesWithMetadata(List<String> fileIds) {
+    private Mono<List<FileContent>> fetchContextFiles(List<String> fileIds) {
         if (fileIds == null || fileIds.isEmpty()) {
             return Mono.just(List.of());
         }
 
-        log.info("Fetching {} context files", fileIds.size());
+        log.info("Fetching {} context files from storage", fileIds.size());
 
         return Flux.fromIterable(fileIds)
                 .flatMap(id -> storageFileService.getDocumentFileById(id)
                         .flatMap(dto -> storageFileService.getFileContent(id)
-                                .map(content -> new TemplateFileContent(
+                                .map(content -> new FileContent(
                                         dto.getName(),
-                                        "storage/" + dto.getId(),
-                                        content)))
+                                        Base64.getEncoder().encodeToString(content))))
                         .onErrorResume(e -> {
                             log.warn("Failed to fetch context file {}: {}", id, e.getMessage());
                             return Mono.empty();
                         }))
-                .collectList();
+                .collectList()
+                .doOnSuccess(contents -> log.info("✅ Fetched {} context files successfully", contents.size()));
     }
 
     private Mono<String> fetchEliDocumentsContext(List<String> base) {
@@ -378,14 +382,13 @@ public class AIService {
                 });
     }
 
-    private String buildJsonForGeneration(String title, String originalPrompt,
-            Map<String, String> answers, List<String> requirements, List<String> base) {
+    private String buildJsonForGeneration(GenerateDocumentRequest request) {
         try {
             Map<String, Object> jsonData = Map.of(
-                    "name", title,
-                    "questions", answers != null ? answers : Map.of(),
-                    "requirements", requirements != null ? requirements : List.of(),
-                    "base", base != null ? base : List.of());
+                    "name", request.getTitle() != null ? request.getTitle() : "",
+                    "questions", request.getAnswers() != null ? request.getAnswers() : Map.of(),
+                    "requirements", request.getRequirements() != null ? request.getRequirements() : List.of(),
+                    "base", request.getBase() != null ? request.getBase() : List.of());
 
             return objectMapper.writeValueAsString(jsonData);
         } catch (Exception e) {

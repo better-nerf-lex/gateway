@@ -30,13 +30,12 @@ public class CaseController {
     private final EventService eventService;
 
     @GetMapping()
-    @PreAuthorize("@access.canListCases(authentication, #teamId)")
+    @PreAuthorize("@access.teamRead(authentication, #teamId)")
     public Flux<CaseDto> getCases(@RequestParam(required = false) String teamId) {
         return caseService.getCases(teamId);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@access.canViewCase(authentication, #id)")
     public Mono<CaseDto> getCase(@PathVariable String id) {
         return caseService.getCase(id);
     }
@@ -47,50 +46,42 @@ public class CaseController {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("@access.canUpdateCase(authentication, #id)")
     public Mono<CaseDto> updateCase(@PathVariable String id, @RequestBody CaseDto caseDto) {
         return caseService.updateCase(id, caseDto);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("@access.canDeleteCase(authentication, #id)")
     public Mono<Void> deleteCase(@PathVariable String id) {
         return caseService.deleteCase(id);
     }
 
     @GetMapping("/{id}/documents")
-    @PreAuthorize("@access.canViewCase(authentication, #id)")
     public Flux<DocumentDto> getCaseDocuments(@PathVariable String id) {
         return caseService.getCaseDocuments(id);
     }
 
     @PostMapping("/{id}/documents/{documentId}")
-    @PreAuthorize("@access.canUpdateCase(authentication, #id)")
     public Mono<Void> assignDocument(@PathVariable String id, @PathVariable String documentId) {
         return caseService.assignDocument(id, documentId);
     }
 
     @DeleteMapping("/{id}/documents/{documentId}")
-    @PreAuthorize("@access.canUpdateCase(authentication, #id)")
     public Mono<Void> removeDocument(@PathVariable String id, @PathVariable String documentId) {
         return caseService.removeDocument(id, documentId);
     }
 
     @PostMapping("/{id}/parties")
-    @PreAuthorize("@access.canUpdateCase(authentication, #id)")
     public Mono<Void> addParties(@PathVariable String id, @RequestBody AddPartiesRequest request) {
         return caseService.addParties(id, request.getParties());
     }
 
     @DeleteMapping("/{id}/parties/{legalEntityId}")
-    @PreAuthorize("@access.canUpdateCase(authentication, #id)")
     public Mono<Void> removeParty(@PathVariable String id, @PathVariable String legalEntityId,
             @RequestParam CasePartyRole role) {
         return caseService.removeParty(id, legalEntityId, role);
     }
 
     @GetMapping("/{id}/events")
-    @PreAuthorize("@access.canViewCase(authentication, #id)")
     public Flux<EventDto> getCaseEvents(@PathVariable String id) {
         return eventService.getCaseEvents(id);
     }
