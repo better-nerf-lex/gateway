@@ -241,6 +241,19 @@ public class StorageFileService {
                 .doOnError(error -> log.error("❌ Error generating view URL for file {}: {}", id, error.getMessage()));
     }
 
+    public Mono<byte[]> getFileContent(String id) {
+        return documentFileRepository.findById(UUID.fromString(id))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("StorageFile", id)))
+                .flatMap(file -> documentGroupRepository.findById(file.getDocumentGroupId())
+                        .flatMap(group -> {
+                            String key = getS3Key(file.getTeamId(), group.getCaseId(), group.getId(), file.getId(),
+                                    file.getName());
+                            log.info("Fetching content for file: {}, key: {}", id, key);
+                            return getFileContentByKey(key);
+                        }))
+                .doOnError(error -> log.error("❌ Error fetching content for file {}: {}", id, error.getMessage()));
+    }
+
     public Mono<byte[]> getFileContentByKey(String s3Key) {
         log.info("Fetching file content for key: {}", s3Key);
         return webClientBuilder.build().get()

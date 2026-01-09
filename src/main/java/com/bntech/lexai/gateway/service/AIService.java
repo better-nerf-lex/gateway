@@ -29,7 +29,6 @@ import jakarta.annotation.PostConstruct;
 import com.bntech.lexai.gateway.util.RetryUtils;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -63,11 +62,25 @@ public class AIService {
     }
 
     public Mono<SubmitPromptResponse> analyzePrompt(String prompt) {
-        log.info("Analyzing prompt: {}", prompt);
+        return analyzePrompt(prompt, null);
+    }
 
-        return extractLegalBasis(prompt)
-                .flatMap(legalBasisResponse -> verifyLegalBasis(legalBasisResponse.getBase())
-                        .flatMap(verifiedBasis -> generateQuestionsWithBasis(prompt, verifiedBasis)));
+    public Mono<SubmitPromptResponse> analyzePrompt(String prompt, List<String> fileIds) {
+        log.info("Analyzing prompt: {} with {} files", prompt, fileIds != null ? fileIds.size() : 0);
+
+        return fetchContextFilesWithMetadata(fileIds)
+                .flatMap(files -> {
+                    StringBuilder promptBuilder = new StringBuilder(prompt);
+                    if (!files.isEmpty()) {
+                        promptBuilder.append("\n\nAttached Files:\n");
+                        files.forEach(f -> promptBuilder.append("- ").append(f.name()).append("\n"));
+                    }
+                    String finalPrompt = promptBuilder.toString();
+
+                    return extractLegalBasis(finalPrompt)
+                            .flatMap(legalBasisResponse -> verifyLegalBasis(legalBasisResponse.getBase())
+                                    .flatMap(verifiedBasis -> generateQuestionsWithBasis(finalPrompt, verifiedBasis)));
+                });
     }
 
     public Mono<LegalBasisResponse> extractLegalBasis(String prompt) {
@@ -213,11 +226,13 @@ public class AIService {
 
         Mono<String> legalContextMono = fetchEliDocumentsContext(base);
         Mono<List<TemplateFileContent>> templateContentsMono = fetchTemplateFilesWithMetadata(templateFiles);
+        Mono<List<TemplateFileContent>> contextFilesMono = fetchContextFilesWithMetadata(contextFileIds);
 
-        return Mono.zip(legalContextMono, templateContentsMono)
+        return Mono.zip(legalContextMono, templateContentsMono, contextFilesMono)
                 .flatMap(tuple -> {
                     String legalContext = tuple.getT1();
                     List<TemplateFileContent> templateContents = tuple.getT2();
+                    List<TemplateFileContent> contextFiles = tuple.getT3();
 
                     String jsonData = buildJsonForGeneration(title, originalPrompt, answers, requirements, base);
 
@@ -234,6 +249,16 @@ public class AIService {
 
                         if (!legalContext.isBlank()) {
                             userMessage.append("\n\n").append(legalContext);
+                        }
+
+                        if (!contextFiles.isEmpty()) {
+                            userMessage.append("\n\n--- ATTACHED CONTEXT FILES ---\n");
+                            userMessage.append(
+                                    "The following files are attached by the user as context for the document generation:\n");
+                            for (int i = 0; i < contextFiles.size(); i++) {
+                                TemplateFileContent tfc = contextFiles.get(i);
+                                userMessage.append(String.format("File %d: %s\n", i + 1, tfc.name()));
+                            }
                         }
 
                         if (!templateContents.isEmpty()) {
@@ -310,6 +335,27 @@ public class AIService {
                     log.warn("Failed to fetch template files, proceeding without templates: {}", e.getMessage());
                     return Mono.just(List.of());
                 });
+    }
+
+    private Mono<List<TemplateFileContent>> fetchContextFilesWithMetadata(List<String> fileIds) {
+        if (fileIds == null || fileIds.isEmpty()) {
+            return Mono.just(List.of());
+        }
+
+        log.info("Fetching {} context files", fileIds.size());
+
+        return Flux.fromIterable(fileIds)
+                .flatMap(id -> storageFileService.getDocumentFileById(id)
+                        .flatMap(dto -> storageFileService.getFileContent(id)
+                                .map(content -> new TemplateFileContent(
+                                        dto.getName(),
+                                        "storage/" + dto.getId(),
+                                        content)))
+                        .onErrorResume(e -> {
+                            log.warn("Failed to fetch context file {}: {}", id, e.getMessage());
+                            return Mono.empty();
+                        }))
+                .collectList();
     }
 
     private Mono<String> fetchEliDocumentsContext(List<String> base) {

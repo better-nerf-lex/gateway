@@ -158,7 +158,9 @@ public class DocumentService {
     public Mono<SubmitPromptResponse> submitPrompt(SubmitPromptRequest request) {
         log.info("Processing prompt submission: {}", request.getPrompt());
 
-        Mono<SubmitPromptResponse> templateSearch = documentExampleService != null
+        boolean hasFiles = request.getAttachedFileIds() != null && !request.getAttachedFileIds().isEmpty();
+
+        Mono<SubmitPromptResponse> templateSearch = (documentExampleService != null && !hasFiles)
                 ? documentExampleService.searchTemplates(request.getPrompt())
                         .next()
                         .map(template -> {
@@ -170,7 +172,7 @@ public class DocumentService {
                 : Mono.empty();
 
         return templateSearch
-                .switchIfEmpty(aiService.analyzePrompt(request.getPrompt()))
+                .switchIfEmpty(aiService.analyzePrompt(request.getPrompt(), request.getAttachedFileIds()))
                 .doOnSuccess(response -> {
                     log.info("✅ Prompt analysis completed {}", response);
                 })
@@ -224,21 +226,9 @@ public class DocumentService {
                                     if (request.getExampleId() != null && !request.getExampleId().isBlank()) {
                                         requestMono = documentExampleService.findById(request.getExampleId())
                                                 .map(example -> {
-                                                    if (request.getTemplateFiles() == null || request.getTemplateFiles().isEmpty()) {
+                                                    if (request.getTemplateFiles() == null
+                                                            || request.getTemplateFiles().isEmpty()) {
                                                         request.setTemplateFiles(example.getTemplateFiles());
-                                                    }
-                                                    return request;
-                                                })
-                                                .defaultIfEmpty(request);
-                                    } else if (request.getTitle() != null && !request.getTitle().isBlank()) {
-                                        // Fallback: match by title if exampleId is missing
-                                        requestMono = documentExampleService.searchTemplates(request.getTitle())
-                                                .next()
-                                                .map(templateDto -> {
-                                                    log.info("Matched template by title fallback: {}", templateDto.getTitle());
-                                                    request.setExampleId(templateDto.getId());
-                                                    if (request.getTemplateFiles() == null || request.getTemplateFiles().isEmpty()) {
-                                                        request.setTemplateFiles(templateDto.getTemplateFiles());
                                                     }
                                                     return request;
                                                 })
