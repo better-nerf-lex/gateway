@@ -6,6 +6,8 @@ spring:
     name: lexai-gateway
   main:
     web-application-type: reactive
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration,org.springframework.boot.autoconfigure.data.elasticsearch.ReactiveElasticsearchRepositoriesAutoConfiguration
   r2dbc:
     url: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
     username: ${SPRING_R2DBC_USERNAME}
@@ -63,8 +65,7 @@ logging:
     reactor.netty.http.client: INFO
 
 elasticsearch:
-  enabled: ${ELASTICSEARCH_ENABLED:false}
-  url: ${ELASTICSEARCH_URL:}
+  enabled: false
 
 management:
   endpoints:
