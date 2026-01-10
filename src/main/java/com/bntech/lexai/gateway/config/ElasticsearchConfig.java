@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.elc.ReactiveElasticsearchClient;
 import org.springframework.data.elasticsearch.client.elc.ReactiveElasticsearchConfiguration;
+import org.springframework.data.elasticsearch.client.elc.ReactiveElasticsearchTemplate;
 import org.springframework.data.elasticsearch.core.ReactiveElasticsearchOperations;
-import org.springframework.data.elasticsearch.core.ReactiveElasticsearchTemplate;
 import org.springframework.data.elasticsearch.repository.config.EnableReactiveElasticsearchRepositories;
 
 @Configuration
@@ -27,10 +27,5 @@ public class ElasticsearchConfig extends ReactiveElasticsearchConfiguration {
         return ClientConfiguration.builder()
                 .connectedTo(elasticsearchProperties.getUris().toArray(new String[0]))
                 .build();
-    }
-
-    @Bean
-    public ReactiveElasticsearchOperations reactiveElasticsearchOperations(ReactiveElasticsearchClient client) {
-        return new ReactiveElasticsearchTemplate(client);
     }
 }
