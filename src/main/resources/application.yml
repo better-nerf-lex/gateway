@@ -16,7 +16,7 @@ spring:
         enabled: true
   ai:
     anthropic:
-      api-key: dummy-key
+      api-key: ${SPRING_AI_ANTHROPIC_API_KEY}
       chat:
         options:
 #          model: claude-opus-4-5-20251101
@@ -32,8 +32,8 @@ spring:
       client:
         registration:
           google:
-            client-id: your-google-client-id
-            client-secret: your-google-client-secret
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
             scope: openid,profile,email
             redirect-uri: http://localhost:8081/login/oauth2/code/google
         provider:
@@ -44,7 +44,7 @@ spring:
             user-name-attribute: email
 
 jwt:
-  secret: dummy-key
+  secret: ${JWT_SECRET}
   expiration: 86400
   refresh-expiration: 604800
 
