@@ -1,4 +1,8 @@
 spring:
+  application:
+    name: lexai-gateway
+  main:
+    web-application-type: reactive
   r2dbc:
     url: r2dbc:postgresql://postgres:5432/gateway
     username: gateway_user
@@ -10,7 +14,9 @@ spring:
   sql:
     init:
       mode: never
-
+  ai:
+    anthropic:
+      api-key: dummy-key
 server:
   port: 8081
 
@@ -18,6 +24,9 @@ logging:
   level:
     com.bntech.lexai: DEBUG
     org.springframework.r2dbc: DEBUG
+
+jwt:
+  secret: dummy-key
 
 aws:
   s3:
