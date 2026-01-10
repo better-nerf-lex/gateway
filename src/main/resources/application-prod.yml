@@ -16,8 +16,9 @@ spring:
     r2dbc:
       repositories:
         enabled: true
-  elasticsearch:
-    uris: ${ELASTICSEARCH_URIS}
+    elasticsearch:
+      repositories:
+        enabled: false
   ai:
     anthropic:
       api-key: ${SPRING_AI_ANTHROPIC_API_KEY}
