@@ -1,0 +1,79 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: lexai-gateway
+  main:
+    web-application-type: reactive
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${SPRING_R2DBC_USERNAME}
+    password: ${SPRING_R2DBC_PASSWORD}
+  data:
+    r2dbc:
+      repositories:
+        enabled: true
+  ai:
+    anthropic:
+      api-key: ${SPRING_AI_ANTHROPIC_API_KEY}
+      chat:
+        options:
+          model: claude-sonnet-4-5-20250929
+          chat-model: claude-sonnet-4-5-20250929
+          reasoning-temperature: 0.2
+          creativity-temperature: 0.4
+          max-tokens: 4096
+      version: 2023-06-01
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: openid,profile,email
+            redirect-uri: https://test-0.paragrafic.pl/login/oauth2/code/google
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/oauth2/v2/userinfo
+            user-name-attribute: email
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 86400
+  refresh-expiration: 604800
+
+app:
+  file-service:
+    url: ${FILE_SERVICE_URL}
+  http:
+    connect-timeout: 30000
+    read-timeout: 300000
+    write-timeout: 60000
+
+logging:
+  level:
+    com.bntech.lexai.gateway.service.AIService: INFO
+    com.bntech.lexai.gateway.security: INFO
+    org.springframework.ai: INFO
+    org.springframework.r2dbc.core: ERROR
+    reactor.netty.http.client: INFO
+
+elasticsearch:
+  enabled: ${ELASTICSEARCH_ENABLED:false}
+  url: ${ELASTICSEARCH_URL:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  health:
+    elasticsearch:
+      enabled: ${ELASTICSEARCH_ENABLED:false}
+
+aws:
+  region: ${AWS_REGION}
