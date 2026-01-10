@@ -24,7 +24,6 @@ import java.util.List;
 public class DatabaseConfig {
 
     @Bean
-    @Profile("!prod")
     public ConnectionFactoryInitializer initializer(ConnectionFactory connectionFactory) {
         ConnectionFactoryInitializer initializer = new ConnectionFactoryInitializer();
         initializer.setConnectionFactory(connectionFactory);
