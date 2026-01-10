@@ -2,13 +2,9 @@ package com.bntech.lexai.gateway.config;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchProperties;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
-import org.springframework.data.elasticsearch.client.elc.ReactiveElasticsearchClient;
 import org.springframework.data.elasticsearch.client.elc.ReactiveElasticsearchConfiguration;
-import org.springframework.data.elasticsearch.client.elc.ReactiveElasticsearchTemplate;
-import org.springframework.data.elasticsearch.core.ReactiveElasticsearchOperations;
 import org.springframework.data.elasticsearch.repository.config.EnableReactiveElasticsearchRepositories;
 
 @Configuration
@@ -24,8 +20,16 @@ public class ElasticsearchConfig extends ReactiveElasticsearchConfiguration {
 
     @Override
     public ClientConfiguration clientConfiguration() {
+        String[] hosts = elasticsearchProperties.getUris().stream()
+                .map(this::extractHostPort)
+                .toArray(String[]::new);
+        
         return ClientConfiguration.builder()
-                .connectedTo(elasticsearchProperties.getUris().toArray(new String[0]))
+                .connectedTo(hosts)
                 .build();
+    }
+
+    private String extractHostPort(String uri) {
+        return uri.replaceFirst("^https?://", "");
     }
 }
