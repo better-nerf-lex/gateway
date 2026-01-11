@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.config;
 
 import org.apache.http.HttpRequestInterceptor;
+import org.apache.http.HttpResponseInterceptor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchProperties;
 import org.springframework.context.annotation.Configuration;
@@ -40,12 +41,19 @@ public class ElasticsearchConfig extends ReactiveElasticsearchConfiguration {
 
     private ElasticsearchClients.ElasticsearchHttpClientConfigurationCallback openSearchCompatibilityConfigurer() {
         return ElasticsearchClients.ElasticsearchHttpClientConfigurationCallback.from(httpAsyncClientBuilder -> {
+            // Request interceptor: fix Content-Type for OpenSearch
             httpAsyncClientBuilder.addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
                 request.removeHeaders("Content-Type");
                 request.setHeader("Content-Type", "application/json");
                 request.removeHeaders("Accept");
                 request.setHeader("Accept", "application/json");
             });
+
+            // Response interceptor: add X-Elastic-Product header that ES8 client expects
+            httpAsyncClientBuilder.addInterceptorLast((HttpResponseInterceptor) (response, context) -> {
+                response.addHeader("X-Elastic-Product", "Elasticsearch");
+            });
+
             return httpAsyncClientBuilder;
         });
     }
