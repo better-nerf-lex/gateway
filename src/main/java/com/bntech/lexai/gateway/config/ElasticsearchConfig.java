@@ -20,16 +20,25 @@ public class ElasticsearchConfig extends ReactiveElasticsearchConfiguration {
 
     @Override
     public ClientConfiguration clientConfiguration() {
-        String[] hosts = elasticsearchProperties.getUris().stream()
-                .map(this::extractHostPort)
-                .toArray(String[]::new);
-        
-        return ClientConfiguration.builder()
-                .connectedTo(hosts)
-                .build();
+        String uri = elasticsearchProperties.getUris().get(0);
+        boolean useSsl = uri.startsWith("https://");
+        String hostPort = extractHostPort(uri);
+
+        ClientConfiguration.MaybeSecureClientConfigurationBuilder builder = ClientConfiguration.builder()
+                .connectedTo(hostPort);
+
+        if (useSsl) {
+            builder.usingSsl();
+        }
+
+        return builder.build();
     }
 
     private String extractHostPort(String uri) {
-        return uri.replaceFirst("^https?://", "");
+        String hostPort = uri.replaceFirst("^https?://", "");
+        if (!hostPort.contains(":")) {
+            hostPort = hostPort + ":443";
+        }
+        return hostPort;
     }
 }

@@ -18,7 +18,9 @@ spring:
         enabled: true
     elasticsearch:
       repositories:
-        enabled: false
+        enabled: true
+  elasticsearch:
+    uris: https://vpc-dev-paragrafic-search-pwewuifoya74ysfdg7rlmfe5em.eu-north-1.es.amazonaws.com
   ai:
     anthropic:
       api-key: ${SPRING_AI_ANTHROPIC_API_KEY}
@@ -68,7 +70,7 @@ logging:
     reactor.netty.http.client: INFO
 
 elasticsearch:
-  enabled: false
+  enabled: true
 
 management:
   endpoints:
