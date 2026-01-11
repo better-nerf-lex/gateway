@@ -55,7 +55,9 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .pathMatchers("/auth/**", "/oauth2/**", "/login", "/.well-known/**", "/actuator/**").permitAll()
+                        .pathMatchers("/auth/**", "/oauth2/**", "/login", "/.well-known/**", "/actuator/**",
+                                "/api/actuator/**")
+                        .permitAll()
                         .anyExchange().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .oauth2Login(oauth2Login -> oauth2Login.authenticationSuccessHandler(
