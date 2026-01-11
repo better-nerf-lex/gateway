@@ -1,7 +1,5 @@
 server:
   port: 8080
-  servlet:
-    context-path: /api
 
 spring:
   application:
@@ -75,8 +73,6 @@ elasticsearch:
   enabled: true
 
 management:
-  server:
-    base-path: /api
   endpoints:
     web:
       base-path: /actuator
