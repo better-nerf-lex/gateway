@@ -24,6 +24,7 @@ import java.util.List;
 public class DatabaseConfig {
 
     @Bean
+    @Profile("docker")
     public ConnectionFactoryInitializer initializer(ConnectionFactory connectionFactory) {
         ConnectionFactoryInitializer initializer = new ConnectionFactoryInitializer();
         initializer.setConnectionFactory(connectionFactory);
