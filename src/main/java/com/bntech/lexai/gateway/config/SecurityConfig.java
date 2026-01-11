@@ -31,55 +31,57 @@ import org.springframework.http.HttpMethod;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final DatabaseUserDetailsService userDetailsService;
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final DatabaseUserDetailsService userDetailsService;
+        private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+        @Bean
+        public PasswordEncoder passwordEncoder() {
+                return new BCryptPasswordEncoder();
+        }
 
-    @Bean
-    public ReactiveAuthenticationManager authenticationManager(PasswordEncoder passwordEncoder) {
-        UserDetailsRepositoryReactiveAuthenticationManager authManager = new UserDetailsRepositoryReactiveAuthenticationManager(
-                userDetailsService);
-        authManager.setPasswordEncoder(passwordEncoder);
-        return authManager;
-    }
+        @Bean
+        public ReactiveAuthenticationManager authenticationManager(PasswordEncoder passwordEncoder) {
+                UserDetailsRepositoryReactiveAuthenticationManager authManager = new UserDetailsRepositoryReactiveAuthenticationManager(
+                                userDetailsService);
+                authManager.setPasswordEncoder(passwordEncoder);
+                return authManager;
+        }
 
-    @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http,
-            CorsConfigurationSource corsConfigurationSource) {
-        return http
-                .csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .pathMatchers("/auth/**", "/oauth2/**", "/login", "/.well-known/**", "/actuator/**",
-                                "/api/actuator/**")
-                        .permitAll()
-                        .anyExchange().authenticated())
-                .addFilterBefore(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
-                .oauth2Login(oauth2Login -> oauth2Login.authenticationSuccessHandler(
-                        new RedirectServerAuthenticationSuccessHandler("/auth/oauth2/success")))
-                .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint(new HttpStatusServerEntryPoint(HttpStatus.UNAUTHORIZED))
-                        .accessDeniedHandler(new HttpStatusServerAccessDeniedHandler(HttpStatus.FORBIDDEN)))
-                .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
-                .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
-                .build();
-    }
+        @Bean
+        public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http,
+                        CorsConfigurationSource corsConfigurationSource) {
+                return http
+                                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                                .authorizeExchange(exchanges -> exchanges
+                                                .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                                                .pathMatchers("/api/auth/**", "/api/oauth2/**", "/api/login",
+                                                                "/api/.well-known/**", "/api/actuator/**")
+                                                .permitAll()
+                                                .anyExchange().authenticated())
+                                .addFilterBefore(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+                                .oauth2Login(oauth2Login -> oauth2Login.authenticationSuccessHandler(
+                                                new RedirectServerAuthenticationSuccessHandler("/auth/oauth2/success")))
+                                .exceptionHandling(exceptions -> exceptions
+                                                .authenticationEntryPoint(
+                                                                new HttpStatusServerEntryPoint(HttpStatus.UNAUTHORIZED))
+                                                .accessDeniedHandler(new HttpStatusServerAccessDeniedHandler(
+                                                                HttpStatus.FORBIDDEN)))
+                                .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
+                                .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
+                                .build();
+        }
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        return exchange -> {
-            CorsConfiguration cfg = new CorsConfiguration();
-            cfg.setAllowedOrigins(List.of("http://localhost:8080"));
-            cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-            cfg.setAllowedHeaders(List.of("*"));
-            cfg.setAllowCredentials(true);
-            cfg.setMaxAge(3600L);
-            return cfg;
-        };
-    }
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                return exchange -> {
+                        CorsConfiguration cfg = new CorsConfiguration();
+                        cfg.setAllowedOrigins(List.of("http://localhost:8080"));
+                        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+                        cfg.setAllowedHeaders(List.of("*"));
+                        cfg.setAllowCredentials(true);
+                        cfg.setMaxAge(3600L);
+                        return cfg;
+                };
+        }
 }
