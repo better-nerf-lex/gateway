@@ -41,32 +41,28 @@ public class SecurityConfig {
 
     @Bean
     public ReactiveAuthenticationManager authenticationManager(PasswordEncoder passwordEncoder) {
-        UserDetailsRepositoryReactiveAuthenticationManager authManager =
-                new UserDetailsRepositoryReactiveAuthenticationManager(userDetailsService);
+        UserDetailsRepositoryReactiveAuthenticationManager authManager = new UserDetailsRepositoryReactiveAuthenticationManager(
+                userDetailsService);
         authManager.setPasswordEncoder(passwordEncoder);
         return authManager;
     }
 
     @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http, CorsConfigurationSource corsConfigurationSource) {
+    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http,
+            CorsConfigurationSource corsConfigurationSource) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .pathMatchers("/auth/**", "/oauth2/**", "/login", "/.well-known/**").permitAll()
-                        .anyExchange().authenticated()
-                )
+                        .pathMatchers("/auth/**", "/oauth2/**", "/login", "/.well-known/**", "/actuator/**").permitAll()
+                        .anyExchange().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
-                .oauth2Login(oauth2Login ->
-                        oauth2Login.authenticationSuccessHandler(
-                                new RedirectServerAuthenticationSuccessHandler("/auth/oauth2/success")
-                        )
-                )
+                .oauth2Login(oauth2Login -> oauth2Login.authenticationSuccessHandler(
+                        new RedirectServerAuthenticationSuccessHandler("/auth/oauth2/success")))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(new HttpStatusServerEntryPoint(HttpStatus.UNAUTHORIZED))
-                        .accessDeniedHandler(new HttpStatusServerAccessDeniedHandler(HttpStatus.FORBIDDEN))
-                )
+                        .accessDeniedHandler(new HttpStatusServerAccessDeniedHandler(HttpStatus.FORBIDDEN)))
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .build();
