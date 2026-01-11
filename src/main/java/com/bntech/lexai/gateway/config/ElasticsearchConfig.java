@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.client.elc.ReactiveElasticsearchConfiguration;
 import org.springframework.data.elasticsearch.repository.config.EnableReactiveElasticsearchRepositories;
+import org.springframework.data.elasticsearch.support.HttpHeaders;
 
 @Configuration
 @ConditionalOnProperty(name = "elasticsearch.enabled", havingValue = "true", matchIfMissing = false)
@@ -31,7 +32,16 @@ public class ElasticsearchConfig extends ReactiveElasticsearchConfiguration {
             builder.usingSsl();
         }
 
-        return builder.build();
+        return builder
+                .withDefaultHeaders(compatibleHeaders())
+                .build();
+    }
+
+    private HttpHeaders compatibleHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Content-Type", "application/json");
+        headers.add("Accept", "application/json");
+        return headers;
     }
 
     private String extractHostPort(String uri) {
