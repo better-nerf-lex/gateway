@@ -76,7 +76,10 @@ public class SecurityConfig {
         public CorsConfigurationSource corsConfigurationSource() {
                 return exchange -> {
                         CorsConfiguration cfg = new CorsConfiguration();
-                        cfg.setAllowedOrigins(List.of("http://localhost:8080"));
+                        cfg.setAllowedOrigins(List.of(
+                                        "http://localhost:8080",
+                                        "https://test-0.paragrafic.pl",
+                                        "https://paragrafic.pl"));
                         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
                         cfg.setAllowedHeaders(List.of("*"));
                         cfg.setAllowCredentials(true);
