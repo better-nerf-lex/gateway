@@ -17,7 +17,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(indexName = "document_examples")
+@Document(indexName = "document_examples", createIndex = false)
 public class DocumentExampleEs {
 
     @Id
