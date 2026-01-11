@@ -77,6 +77,7 @@ elasticsearch:
 management:
   endpoints:
     web:
+      base-path: /api/actuator
       exposure:
         include: health,info,metrics
   health:
