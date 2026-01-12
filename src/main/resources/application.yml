@@ -60,11 +60,11 @@ app:
 
 logging:
   level:
-    com.bntech.lexai.gateway.service.AIService: INFO
-    com.bntech.lexai.gateway.security: INFO
+    com.bntech.lexai.gateway.service.AIService: DEBUG
+    com.bntech.lexai.gateway.security: DEBUG
     org.springframework.ai: INFO
-    org.springframework.r2dbc.core: ERROR
-    reactor.netty.http.client: INFO
+    org.springframework.r2dbc.core: DEBUG
+    reactor.netty.http.client: DEBUG
 
 elasticsearch:
   enabled: true
@@ -75,6 +75,7 @@ management:
       enabled: false
 
 aws:
+  region: ${AWS_REGION:us-east-1}
   s3:
     endpoint: ${AWS_S3_ENDPOINT:http://localhost:4566}
     region: ${AWS_REGION:us-east-1}

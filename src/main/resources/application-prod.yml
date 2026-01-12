@@ -63,7 +63,7 @@ app:
 
 logging:
   level:
-    com.bntech.lexai.gateway.service.AIService: INFO
+    com.bntech.lexai.gateway.service.AIService: DEBUG
     com.bntech.lexai.gateway.security: INFO
     org.springframework.ai: INFO
     org.springframework.r2dbc.core: ERROR

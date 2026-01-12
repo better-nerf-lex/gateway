@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.config;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -7,12 +8,16 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+@Component
+@Profile("prod")
 public class CognitoAuthenticationConverter implements Converter<Jwt, Mono<AbstractAuthenticationToken>> {
 
     private final JwtGrantedAuthoritiesConverter defaultGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
@@ -27,12 +32,11 @@ public class CognitoAuthenticationConverter implements Converter<Jwt, Mono<Abstr
     }
 
     private Collection<GrantedAuthority> extractCognitoGroups(Jwt jwt) {
-        // Cognito groups are in "cognito:groups" claim
         if (jwt.hasClaim("cognito:groups")) {
             return jwt.getClaimAsStringList("cognito:groups").stream()
                     .map(group -> new SimpleGrantedAuthority("ROLE_" + group.toUpperCase()))
                     .collect(Collectors.toList());
         }
-        return java.util.Collections.emptyList();
+        return Collections.emptyList();
     }
 }

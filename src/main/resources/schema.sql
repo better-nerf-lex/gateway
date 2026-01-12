@@ -19,15 +19,17 @@ DROP TABLE IF EXISTS document_examples CASCADE;
 
 CREATE TABLE IF NOT EXISTS users
 (
-    id         BIGSERIAL PRIMARY KEY,
-    username   VARCHAR(255) UNIQUE NOT NULL,
-    email      VARCHAR(255) UNIQUE NOT NULL,
-    password   VARCHAR(255)        NOT NULL,
-    enabled    BOOLEAN   DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by BIGINT,
-    version    INTEGER             NOT NULL
+    id              BIGSERIAL PRIMARY KEY,
+    username        VARCHAR(255) UNIQUE NOT NULL,
+    email           VARCHAR(255) UNIQUE NOT NULL,
+    password        VARCHAR(255)        NOT NULL,
+    cognito_sub     VARCHAR(255) UNIQUE,
+    email_verified  BOOLEAN   DEFAULT FALSE,
+    enabled         BOOLEAN   DEFAULT TRUE,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by      BIGINT,
+    version         INTEGER             NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS teams

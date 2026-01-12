@@ -1,28 +1,29 @@
 package com.bntech.lexai.gateway.config;
 
+import com.bntech.lexai.gateway.security.JwtAuthenticationFilter;
 import com.bntech.lexai.gateway.service.DatabaseUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UserDetailsRepositoryReactiveAuthenticationManager;
-import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
-
 import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
+import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.HttpStatusServerEntryPoint;
-import org.springframework.security.web.server.authorization.HttpStatusServerAccessDeniedHandler;
 import org.springframework.security.web.server.authentication.RedirectServerAuthenticationSuccessHandler;
+import org.springframework.security.web.server.authorization.HttpStatusServerAccessDeniedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
 
 import java.util.List;
-
-import org.springframework.http.HttpMethod;
 
 @Configuration(proxyBeanMethods = false)
 @EnableWebFluxSecurity
@@ -31,6 +32,7 @@ import org.springframework.http.HttpMethod;
 public class SecurityConfig {
 
         private final DatabaseUserDetailsService userDetailsService;
+        private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
         @Bean
         public PasswordEncoder passwordEncoder() {
@@ -46,20 +48,19 @@ public class SecurityConfig {
         }
 
         @Bean
+        @Order(2)
         public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http,
                         CorsConfigurationSource corsConfigurationSource) {
                 return http
                                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                                .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                                 .authorizeExchange(exchanges -> exchanges
                                                 .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .pathMatchers("/auth/**", "/oauth2/**", "/login",
                                                                 "/.well-known/**", "/actuator/**")
                                                 .permitAll()
                                                 .anyExchange().authenticated())
-                                .oauth2ResourceServer(oauth2 -> oauth2.jwt(
-                                                jwt -> jwt.jwtAuthenticationConverter(
-                                                                new CognitoAuthenticationConverter())))
                                 .oauth2Login(oauth2Login -> oauth2Login.authenticationSuccessHandler(
                                                 new RedirectServerAuthenticationSuccessHandler("/auth/oauth2/success")))
                                 .exceptionHandling(exceptions -> exceptions

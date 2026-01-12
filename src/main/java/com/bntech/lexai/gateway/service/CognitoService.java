@@ -3,6 +3,7 @@ package com.bntech.lexai.gateway.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
@@ -13,6 +14,7 @@ import jakarta.annotation.PostConstruct;
 import java.util.Map;
 
 @Service
+@Profile("prod")
 @RequiredArgsConstructor
 @Slf4j
 public class CognitoService {

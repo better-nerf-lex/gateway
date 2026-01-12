@@ -6,8 +6,11 @@ import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenRequest;
 import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenResponse;
 import com.bntech.lexai.gateway.rest.dto.security.UserDto;
 import com.bntech.lexai.gateway.service.AuthService;
+import com.bntech.lexai.gateway.service.CognitoService;
+import com.bntech.lexai.gateway.service.CognitoUserSyncService;
 import com.bntech.lexai.gateway.service.OAuth2AuthService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -19,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
+import java.util.Optional;
+
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -26,11 +31,19 @@ public class AuthController {
 
     private final AuthService authService;
     private final OAuth2AuthService oAuth2AuthService;
-    private final com.bntech.lexai.gateway.service.CognitoService cognitoService;
-    private final com.bntech.lexai.gateway.service.CognitoUserSyncService cognitoUserSyncService;
+
+    @Autowired(required = false)
+    private CognitoService cognitoService;
+
+    @Autowired(required = false)
+    private CognitoUserSyncService cognitoUserSyncService;
 
     @PostMapping("/register")
     public Mono<ResponseEntity<Void>> register(@RequestBody LoginRequest registerRequest) {
+        if (cognitoService == null) {
+            // Registration requires Cognito - not available locally
+            return Mono.just(ResponseEntity.status(501).body(null));
+        }
         return Mono
                 .fromRunnable(
                         () -> cognitoService.registerUser(registerRequest.getUsername(), registerRequest.getPassword()))
@@ -39,15 +52,20 @@ public class AuthController {
 
     @PostMapping("/login")
     public Mono<ResponseEntity<LoginResponse>> login(@RequestBody LoginRequest loginRequest) {
-        return Mono.fromCallable(() -> cognitoService.login(loginRequest.getUsername(), loginRequest.getPassword()))
-                .map(tokens -> {
-                    java.util.Map<String, String> tokenMap = (java.util.Map<String, String>) tokens;
-                    return LoginResponse.builder()
-                            .token(tokenMap.get("accessToken"))
-                            .refreshToken(tokenMap.get("refreshToken"))
-                            // User info will be fetched by frontend via /me or from ID token
-                            .build();
-                })
+        // Use Cognito in prod, fallback to local AuthService otherwise
+        if (cognitoService != null) {
+            return Mono.fromCallable(() -> cognitoService.login(loginRequest.getUsername(), loginRequest.getPassword()))
+                    .map(tokens -> {
+                        java.util.Map<String, String> tokenMap = (java.util.Map<String, String>) tokens;
+                        return LoginResponse.builder()
+                                .token(tokenMap.get("accessToken"))
+                                .refreshToken(tokenMap.get("refreshToken"))
+                                .build();
+                    })
+                    .map(ResponseEntity::ok);
+        }
+        // Fallback to local auth for dev environment
+        return authService.authenticate(loginRequest)
                 .map(ResponseEntity::ok);
     }
 
@@ -66,17 +84,16 @@ public class AuthController {
                 .then(Mono.just(ResponseEntity.ok().build()));
     }
 
-    // todo: think about oauth providers after cognito was made.
     @GetMapping("/google")
     public Mono<Void> redirectToGoogle() {
-        // This will redirect to /oauth2/authorization/google
         return Mono.empty();
     }
 
-    // ... updated constructors via Lombok
-
     @GetMapping("/me")
     public Mono<ResponseEntity<UserDto>> getCurrentUser(Authentication authentication) {
+        if (cognitoUserSyncService == null) {
+            return Mono.just(ResponseEntity.status(501).build());
+        }
         return cognitoUserSyncService.getCurrentUser()
                 .map(user -> UserDto.builder()
                         .id(user.getId())
