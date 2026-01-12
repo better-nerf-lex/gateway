@@ -10,7 +10,7 @@ RUN ./mvnw clean package -DskipTests -B
 FROM public.ecr.aws/amazoncorretto/amazoncorretto:21-al2023-headless
 WORKDIR /app
 RUN yum update -y && \
-    yum install -y shadow-utils && \
+    yum install -y shadow-utils curl && \
     groupadd -r appuser && \
     useradd -r -g appuser appuser && \
     yum clean all
