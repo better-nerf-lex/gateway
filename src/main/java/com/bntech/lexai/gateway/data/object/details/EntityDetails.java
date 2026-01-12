@@ -22,17 +22,16 @@ import java.util.Map;
 @AllArgsConstructor
 @SuperBuilder
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonTypeInfo(
-        use = JsonTypeInfo.Id.NAME,
-        include = JsonTypeInfo.As.EXISTING_PROPERTY,
-        property = "entityType",
-        visible = true
-)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "entityType", visible = true)
 @JsonSubTypes({
         @JsonSubTypes.Type(value = PersonDetails.class, name = "INDIVIDUAL"),
+        @JsonSubTypes.Type(value = PersonDetails.class, name = "individual"),
         @JsonSubTypes.Type(value = CompanyDetails.class, name = "COMPANY"),
+        @JsonSubTypes.Type(value = CompanyDetails.class, name = "company"),
         @JsonSubTypes.Type(value = CourtDetails.class, name = "COURT"),
-        @JsonSubTypes.Type(value = LawFirmDetails.class, name = "LAW_FIRM")
+        @JsonSubTypes.Type(value = CourtDetails.class, name = "court"),
+        @JsonSubTypes.Type(value = LawFirmDetails.class, name = "LAW_FIRM"),
+        @JsonSubTypes.Type(value = LawFirmDetails.class, name = "law_firm")
 })
 public abstract class EntityDetails implements Serializable {
 
