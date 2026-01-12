@@ -3,6 +3,7 @@ package com.bntech.lexai.gateway.security;
 import com.bntech.lexai.gateway.service.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -15,6 +16,7 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 @Component
+@Profile("!prod")
 @RequiredArgsConstructor
 @Slf4j
 public class JwtAuthenticationFilter implements WebFilter {

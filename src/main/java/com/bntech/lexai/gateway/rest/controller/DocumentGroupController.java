@@ -1,7 +1,7 @@
 package com.bntech.lexai.gateway.rest.controller;
 
 import com.bntech.lexai.gateway.rest.dto.document.StorageFileDto;
-import com.bntech.lexai.gateway.security.UserPrincipal;
+import com.bntech.lexai.gateway.security.AuthenticationHelper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentGroupDto;
 import com.bntech.lexai.gateway.service.StorageFileService;
 import com.bntech.lexai.gateway.service.DocumentGroupService;
@@ -27,6 +27,7 @@ public class DocumentGroupController {
 
     private final DocumentGroupService documentGroupService;
     private final StorageFileService documentFileService;
+    private final AuthenticationHelper authHelper;
 
     @GetMapping()
     public Flux<DocumentGroupDto> getDocumentGroups() {
@@ -40,9 +41,10 @@ public class DocumentGroupController {
     }
 
     @PostMapping()
-    public Mono<DocumentGroupDto> createDocumentGroup(@RequestBody DocumentGroupDto dto, Authentication authentication) {
-        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
-        return documentGroupService.createDocumentGroup(dto, principal.getUserId());
+    public Mono<DocumentGroupDto> createDocumentGroup(@RequestBody DocumentGroupDto dto,
+            Authentication authentication) {
+        return authHelper.getUserId(authentication)
+                .flatMap(userId -> documentGroupService.createDocumentGroup(dto, userId));
     }
 
     @PatchMapping("/{id}")
@@ -65,10 +67,11 @@ public class DocumentGroupController {
 
     @PostMapping("/{id}/files")
     @PreAuthorize("@access.documentGroupWrite(authentication, #id)")
-    public Mono<StorageFileDto> addFileToGroup(@PathVariable String id, @RequestBody StorageFileDto dto, Authentication authentication) {
-        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+    public Mono<StorageFileDto> addFileToGroup(@PathVariable String id, @RequestBody StorageFileDto dto,
+            Authentication authentication) {
         dto.setDocumentGroupId(id);
-        return documentFileService.createDocumentFile(dto, principal.getUserId());
+        return authHelper.getUserId(authentication)
+                .flatMap(userId -> documentFileService.createDocumentFile(dto, userId));
     }
 
     @PutMapping("/{id}/case/{caseId}")

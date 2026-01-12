@@ -1,6 +1,6 @@
 package com.bntech.lexai.gateway.rest.controller;
 
-import com.bntech.lexai.gateway.security.UserPrincipal;
+import com.bntech.lexai.gateway.security.AuthenticationHelper;
 import com.bntech.lexai.gateway.rest.dto.document.StorageFileDto;
 import com.bntech.lexai.gateway.service.StorageFileService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +27,7 @@ import reactor.core.publisher.Mono;
 public class StorageFileController {
 
     private final StorageFileService documentFileService;
+    private final AuthenticationHelper authHelper;
 
     @GetMapping()
     public Flux<StorageFileDto> getDocumentFiles() {
@@ -41,8 +42,8 @@ public class StorageFileController {
 
     @PostMapping()
     public Mono<StorageFileDto> createDocumentFile(@RequestBody StorageFileDto dto, Authentication authentication) {
-        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
-        return documentFileService.createDocumentFile(dto, principal.getUserId());
+        return authHelper.getUserId(authentication)
+                .flatMap(userId -> documentFileService.createDocumentFile(dto, userId));
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -50,8 +51,8 @@ public class StorageFileController {
             @RequestPart("file") FilePart filePart,
             @RequestParam("documentGroupId") String documentGroupId,
             Authentication authentication) {
-        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
-        return documentFileService.uploadFile(filePart, principal.getUserId(), documentGroupId);
+        return authHelper.getUserId(authentication)
+                .flatMap(userId -> documentFileService.uploadFile(filePart, userId, documentGroupId));
     }
 
     @PatchMapping("/{id}")
