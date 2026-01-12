@@ -6,6 +6,7 @@ import com.bntech.lexai.gateway.service.StorageFileService;
 import com.bntech.lexai.gateway.service.JwtService;
 import com.bntech.lexai.gateway.service.DatabaseUserDetailsService;
 import com.bntech.lexai.gateway.security.JwtAuthenticationFilter;
+import com.bntech.lexai.gateway.security.AuthenticationHelper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
@@ -43,6 +44,9 @@ class DocumentGroupControllerTest {
 
     @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockitoBean
+    private AuthenticationHelper authenticationHelper;
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {

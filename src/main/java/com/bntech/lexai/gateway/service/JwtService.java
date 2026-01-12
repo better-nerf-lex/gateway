@@ -20,7 +20,7 @@ import java.util.Map;
 @Service
 public class JwtService {
 
-    @Value("${jwt.secret:mySecretKey}")
+    @Value("${jwt.secret:mySecret}")
     private String secret;
 
     @Value("${jwt.expiration:3600}")

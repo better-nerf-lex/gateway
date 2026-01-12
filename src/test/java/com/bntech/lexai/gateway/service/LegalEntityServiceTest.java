@@ -39,6 +39,8 @@ class LegalEntityServiceTest {
     private TeamMemberRepository teamMemberRepository;
     @Mock
     private ActivityService activityService;
+    @Mock
+    private CognitoUserSyncService cognitoUserSyncService;
 
     private LegalEntityService legalEntityService;
 
@@ -49,7 +51,8 @@ class LegalEntityServiceTest {
                 legalEntityMapper,
                 userRepository,
                 teamMemberRepository,
-                activityService
+                activityService,
+                cognitoUserSyncService
         );
     }
 

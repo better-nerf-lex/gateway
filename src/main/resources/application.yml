@@ -18,7 +18,7 @@ spring:
     uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
   ai:
     anthropic:
-      api-key: ${SPRING_AI_ANTHROPIC_API_KEY}
+      api-key: ${SPRING_AI_ANTHROPIC_API_KEY:dummy-key}
       chat:
         options:
 #          model: claude-opus-4-5-20251101
@@ -34,8 +34,8 @@ spring:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID}
-            client-secret: ${GOOGLE_CLIENT_SECRET}
+            client-id: ${GOOGLE_CLIENT_ID:dummy-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:dummy-secret}
             scope: openid,profile,email
             redirect-uri: http://localhost:8081/login/oauth2/code/google
         provider:
@@ -46,7 +46,7 @@ spring:
             user-name-attribute: email
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:mySecret}
   expiration: 86400
   refresh-expiration: 604800
 
