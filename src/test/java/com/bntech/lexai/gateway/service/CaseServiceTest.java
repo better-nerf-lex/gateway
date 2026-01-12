@@ -37,6 +37,7 @@ class CaseServiceTest {
     @Mock private DocumentGroupService documentGroupService;
     @Mock private DocumentGroupRepository documentGroupRepository;
     @Mock private ActivityService activityService;
+    @Mock private CognitoUserSyncService cognitoUserSyncService;
 
     private CaseService caseService;
 
@@ -48,7 +49,7 @@ class CaseServiceTest {
                 casePartyRepository, casePartyMapper, legalEntityRepository,
                 legalEntityMapper, eventRepository, eventMapper,
                 eventParticipantRepository, documentGroupService,
-                documentGroupRepository, activityService
+                documentGroupRepository, activityService, cognitoUserSyncService
         );
     }
 

@@ -5,10 +5,7 @@ import com.bntech.lexai.gateway.rest.dto.security.LoginResponse;
 import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenRequest;
 import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenResponse;
 import com.bntech.lexai.gateway.rest.dto.security.UserDto;
-import com.bntech.lexai.gateway.service.AuthService;
-import com.bntech.lexai.gateway.service.CognitoService;
-import com.bntech.lexai.gateway.service.CognitoUserSyncService;
-import com.bntech.lexai.gateway.service.OAuth2AuthService;
+import com.bntech.lexai.gateway.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +35,9 @@ public class AuthController {
     @Autowired(required = false)
     private CognitoUserSyncService cognitoUserSyncService;
 
+    @Autowired(required = false)
+    private TeamService teamService;
+
     @PostMapping("/register")
     public Mono<ResponseEntity<Void>> register(@RequestBody LoginRequest registerRequest) {
         if (cognitoService == null) {
@@ -53,14 +53,16 @@ public class AuthController {
     @PostMapping("/login")
     public Mono<ResponseEntity<LoginResponse>> login(@RequestBody LoginRequest loginRequest) {
         // Use Cognito in prod, fallback to local AuthService otherwise
-        if (cognitoService != null && cognitoUserSyncService != null) {
+        if (cognitoService != null && cognitoUserSyncService != null && teamService != null) {
             return Mono.fromCallable(() -> cognitoService.login(loginRequest.getUsername(), loginRequest.getPassword()))
                     .flatMap(tokens -> {
                         java.util.Map<String, String> tokenMap = (java.util.Map<String, String>) tokens;
                         String idToken = tokenMap.get("idToken");
 
-                        // Sync user to database from ID token
+                        // Sync user to database from ID token, then ensure they have a team
                         return cognitoUserSyncService.syncUserFromIdTokenString(idToken)
+                                .flatMap(user -> teamService.ensureDefaultTeam(user)
+                                        .thenReturn(user))
                                 .map(user -> LoginResponse.builder()
                                         .token(tokenMap.get("accessToken"))
                                         .refreshToken(tokenMap.get("refreshToken"))
