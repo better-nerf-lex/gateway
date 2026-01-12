@@ -4,6 +4,7 @@ import com.bntech.lexai.gateway.data.entity.document.LegalCase;
 import com.bntech.lexai.gateway.data.entity.document.CaseDocument;
 import com.bntech.lexai.gateway.data.entity.document.CaseParty;
 import com.bntech.lexai.gateway.data.entity.security.TeamMember;
+import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.object.CasePartyRole;
 import com.bntech.lexai.gateway.data.repository.CaseDocumentRepository;
 import com.bntech.lexai.gateway.data.repository.CasePartyRepository;
@@ -55,6 +56,13 @@ public class CaseService {
     private final ActivityService activityService;
     private final CognitoUserSyncService cognitoUserSyncService;
 
+    private Mono<User> getCurrentUser() {
+        return cognitoUserSyncService.getCurrentUser()
+                .onErrorResume(e -> ReactiveSecurityContextHolder.getContext()
+                        .map(SecurityContext::getAuthentication)
+                        .flatMap(auth -> userRepository.findByUsername(auth.getName())));
+    }
+
     public Flux<CaseDto> getCases(String teamId) {
         if (teamId != null && !teamId.isBlank() && !teamId.equals("null") && !teamId.equals("undefined")) {
             return caseRepository.findByTeamIdOrderByCreatedAtDesc(UUID.fromString(teamId))
@@ -63,16 +71,14 @@ public class CaseService {
                     .doOnError(error -> log.error("Error retrieving team cases for {}", teamId, error));
         }
 
-        return ReactiveSecurityContextHolder.getContext()
-                .map(SecurityContext::getAuthentication)
-                .flatMapMany(auth -> userRepository.findByUsername(auth.getName())
-                        .flatMapMany(user -> {
-                            Flux<LegalCase> byUser = caseRepository.findByOwnerIdOrderByCreatedAtDesc(user.getId());
-                            Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
-                                    .map(TeamMember::getTeamId);
-                            Flux<LegalCase> byTeams = teamIds.flatMap(caseRepository::findByTeamIdOrderByCreatedAtDesc);
-                            return Flux.merge(byUser, byTeams);
-                        }))
+        return getCurrentUser()
+                .flatMapMany(user -> {
+                    Flux<LegalCase> byUser = caseRepository.findByOwnerIdOrderByCreatedAtDesc(user.getId());
+                    Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
+                            .map(TeamMember::getTeamId);
+                    Flux<LegalCase> byTeams = teamIds.flatMap(caseRepository::findByTeamIdOrderByCreatedAtDesc);
+                    return Flux.merge(byUser, byTeams);
+                })
                 .distinct(LegalCase::getId)
                 .map(caseMapper::toDto)
                 .flatMap(this::enrichCase)

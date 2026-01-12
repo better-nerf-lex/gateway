@@ -2,6 +2,7 @@ package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.Event;
 import com.bntech.lexai.gateway.data.entity.document.EventParticipant;
+import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.repository.EventParticipantRepository;
 import com.bntech.lexai.gateway.data.repository.EventRepository;
 import com.bntech.lexai.gateway.data.repository.LegalEntityRepository;
@@ -33,6 +34,14 @@ public class EventService {
     private final LegalEntityMapper legalEntityMapper;
     private final UserRepository userRepository;
     private final TeamMemberRepository teamMemberRepository;
+    private final CognitoUserSyncService cognitoUserSyncService;
+
+    private Mono<User> getCurrentUser() {
+        return cognitoUserSyncService.getCurrentUser()
+                .onErrorResume(e -> ReactiveSecurityContextHolder.getContext()
+                        .map(SecurityContext::getAuthentication)
+                        .flatMap(auth -> userRepository.findByUsername(auth.getName())));
+    }
 
     public Flux<EventDto> getCaseEvents(String caseId) {
         return eventRepository.findByCaseIdOrderByEventDateDesc(UUID.fromString(caseId))
@@ -52,54 +61,45 @@ public class EventService {
     }
 
     public Mono<EventDto> createEvent(EventDto eventDto) {
-        return ReactiveSecurityContextHolder.getContext()
-                .map(SecurityContext::getAuthentication)
-                .flatMap(auth -> {
-                    if (auth == null || !auth.isAuthenticated()) {
-                        log.warn("❌ Unauthenticated access attempt to create event");
-                        return Mono.error(new AccessDeniedException("User not authenticated"));
+        return getCurrentUser()
+                .switchIfEmpty(Mono.error(new AccessDeniedException("User not authenticated")))
+                .flatMap(user -> {
+                    log.info("Creating event for user: {}, caseId: {}", user.getEmail(), eventDto.getCaseId());
+                    Event event = eventMapper.toEntity(eventDto);
+                    if (event.getId() == null) {
+                        event.setId(UUID.randomUUID());
                     }
-                    log.info("Creating event for user: {}, caseId: {}", auth.getName(), eventDto.getCaseId());
-                    return userRepository.findByUsername(auth.getName())
-                            .flatMap(user -> {
-                                Event event = eventMapper.toEntity(eventDto);
-                                if (event.getId() == null) {
-                                    event.setId(UUID.randomUUID());
-                                }
-                                event.setOwnerId(user.getId());
-                                event.setCreatedAt(LocalDateTime.now());
-                                event.setVersion(1);
+                    event.setOwnerId(user.getId());
+                    event.setCreatedAt(LocalDateTime.now());
+                    event.setVersion(1);
 
-                                Mono<Event> eventMono;
-                                if (eventDto.getTeamId() != null) {
-                                    log.debug("Checking team access for user {} and team {}", user.getId(),
+                    Mono<Event> eventMono;
+                    if (eventDto.getTeamId() != null) {
+                        log.debug("Checking team access for user {} and team {}", user.getId(), eventDto.getTeamId());
+                        eventMono = teamMemberRepository
+                                .findByUserIdAndTeamId(user.getId(), eventDto.getTeamId())
+                                .switchIfEmpty(Mono.defer(() -> {
+                                    log.warn("❌ Team access denied for user {} in team {}", user.getId(),
                                             eventDto.getTeamId());
-                                    eventMono = teamMemberRepository
-                                            .findByUserIdAndTeamId(user.getId(), eventDto.getTeamId())
-                                            .switchIfEmpty(Mono.defer(() -> {
-                                                log.warn("❌ Team access denied for user {} in team {}", user.getId(),
-                                                        eventDto.getTeamId());
-                                                return Mono
-                                                        .error(new AccessDeniedException("Insufficient team access"));
-                                            }))
-                                            .flatMap(tm -> eventRepository.save(event));
-                                } else {
-                                    eventMono = eventRepository.save(event);
-                                }
+                                    return Mono.error(new AccessDeniedException("Insufficient team access"));
+                                }))
+                                .flatMap(tm -> eventRepository.save(event));
+                    } else {
+                        eventMono = eventRepository.save(event);
+                    }
 
-                                return eventMono.flatMap(savedEvent -> {
-                                    if (eventDto.getParticipants() != null && !eventDto.getParticipants().isEmpty()) {
-                                        return Flux.fromIterable(eventDto.getParticipants())
-                                                .flatMap(p -> eventParticipantRepository.save(
-                                                        EventParticipant.builder()
-                                                                .eventId(savedEvent.getId())
-                                                                .legalEntityId(UUID.fromString(p.getId()))
-                                                                .build()))
-                                                .then(Mono.just(savedEvent));
-                                    }
-                                    return Mono.just(savedEvent);
-                                });
-                            });
+                    return eventMono.flatMap(savedEvent -> {
+                        if (eventDto.getParticipants() != null && !eventDto.getParticipants().isEmpty()) {
+                            return Flux.fromIterable(eventDto.getParticipants())
+                                    .flatMap(p -> eventParticipantRepository.save(
+                                            EventParticipant.builder()
+                                                    .eventId(savedEvent.getId())
+                                                    .legalEntityId(UUID.fromString(p.getId()))
+                                                    .build()))
+                                    .then(Mono.just(savedEvent));
+                        }
+                        return Mono.just(savedEvent);
+                    });
                 })
                 .map(savedEvent -> {
                     savedEvent.setNotNew();

@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.service;
 
+import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.exception.BadRequestException;
 import com.bntech.lexai.gateway.mapper.UserMapper;
@@ -10,6 +11,7 @@ import com.bntech.lexai.gateway.rest.dto.security.UserDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -24,18 +26,22 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final CognitoUserSyncService cognitoUserSyncService;
+
+    private Mono<User> getAuthenticatedUser() {
+        return cognitoUserSyncService.getCurrentUser()
+                .onErrorResume(e -> ReactiveSecurityContextHolder.getContext()
+                        .map(SecurityContext::getAuthentication)
+                        .flatMap(auth -> userRepository.findByUsername(auth.getName())));
+    }
 
     public Mono<UserDto> getCurrentUser() {
-        return ReactiveSecurityContextHolder.getContext()
-                .map(ctx -> ctx.getAuthentication().getName())
-                .flatMap(userRepository::findByUsername)
+        return getAuthenticatedUser()
                 .map(userMapper::toDto);
     }
 
     public Mono<UserDto> updateProfile(UpdateProfileRequest request) {
-        return ReactiveSecurityContextHolder.getContext()
-                .map(ctx -> ctx.getAuthentication().getName())
-                .flatMap(userRepository::findByUsername)
+        return getAuthenticatedUser()
                 .flatMap(user -> {
                     user.setUsername(request.getUsername());
                     user.setUpdatedAt(LocalDateTime.now());
@@ -46,10 +52,12 @@ public class UserService {
     }
 
     public Mono<Void> changePassword(UpdatePasswordRequest request) {
-        return ReactiveSecurityContextHolder.getContext()
-                .map(ctx -> ctx.getAuthentication().getName())
-                .flatMap(userRepository::findByUsername)
+        return getAuthenticatedUser()
                 .flatMap(user -> {
+                    if (user.getPassword() == null) {
+                        return Mono
+                                .error(new BadRequestException("password", "Cannot change password for Cognito users"));
+                    }
                     if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
                         return Mono.error(new BadRequestException("oldPassword", "Invalid old password"));
                     }
@@ -61,7 +69,6 @@ public class UserService {
     }
 
     public Mono<BillingInfoDto> getBillingInfo() {
-        // Placeholder implementation
         return Mono.just(BillingInfoDto.builder()
                 .planName("Pro Plan")
                 .status("ACTIVE")

@@ -48,6 +48,8 @@ class EventServiceTest {
     private TeamMemberRepository teamMemberRepository;
     @Mock
     private Authentication authentication;
+    @Mock
+    private CognitoUserSyncService cognitoUserSyncService;
 
     private EventService eventService;
 
@@ -60,7 +62,8 @@ class EventServiceTest {
                 legalEntityRepository,
                 legalEntityMapper,
                 userRepository,
-                teamMemberRepository
+                teamMemberRepository,
+                cognitoUserSyncService
         );
     }
 
@@ -83,15 +86,15 @@ class EventServiceTest {
         event.setId(eventId);
         event.setCaseId(caseId);
 
-        when(authentication.isAuthenticated()).thenReturn(true);
         when(authentication.getName()).thenReturn(username);
         SecurityContext securityContext = new SecurityContextImpl(authentication);
 
+        when(cognitoUserSyncService.getCurrentUser()).thenReturn(Mono.error(new IllegalStateException("Not authenticated with JWT")));
         when(userRepository.findByUsername(username)).thenReturn(Mono.just(user));
         when(eventMapper.toEntity(eventDto)).thenReturn(event);
         when(eventRepository.save(any(Event.class))).thenReturn(Mono.just(event));
         when(eventParticipantRepository.save(any(EventParticipant.class))).thenReturn(Mono.just(new EventParticipant()));
-        
+
         // Mocking for enrichEvent
         when(eventMapper.toDto(any(Event.class))).thenReturn(eventDto);
         when(eventParticipantRepository.findByEventId(eventId)).thenReturn(Flux.empty()); // Initially empty for the enrichEvent call in the current implementation
