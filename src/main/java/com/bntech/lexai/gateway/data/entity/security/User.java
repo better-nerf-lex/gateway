@@ -30,6 +30,12 @@ public class User extends Auditable<Long> implements Persistable<Long> {
     @Column("email")
     private String email;
 
+    @Column("cognito_sub")
+    private String cognitoSub;
+
+    @Column("email_verified")
+    private Boolean emailVerified;
+
     @Column("enabled")
     private boolean enabled;
 
