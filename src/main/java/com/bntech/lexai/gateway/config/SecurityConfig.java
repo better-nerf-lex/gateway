@@ -15,16 +15,12 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.HttpStatusServerEntryPoint;
 import org.springframework.security.web.server.authentication.RedirectServerAuthenticationSuccessHandler;
 import org.springframework.security.web.server.authorization.HttpStatusServerAccessDeniedHandler;
-import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
-
-import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
 @EnableWebFluxSecurity
@@ -35,14 +31,10 @@ public class SecurityConfig {
 
         private final DatabaseUserDetailsService userDetailsService;
         private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final PasswordEncoder passwordEncoder;
 
         @Bean
-        public PasswordEncoder passwordEncoder() {
-                return new BCryptPasswordEncoder();
-        }
-
-        @Bean
-        public ReactiveAuthenticationManager authenticationManager(PasswordEncoder passwordEncoder) {
+        public ReactiveAuthenticationManager authenticationManager() {
                 UserDetailsRepositoryReactiveAuthenticationManager authManager = new UserDetailsRepositoryReactiveAuthenticationManager(
                                 userDetailsService);
                 authManager.setPasswordEncoder(passwordEncoder);
@@ -73,18 +65,5 @@ public class SecurityConfig {
                                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                                 .build();
-        }
-
-        @Bean
-        public CorsConfigurationSource corsConfigurationSource() {
-                return exchange -> {
-                        CorsConfiguration cfg = new CorsConfiguration();
-                        cfg.setAllowedOriginPatterns(List.of("http://localhost:*", "https://*.paragrafic.pl"));
-                        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-                        cfg.setAllowedHeaders(List.of("*"));
-                        cfg.setAllowCredentials(true);
-                        cfg.setMaxAge(3600L);
-                        return cfg;
-                };
         }
 }
