@@ -56,6 +56,7 @@ public class DocumentService {
     private final com.bntech.lexai.gateway.mapper.CaseMapper caseMapper;
     private final DocumentExampleService documentExampleService;
     private final ActivityService activityService;
+    private final CognitoUserSyncService cognitoUserSyncService;
 
     public DocumentService(
             DocumentRepository documents,
@@ -69,7 +70,8 @@ public class DocumentService {
             CaseMapper caseMapper,
             DocumentExampleMapper documentExampleMapper,
             @Autowired(required = false) DocumentExampleService documentExampleService,
-            ActivityService activityService) {
+            ActivityService activityService,
+            @Autowired(required = false) CognitoUserSyncService cognitoUserSyncService) {
         this.documents = documents;
         this.aggregates = aggregates;
         this.documentsHistory = documentsHistory;
@@ -82,6 +84,19 @@ public class DocumentService {
         this.caseMapper = caseMapper;
         this.documentExampleService = documentExampleService;
         this.activityService = activityService;
+        this.cognitoUserSyncService = cognitoUserSyncService;
+    }
+
+    private Mono<com.bntech.lexai.gateway.data.entity.security.User> getCurrentUser() {
+        if (cognitoUserSyncService != null) {
+            return cognitoUserSyncService.getCurrentUser()
+                    .onErrorResume(e -> ReactiveSecurityContextHolder.getContext()
+                            .map(SecurityContext::getAuthentication)
+                            .flatMap(auth -> userRepository.findByUsername(auth.getName())));
+        }
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .flatMap(auth -> userRepository.findByUsername(auth.getName()));
     }
 
     public Flux<DocumentDto> getDocuments() {
@@ -95,21 +110,19 @@ public class DocumentService {
                     .doOnError(error -> log.error("Error retrieving team documents for {}", teamId, error));
         }
 
-        return ReactiveSecurityContextHolder.getContext()
-                .map(SecurityContext::getAuthentication)
-                .flatMapMany(auth -> userRepository.findByUsername(auth.getName())
-                        .flatMapMany(user -> {
-                            Flux<Document> byUser = documents
-                                    .findByOwnerIdOrderByCreatedAtDesc(user.getId());
+        return getCurrentUser()
+                .flatMapMany(user -> {
+                    Flux<Document> byUser = documents
+                            .findByOwnerIdOrderByCreatedAtDesc(user.getId());
 
-                            Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
-                                    .map(TeamMember::getTeamId);
+                    Flux<UUID> teamIds = teamMemberRepository.findByUserId(user.getId())
+                            .map(TeamMember::getTeamId);
 
-                            Flux<Document> byTeams = teamIds
-                                    .flatMap(documents::findByTeamIdOrderByCreatedAtDesc);
+                    Flux<Document> byTeams = teamIds
+                            .flatMap(documents::findByTeamIdOrderByCreatedAtDesc);
 
-                            return Flux.merge(byUser, byTeams);
-                        }))
+                    return Flux.merge(byUser, byTeams);
+                })
                 .distinct(Document::getId)
                 .map(mapper::toDto)
                 .flatMap(this::enrichWithCases)
@@ -186,63 +199,58 @@ public class DocumentService {
     public Mono<DocumentDto> generateDocument(GenerateDocumentRequest request) {
         log.info("Generating document with request: {}", request);
 
-        return ReactiveSecurityContextHolder.getContext()
-                .map(SecurityContext::getAuthentication)
-                .flatMap(auth -> {
-                    String username = auth.getName();
-                    return userRepository.findByUsername(username)
-                            .flatMap(user -> {
-                                String requestedTeamId = request.getTeamId();
-                                Mono<UUID> teamIdMono;
-                                if (requestedTeamId != null && !requestedTeamId.isBlank()
-                                        && !requestedTeamId.equals("null") && !requestedTeamId.equals("undefined")) {
-                                    teamIdMono = teamMemberRepository
-                                            .findByUserIdAndTeamId(user.getId(), UUID.fromString(requestedTeamId))
-                                            .switchIfEmpty(
-                                                    Mono.error(new AccessDeniedException("Insufficient team access")))
-                                            .map(TeamMember::getTeamId);
-                                } else {
-                                    teamIdMono = teamMemberRepository.findByUserId(user.getId())
-                                            .next()
-                                            .map(TeamMember::getTeamId);
-                                }
+        return getCurrentUser()
+                .flatMap(user -> {
+                    String requestedTeamId = request.getTeamId();
+                    Mono<UUID> teamIdMono;
+                    if (requestedTeamId != null && !requestedTeamId.isBlank()
+                            && !requestedTeamId.equals("null") && !requestedTeamId.equals("undefined")) {
+                        teamIdMono = teamMemberRepository
+                                .findByUserIdAndTeamId(user.getId(), UUID.fromString(requestedTeamId))
+                                .switchIfEmpty(
+                                        Mono.error(new AccessDeniedException("Insufficient team access")))
+                                .map(TeamMember::getTeamId);
+                    } else {
+                        teamIdMono = teamMemberRepository.findByUserId(user.getId())
+                                .next()
+                                .map(TeamMember::getTeamId);
+                    }
 
-                                return teamIdMono.flatMap(teamId -> {
-                                    Document document = mapper.toEntity(DocumentDto.builder()
-                                            .id(UUID.randomUUID().toString())
-                                            .title(request.getTitle())
-                                            .type(null)
-                                            .status(DocumentStatus.PENDING)
-                                            .createdAt(LocalDateTime.now())
-                                            .updatedAt(LocalDateTime.now())
-                                            .text("")
-                                            .build());
-                                    document.setOwnerId(user.getId());
-                                    if (teamId != null) {
-                                        document.setTeamId(teamId);
-                                    }
+                    return teamIdMono.flatMap(teamId -> {
+                        Document document = mapper.toEntity(DocumentDto.builder()
+                                .id(UUID.randomUUID().toString())
+                                .title(request.getTitle())
+                                .type(null)
+                                .status(DocumentStatus.PENDING)
+                                .createdAt(LocalDateTime.now())
+                                .updatedAt(LocalDateTime.now())
+                                .text("")
+                                .build());
+                        document.setOwnerId(user.getId());
+                        if (teamId != null) {
+                            document.setTeamId(teamId);
+                        }
 
-                                    Mono<GenerateDocumentRequest> requestMono = Mono.just(request);
-                                    if (request.getExampleId() != null && !request.getExampleId().isBlank()) {
-                                        requestMono = documentExampleService.findById(request.getExampleId())
-                                                .map(example -> {
-                                                    if (request.getTemplateFiles() == null
-                                                            || request.getTemplateFiles().isEmpty()) {
-                                                        request.setTemplateFiles(example.getTemplateFiles());
-                                                    }
-                                                    return request;
-                                                })
-                                                .defaultIfEmpty(request);
-                                    }
+                        Mono<GenerateDocumentRequest> requestMono = Mono.just(request);
+                        if (request.getExampleId() != null && !request.getExampleId().isBlank()) {
+                            requestMono = documentExampleService.findById(request.getExampleId())
+                                    .map(example -> {
+                                        if (request.getTemplateFiles() == null
+                                                || request.getTemplateFiles().isEmpty()) {
+                                            request.setTemplateFiles(example.getTemplateFiles());
+                                        }
+                                        return request;
+                                    })
+                                    .defaultIfEmpty(request);
+                        }
 
-                                    return requestMono.flatMap(req -> documents.save(document)
-                                            .map(doc -> {
-                                                doc.setNotNew();
-                                                return doc;
-                                            })
-                                            .flatMap(savedDocument -> processAIGeneration(savedDocument, req)));
-                                });
-                            });
+                        return requestMono.flatMap(req -> documents.save(document)
+                                .map(doc -> {
+                                    doc.setNotNew();
+                                    return doc;
+                                })
+                                .flatMap(savedDocument -> processAIGeneration(savedDocument, req)));
+                    });
                 });
     }
 
