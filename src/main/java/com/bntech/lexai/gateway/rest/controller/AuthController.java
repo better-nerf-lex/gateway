@@ -64,6 +64,12 @@ public class AuthController {
                                 .map(user -> LoginResponse.builder()
                                         .token(tokenMap.get("accessToken"))
                                         .refreshToken(tokenMap.get("refreshToken"))
+                                        .user(UserDto.builder()
+                                                .id(user.getId())
+                                                .email(user.getEmail())
+                                                .username(user.getUsername())
+                                                .roles(java.util.Collections.emptyList())
+                                                .build())
                                         .build());
                     })
                     .map(ResponseEntity::ok);
