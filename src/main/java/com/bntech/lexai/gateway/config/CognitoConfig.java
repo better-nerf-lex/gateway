@@ -5,8 +5,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
+import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 
 @Configuration
 @Profile("prod")
@@ -20,11 +20,11 @@ public class CognitoConfig {
     private String userPoolId;
 
     @Bean
-    public JwtDecoder jwtDecoder() {
+    public ReactiveJwtDecoder reactiveJwtDecoder() {
         String jwkSetUri = String.format(
                 "https://cognito-idp.%s.amazonaws.com/%s/.well-known/jwks.json",
                 region,
                 userPoolId);
-        return NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        return NimbusReactiveJwtDecoder.withJwkSetUri(jwkSetUri).build();
     }
 }
