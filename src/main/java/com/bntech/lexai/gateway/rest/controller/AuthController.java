@@ -26,10 +26,28 @@ public class AuthController {
 
     private final AuthService authService;
     private final OAuth2AuthService oAuth2AuthService;
+    private final com.bntech.lexai.gateway.service.CognitoService cognitoService;
+    private final com.bntech.lexai.gateway.service.CognitoUserSyncService cognitoUserSyncService;
+
+    @PostMapping("/register")
+    public Mono<ResponseEntity<Void>> register(@RequestBody LoginRequest registerRequest) {
+        return Mono
+                .fromRunnable(
+                        () -> cognitoService.registerUser(registerRequest.getUsername(), registerRequest.getPassword()))
+                .then(Mono.just(ResponseEntity.ok().build()));
+    }
 
     @PostMapping("/login")
     public Mono<ResponseEntity<LoginResponse>> login(@RequestBody LoginRequest loginRequest) {
-        return authService.authenticate(loginRequest)
+        return Mono.fromCallable(() -> cognitoService.login(loginRequest.getUsername(), loginRequest.getPassword()))
+                .map(tokens -> {
+                    java.util.Map<String, String> tokenMap = (java.util.Map<String, String>) tokens;
+                    return LoginResponse.builder()
+                            .token(tokenMap.get("accessToken"))
+                            .refreshToken(tokenMap.get("refreshToken"))
+                            // User info will be fetched by frontend via /me or from ID token
+                            .build();
+                })
                 .map(ResponseEntity::ok);
     }
 
@@ -48,16 +66,24 @@ public class AuthController {
                 .then(Mono.just(ResponseEntity.ok().build()));
     }
 
-    //todo: think about oauth providers after cognito was made.
+    // todo: think about oauth providers after cognito was made.
     @GetMapping("/google")
     public Mono<Void> redirectToGoogle() {
         // This will redirect to /oauth2/authorization/google
         return Mono.empty();
     }
 
+    // ... updated constructors via Lombok
+
     @GetMapping("/me")
     public Mono<ResponseEntity<UserDto>> getCurrentUser(Authentication authentication) {
-        return authService.getCurrentUser(authentication)
+        return cognitoUserSyncService.getCurrentUser()
+                .map(user -> UserDto.builder()
+                        .id(user.getId())
+                        .email(user.getEmail())
+                        .username(user.getUsername())
+                        .roles(java.util.Collections.emptyList()) // TODO: Map roles
+                        .build())
                 .map(ResponseEntity::ok);
     }
 
