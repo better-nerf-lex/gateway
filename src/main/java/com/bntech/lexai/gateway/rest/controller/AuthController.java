@@ -53,14 +53,18 @@ public class AuthController {
     @PostMapping("/login")
     public Mono<ResponseEntity<LoginResponse>> login(@RequestBody LoginRequest loginRequest) {
         // Use Cognito in prod, fallback to local AuthService otherwise
-        if (cognitoService != null) {
+        if (cognitoService != null && cognitoUserSyncService != null) {
             return Mono.fromCallable(() -> cognitoService.login(loginRequest.getUsername(), loginRequest.getPassword()))
-                    .map(tokens -> {
+                    .flatMap(tokens -> {
                         java.util.Map<String, String> tokenMap = (java.util.Map<String, String>) tokens;
-                        return LoginResponse.builder()
-                                .token(tokenMap.get("accessToken"))
-                                .refreshToken(tokenMap.get("refreshToken"))
-                                .build();
+                        String idToken = tokenMap.get("idToken");
+
+                        // Sync user to database from ID token
+                        return cognitoUserSyncService.syncUserFromIdTokenString(idToken)
+                                .map(user -> LoginResponse.builder()
+                                        .token(tokenMap.get("accessToken"))
+                                        .refreshToken(tokenMap.get("refreshToken"))
+                                        .build());
                     })
                     .map(ResponseEntity::ok);
         }
