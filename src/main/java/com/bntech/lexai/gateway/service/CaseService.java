@@ -53,6 +53,7 @@ public class CaseService {
     private final DocumentGroupService documentGroupService;
     private final DocumentGroupRepository documentGroupRepository;
     private final ActivityService activityService;
+    private final CognitoUserSyncService cognitoUserSyncService;
 
     public Flux<CaseDto> getCases(String teamId) {
         if (teamId != null && !teamId.isBlank() && !teamId.equals("null") && !teamId.equals("undefined")) {
@@ -139,31 +140,32 @@ public class CaseService {
     }
 
     public Mono<CaseDto> createCase(CaseDto caseDto) {
-        return ReactiveSecurityContextHolder.getContext()
-                .map(SecurityContext::getAuthentication)
-                .flatMap(auth -> userRepository.findByUsername(auth.getName())
-                        .flatMap(user -> {
-                            LegalCase caseEntity = caseMapper.toEntity(caseDto);
-                            if (caseEntity.getId() == null) {
-                                caseEntity.setId(UUID.randomUUID());
-                            }
-                            caseEntity.setOwnerId(user.getId());
-                            caseEntity.setCreatedAt(LocalDateTime.now());
-                            caseEntity.setUpdatedAt(LocalDateTime.now());
+        return cognitoUserSyncService.getCurrentUser()
+                .onErrorResume(e -> ReactiveSecurityContextHolder.getContext()
+                        .map(SecurityContext::getAuthentication)
+                        .flatMap(auth -> userRepository.findByUsername(auth.getName())))
+                .flatMap(user -> {
+                    LegalCase caseEntity = caseMapper.toEntity(caseDto);
+                    if (caseEntity.getId() == null) {
+                        caseEntity.setId(UUID.randomUUID());
+                    }
+                    caseEntity.setOwnerId(user.getId());
+                    caseEntity.setCreatedAt(LocalDateTime.now());
+                    caseEntity.setUpdatedAt(LocalDateTime.now());
 
-                            if (caseDto.getLeadingCourtId() != null) {
-                                caseEntity.setLeadingCourtId(UUID.fromString(caseDto.getLeadingCourtId()));
-                            }
+                    if (caseDto.getLeadingCourtId() != null) {
+                        caseEntity.setLeadingCourtId(UUID.fromString(caseDto.getLeadingCourtId()));
+                    }
 
-                            if (caseDto.getTeamId() != null) {
-                                return teamMemberRepository.findByUserIdAndTeamId(user.getId(), caseDto.getTeamId())
-                                        .switchIfEmpty(
-                                                Mono.error(new AccessDeniedException("Insufficient team access")))
-                                        .flatMap(tm -> caseRepository.save(caseEntity));
-                            }
+                    if (caseDto.getTeamId() != null) {
+                        return teamMemberRepository.findByUserIdAndTeamId(user.getId(), caseDto.getTeamId())
+                                .switchIfEmpty(
+                                        Mono.error(new AccessDeniedException("Insufficient team access")))
+                                .flatMap(tm -> caseRepository.save(caseEntity));
+                    }
 
-                            return caseRepository.save(caseEntity);
-                        }))
+                    return caseRepository.save(caseEntity);
+                })
                 .map(savedCase -> {
                     savedCase.setNotNew();
                     if (savedCase.getTeamId() != null) {
