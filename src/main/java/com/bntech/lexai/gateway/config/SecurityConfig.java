@@ -5,6 +5,7 @@ import com.bntech.lexai.gateway.service.DatabaseUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,7 @@ import java.util.List;
 @Configuration(proxyBeanMethods = false)
 @EnableWebFluxSecurity
 @EnableReactiveMethodSecurity
+@Profile("!prod")
 @RequiredArgsConstructor
 public class SecurityConfig {
 
