@@ -27,7 +27,8 @@ public class AuthService {
     private final UserMapper userMapper;
 
     public Mono<LoginResponse> authenticate(LoginRequest loginRequest) {
-        return findUserByUsernameOrEmail(loginRequest.getUsername())
+        String normalizedUsername = loginRequest.getUsername() != null ? loginRequest.getUsername().toLowerCase() : null;
+        return findUserByUsernameOrEmail(normalizedUsername)
                 .doOnNext(user -> log.info("Found user: {} with enabled: {}", user.getUsername(), user.isEnabled()))
                 .doOnError(error -> log.error("Error finding user: ", error))
                 .switchIfEmpty(Mono.defer(() -> {

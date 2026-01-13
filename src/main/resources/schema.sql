@@ -296,6 +296,9 @@ SET search_vector =
         setweight(to_tsvector('english', COALESCE(text, '')), 'B')
 WHERE search_vector IS NULL;
 
+-- Normalize existing emails and usernames
+UPDATE users SET email = LOWER(email), username = LOWER(username);
+
 -- Create search vector update for document_examples
 CREATE INDEX IF NOT EXISTS idx_document_examples_search ON document_examples USING GIN (search_vector);
 

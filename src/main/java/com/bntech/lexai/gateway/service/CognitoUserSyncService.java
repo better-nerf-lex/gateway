@@ -27,6 +27,9 @@ public class CognitoUserSyncService {
     public Mono<User> syncUserFromJwt(Jwt jwt) {
         String cognitoSub = jwt.getSubject();
         String email = jwt.getClaimAsString("email");
+        if (email != null) {
+            email = email.toLowerCase();
+        }
         Boolean emailVerified = jwt.getClaimAsBoolean("email_verified");
         return syncUserInternal(cognitoSub, email, emailVerified);
     }
@@ -43,6 +46,9 @@ public class CognitoUserSyncService {
 
             String cognitoSub = claims.get("sub").asText();
             String email = claims.get("email").asText();
+            if (email != null) {
+                email = email.toLowerCase();
+            }
             Boolean emailVerified = claims.has("email_verified") && claims.get("email_verified").asBoolean();
 
             log.info("Syncing user from ID token: {}", email);

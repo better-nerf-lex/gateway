@@ -32,6 +32,9 @@ public class OAuth2AuthService {
 
     public Mono<LoginResponse> handleOAuth2Success(OAuth2User oauth2User) {
         String email = oauth2User.getAttribute("email");
+        if (email != null) {
+            email = email.toLowerCase();
+        }
         String name = oauth2User.getAttribute("name");
 
         return findOrCreateUserFromOAuth2(oauth2User, email, name)
@@ -60,9 +63,10 @@ public class OAuth2AuthService {
     }
 
     private Mono<User> createUserFromOAuth2(OAuth2User oauth2User, String email, String name) {
+        String normalizedEmail = email != null ? email.toLowerCase() : null;
         User user = new User();
-        user.setUsername(email);
-        user.setEmail(email);
+        user.setUsername(normalizedEmail);
+        user.setEmail(normalizedEmail);
         user.setPassword("");
         user.setEnabled(true);
 

@@ -24,11 +24,19 @@ public class User extends Auditable<Long> implements Persistable<Long> {
     @Column("username")
     private String username;
 
+    public void setUsername(String username) {
+        this.username = username != null ? username.toLowerCase() : null;
+    }
+
     @Column("password")
     private String password;
 
     @Column("email")
     private String email;
+
+    public void setEmail(String email) {
+        this.email = email != null ? email.toLowerCase() : null;
+    }
 
     @Column("cognito_sub")
     private String cognitoSub;

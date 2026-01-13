@@ -36,20 +36,21 @@ public class CognitoService {
     }
 
     public void registerUser(String email, String password) {
-        log.info("Registering user in Cognito: {}", email);
+        String normalizedEmail = email != null ? email.toLowerCase() : null;
+        log.info("Registering user in Cognito: {}", normalizedEmail);
         try {
             SignUpRequest signUpRequest = SignUpRequest.builder()
                     .clientId(clientId)
-                    .username(email)
+                    .username(normalizedEmail)
                     .password(password)
                     .userAttributes(AttributeType.builder()
                             .name("email")
-                            .value(email)
+                            .value(normalizedEmail)
                             .build())
                     .build();
 
             cognitoClient.signUp(signUpRequest);
-            log.info("User registered successfully: {}", email);
+            log.info("User registered successfully: {}", normalizedEmail);
         } catch (UsernameExistsException e) {
             throw new IllegalArgumentException("User already exists: " + email);
         } catch (InvalidPasswordException e) {
@@ -61,13 +62,14 @@ public class CognitoService {
     }
 
     public Map<String, String> login(String email, String password) {
-        log.info("Authenticating user in Cognito: {}", email);
+        String normalizedEmail = email != null ? email.toLowerCase() : null;
+        log.info("Authenticating user in Cognito: {}", normalizedEmail);
         try {
             InitiateAuthRequest authRequest = InitiateAuthRequest.builder()
                     .clientId(clientId)
                     .authFlow(AuthFlowType.USER_PASSWORD_AUTH)
                     .authParameters(Map.of(
-                            "USERNAME", email,
+                            "USERNAME", normalizedEmail,
                             "PASSWORD", password))
                     .build();
 
