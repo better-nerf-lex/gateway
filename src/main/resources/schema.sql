@@ -221,6 +221,20 @@ CREATE TABLE IF NOT EXISTS team_members
     version      INTEGER     NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS team_invitations
+(
+    id           UUID PRIMARY KEY,
+    team_id      UUID         NOT NULL REFERENCES teams (id),
+    email        VARCHAR(255) NOT NULL,
+    access_level VARCHAR(50)  NOT NULL,
+    token        VARCHAR(255) UNIQUE NOT NULL,
+    status       VARCHAR(20)  NOT NULL CHECK (status IN ('PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED')),
+    invited_by   BIGINT       NOT NULL REFERENCES users (id),
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at   TIMESTAMP    NOT NULL,
+    version      INTEGER      NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS authorization_codes
 (
     id           VARCHAR(255) PRIMARY KEY,
@@ -246,6 +260,9 @@ CREATE INDEX IF NOT EXISTS idx_legal_entities_owner_id ON legal_entities (owner_
 CREATE INDEX IF NOT EXISTS idx_legal_entities_team_id ON legal_entities (team_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members (user_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members (team_id);
+CREATE INDEX IF NOT EXISTS idx_team_invitations_token ON team_invitations (token);
+CREATE INDEX IF NOT EXISTS idx_team_invitations_email ON team_invitations (email);
+CREATE INDEX IF NOT EXISTS idx_team_invitations_team_id ON team_invitations (team_id);
 CREATE INDEX IF NOT EXISTS idx_case_documents_case_id ON case_documents (case_id);
 CREATE INDEX IF NOT EXISTS idx_case_documents_document_id ON case_documents (document_id);
 CREATE INDEX IF NOT EXISTS idx_cases_owner_id ON cases (owner_id);

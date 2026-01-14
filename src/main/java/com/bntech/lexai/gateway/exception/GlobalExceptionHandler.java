@@ -103,6 +103,22 @@ public class GlobalExceptionHandler {
                 return Mono.just(ResponseEntity.status(HttpStatus.CONFLICT).body(response));
         }
 
+        @ExceptionHandler(RateLimitException.class)
+        public Mono<ResponseEntity<ErrorResponse>> handleRateLimitException(
+                        RateLimitException ex, ServerWebExchange exchange) {
+                log.warn("Rate limit exceeded: {} (retry after: {} seconds)", ex.getMessage(), ex.getRetryAfter());
+                String path = exchange.getRequest().getPath().value();
+                ErrorResponse response = ErrorResponse.builder()
+                                .timestamp(java.time.LocalDateTime.now())
+                                .status(HttpStatus.TOO_MANY_REQUESTS.value())
+                                .error("Rate Limit Exceeded")
+                                .message(ex.getMessage())
+                                .path(path)
+                                .retryAfter(ex.getRetryAfter())
+                                .build();
+                return Mono.just(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(response));
+        }
+
         @ExceptionHandler(ServiceException.class)
         public Mono<ResponseEntity<ErrorResponse>> handleServiceException(
                         ServiceException ex, ServerWebExchange exchange) {

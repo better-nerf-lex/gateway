@@ -19,6 +19,7 @@ public class ErrorResponse {
     private final String field;
     private final String resourceType;
     private final String resourceId;
+    private final Integer retryAfter;
 
     public static ErrorResponse of(int status, String error, String message, String path) {
         return ErrorResponse.builder()

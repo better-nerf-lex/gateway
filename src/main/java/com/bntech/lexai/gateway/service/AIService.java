@@ -8,6 +8,7 @@ import com.anthropic.models.messages.TextBlock;
 import com.bntech.lexai.gateway.data.object.Prompts;
 import com.bntech.lexai.gateway.data.object.TemplateFile;
 import com.bntech.lexai.gateway.exception.ServiceException;
+import com.bntech.lexai.gateway.exception.RateLimitException;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentChatRequest;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentChatResponse;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
@@ -409,10 +410,60 @@ public class AIService {
                 })
                 .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) -> {
                     log.error("Retry exhausted for {} after {} attempts", identifier, retrySignal.totalRetries());
+                    Throwable failure = retrySignal.failure();
+                    
+                    if (isRateLimitError(failure)) {
+                        Integer retryAfter = extractRetryAfter(failure);
+                        String message = "Rate limit exceeded. Please try again later.";
+                        log.warn("Rate limit error detected with retry-after: {} seconds", retryAfter);
+                        return new RateLimitException(message, retryAfter, failure);
+                    }
+                    
                     return new ServiceException("AIService",
                             "AI service unavailable after " + retrySignal.totalRetries() + " attempts",
-                            retrySignal.failure());
+                            failure);
                 });
+    }
+
+    private boolean isRateLimitError(Throwable throwable) {
+        if (throwable == null) {
+            return false;
+        }
+        String message = throwable.getMessage();
+        return message != null && (message.contains("429") || message.contains("rate_limit"));
+    }
+
+    private Integer extractRetryAfter(Throwable throwable) {
+        if (throwable == null) {
+            return 60;
+        }
+        
+        String message = throwable.getMessage();
+        if (message == null) {
+            return 60;
+        }
+        
+        try {
+            if (message.contains("retry-after")) {
+                int start = message.indexOf("retry-after");
+                String afterPart = message.substring(start);
+                String[] parts = afterPart.split("[^0-9]+");
+                for (String part : parts) {
+                    if (!part.isEmpty()) {
+                        return Integer.parseInt(part);
+                    }
+                }
+            }
+            
+            if (message.contains("30,000 input tokens per minute")) {
+                return 60;
+            }
+            
+            return 60;
+        } catch (Exception e) {
+            log.warn("Failed to extract retry-after from error message, defaulting to 60 seconds", e);
+            return 60;
+        }
     }
 
     private String stripMarkdownCodeBlocks(String response) {

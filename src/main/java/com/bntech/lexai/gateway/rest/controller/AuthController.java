@@ -32,6 +32,10 @@ public class AuthController {
 
         @Autowired(required = false)
         private TeamService teamService;
+
+        @Autowired(required = false)
+        private InvitationService invitationService;
+
     @Autowired
     private UserRepository userRepository;
 
@@ -62,6 +66,20 @@ public class AuthController {
                                                 return cognitoUserSyncService.syncUserFromIdTokenString(idToken)
                                                                 .flatMap(user -> teamService.ensureDefaultTeam(user)
                                                                                 .thenReturn(user))
+                                                                .flatMap(user -> {
+                                                                        // If invitation token provided, accept it
+                                                                        if (loginRequest.getInvitationToken() != null
+                                                                                && !loginRequest.getInvitationToken().isBlank()
+                                                                                && invitationService != null) {
+                                                                                return invitationService.acceptInvitation(loginRequest.getInvitationToken())
+                                                                                        .thenReturn(user)
+                                                                                        .onErrorResume(e -> {
+                                                                                                // Log error but don't fail login
+                                                                                                return Mono.just(user);
+                                                                                        });
+                                                                        }
+                                                                        return Mono.just(user);
+                                                                })
                                                                 .map(user -> LoginResponse.builder()
                                                                                 .token(tokenMap.get("accessToken"))
                                                                                 .refreshToken(tokenMap
