@@ -14,8 +14,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
@@ -264,6 +267,47 @@ public class StorageFileService {
                         content.length))
                 .doOnError(
                         error -> log.error("❌ Error fetching file content for key {}: {}", s3Key, error.getMessage()));
+    }
+
+    public Mono<ResponseEntity<Flux<DataBuffer>>> getFileContentStream(String id) {
+        return documentFileRepository.findById(UUID.fromString(id))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("StorageFile", id)))
+                .flatMap(file -> documentGroupRepository.findById(file.getDocumentGroupId())
+                        .map(group -> {
+                            String key = getS3Key(file.getTeamId(), group.getCaseId(), group.getId(), file.getId(),
+                                    file.getName());
+                            String contentType = determineContentType(file.getName());
+                            log.info("Streaming file content for id: {}, key: {}, contentType: {}", id, key,
+                                    contentType);
+
+                            Flux<DataBuffer> dataBufferFlux = webClientBuilder.build().get()
+                                    .uri(fileServiceUrl + "/files/" + key)
+                                    .retrieve()
+                                    .bodyToFlux(DataBuffer.class);
+
+                            return ResponseEntity.ok()
+                                    .contentType(MediaType.parseMediaType(contentType))
+                                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                                            "inline; filename=\"" + file.getName() + "\"")
+                                    .body(dataBufferFlux);
+                        }))
+                .doOnError(error -> log.error("❌ Error streaming file {}: {}", id, error.getMessage()));
+    }
+
+    private String determineContentType(String filename) {
+        String ext = getFileExtension(filename).toLowerCase();
+        return switch (ext) {
+            case ".pdf" -> "application/pdf";
+            case ".png" -> "image/png";
+            case ".jpg", ".jpeg" -> "image/jpeg";
+            case ".gif" -> "image/gif";
+            case ".webp" -> "image/webp";
+            case ".svg" -> "image/svg+xml";
+            case ".txt" -> "text/plain";
+            case ".html", ".htm" -> "text/html";
+            case ".docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            default -> "application/octet-stream";
+        };
     }
 
     public Mono<StorageFileDto> moveFile(String id, String targetGroupId) {

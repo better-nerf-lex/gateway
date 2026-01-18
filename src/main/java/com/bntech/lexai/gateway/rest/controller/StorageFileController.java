@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.http.ResponseEntity;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -77,5 +79,11 @@ public class StorageFileController {
     @PreAuthorize("@access.storageFileWrite(authentication, #id)")
     public Mono<StorageFileDto> moveFile(@PathVariable String id, @RequestParam String targetGroupId) {
         return documentFileService.moveFile(id, targetGroupId);
+    }
+
+    @GetMapping("/{id}/content")
+    @PreAuthorize("@access.storageFileRead(authentication, #id)")
+    public Mono<ResponseEntity<Flux<DataBuffer>>> getFileContent(@PathVariable String id) {
+        return documentFileService.getFileContentStream(id);
     }
 }
