@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -84,6 +85,10 @@ public class StorageFileController {
     @GetMapping("/{id}/content")
     @PreAuthorize("@access.storageFileRead(authentication, #id)")
     public Mono<ResponseEntity<Flux<DataBuffer>>> getFileContent(@PathVariable String id) {
-        return documentFileService.getFileContentStream(id);
+        return documentFileService.getFileStreamMetadata(id)
+                .map(metadata -> ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(metadata.getContentType()))
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + metadata.getFileName() + "\"")
+                        .body(documentFileService.streamFileContent(metadata.getS3Key())));
     }
 }
