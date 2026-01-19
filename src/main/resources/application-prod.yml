@@ -54,6 +54,7 @@ jwt:
   refresh-expiration: 604800
 
 app:
+  frontend-url: ${FRONTEND_URL}
   file-service:
     url: ${FILE_SERVICE_URL}
   http:

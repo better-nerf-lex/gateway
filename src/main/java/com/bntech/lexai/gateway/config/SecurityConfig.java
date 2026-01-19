@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.config;
 
 import com.bntech.lexai.gateway.security.JwtAuthenticationFilter;
+import com.bntech.lexai.gateway.security.OAuth2SuccessHandler;
 import com.bntech.lexai.gateway.service.DatabaseUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -18,7 +19,6 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.HttpStatusServerEntryPoint;
-import org.springframework.security.web.server.authentication.RedirectServerAuthenticationSuccessHandler;
 import org.springframework.security.web.server.authorization.HttpStatusServerAccessDeniedHandler;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
 
@@ -32,6 +32,7 @@ public class SecurityConfig {
         private final DatabaseUserDetailsService userDetailsService;
         private final JwtAuthenticationFilter jwtAuthenticationFilter;
         private final PasswordEncoder passwordEncoder;
+        private final OAuth2SuccessHandler oAuth2SuccessHandler;
 
         @Bean
         public ReactiveAuthenticationManager authenticationManager() {
@@ -55,8 +56,8 @@ public class SecurityConfig {
                                                                 "/.well-known/**", "/actuator/**")
                                                 .permitAll()
                                                 .anyExchange().authenticated())
-                                .oauth2Login(oauth2Login -> oauth2Login.authenticationSuccessHandler(
-                                                new RedirectServerAuthenticationSuccessHandler("/auth/oauth2/success")))
+                                .oauth2Login(oauth2Login -> oauth2Login
+                                                .authenticationSuccessHandler(oAuth2SuccessHandler))
                                 .exceptionHandling(exceptions -> exceptions
                                                 .authenticationEntryPoint(
                                                                 new HttpStatusServerEntryPoint(HttpStatus.UNAUTHORIZED))
