@@ -145,6 +145,12 @@
             <version>2.20.0</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.postmarkapp</groupId>
+            <artifactId>postmark</artifactId>
+            <version>1.10.0</version>
+        </dependency>
+
 <!--        test-->
         <dependency>
             <groupId>org.springframework.boot</groupId>

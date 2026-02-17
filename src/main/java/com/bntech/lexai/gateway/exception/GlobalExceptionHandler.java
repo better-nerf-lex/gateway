@@ -74,6 +74,19 @@ public class GlobalExceptionHandler {
                 return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).body(response));
         }
 
+        @ExceptionHandler(SubscriptionRequiredException.class)
+        public Mono<ResponseEntity<ErrorResponse>> handleSubscriptionRequired(
+                        SubscriptionRequiredException ex, ServerWebExchange exchange) {
+                log.warn("Subscription required: {}", ex.getMessage());
+                String path = exchange.getRequest().getPath().value();
+                ErrorResponse response = ErrorResponse.of(
+                                HttpStatus.PAYMENT_REQUIRED.value(),
+                                "Subscription Required",
+                                ex.getMessage(),
+                                path);
+                return Mono.just(ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(response));
+        }
+
         @ExceptionHandler(AccessDeniedException.class)
         public Mono<ResponseEntity<ErrorResponse>> handleAccessDenied(
                         AccessDeniedException ex, ServerWebExchange exchange) {

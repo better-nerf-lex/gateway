@@ -26,7 +26,7 @@ logging:
     org.springframework.r2dbc: DEBUG
 
 jwt:
-  secret: mySecret
+  secret: dummy-key
 
 aws:
   s3:

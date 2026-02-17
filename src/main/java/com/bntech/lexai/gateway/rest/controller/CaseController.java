@@ -5,6 +5,7 @@ import com.bntech.lexai.gateway.rest.dto.document.AddPartiesRequest;
 import com.bntech.lexai.gateway.rest.dto.document.CaseDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
 import com.bntech.lexai.gateway.rest.dto.document.EventDto;
+import com.bntech.lexai.gateway.security.RequireSubscription;
 import com.bntech.lexai.gateway.service.CaseService;
 import com.bntech.lexai.gateway.service.EventService;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,8 @@ public class CaseController {
     }
 
     @PostMapping()
+    @RequireSubscription(entityType = RequireSubscription.SubscriptionEntityType.TEAM,
+                         message = "Active team subscription required to create cases")
     public Mono<CaseDto> createCase(@RequestBody CaseDto caseDto) {
         return caseService.createCase(caseDto);
     }

@@ -3,16 +3,19 @@ package com.bntech.lexai.gateway.service;
 import com.bntech.lexai.gateway.data.entity.security.TeamInvitation;
 import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.entity.security.User;
+import com.bntech.lexai.gateway.data.entity.security.Team;
 import com.bntech.lexai.gateway.data.object.InvitationStatus;
 import com.bntech.lexai.gateway.data.repository.TeamInvitationRepository;
 import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.data.repository.TeamRepository;
 import com.bntech.lexai.gateway.exception.BadRequestException;
 import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
 import com.bntech.lexai.gateway.rest.dto.team.InvitationDto;
 import com.bntech.lexai.gateway.security.access.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Service;
@@ -30,7 +33,12 @@ public class InvitationService {
     private final TeamInvitationRepository invitationRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final UserRepository userRepository;
+    private final TeamRepository teamRepository;
     private final CognitoUserSyncService cognitoUserSyncService;
+    private final EmailService emailService;
+
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
     private static final int INVITATION_EXPIRY_DAYS = 7;
 
@@ -50,16 +58,18 @@ public class InvitationService {
                                         .flatMap(existingUser -> teamMemberRepository
                                                 .findByUserIdAndTeamId(existingUser.getId(), teamId)
                                                 .flatMap(existingMember -> Mono.<TeamInvitation>error(
-                                                        new BadRequestException("User is already a member of this team")))
-                                                .switchIfEmpty(createInvitation(teamId, normalizedEmail, accessLevel, inviter.getId())))
-                                        .switchIfEmpty(createInvitation(teamId, normalizedEmail, accessLevel, inviter.getId()));
+                                                        new BadRequestException(
+                                                                "User is already a member of this team")))
+                                                .switchIfEmpty(createInvitation(teamId, normalizedEmail, accessLevel,
+                                                        inviter)))
+                                        .switchIfEmpty(createInvitation(teamId, normalizedEmail, accessLevel, inviter));
                             });
                 })
                 .doOnSuccess(invitation -> log.info("Created invitation for {} to team {}", email, teamId))
                 .doOnError(error -> log.error("Failed to create invitation for {} to team {}", email, teamId, error));
     }
 
-    private Mono<TeamInvitation> createInvitation(UUID teamId, String email, AccessLevel accessLevel, Long inviterId) {
+    private Mono<TeamInvitation> createInvitation(UUID teamId, String email, AccessLevel accessLevel, User inviter) {
         return invitationRepository.findByEmailAndTeamIdAndStatus(email, teamId, InvitationStatus.PENDING)
                 .flatMap(existingInvitation -> {
                     if (existingInvitation.getExpiresAt().isAfter(LocalDateTime.now())) {
@@ -68,25 +78,40 @@ public class InvitationService {
                     existingInvitation.setStatus(InvitationStatus.EXPIRED);
                     existingInvitation.setNotNew();
                     return invitationRepository.save(existingInvitation)
-                            .then(saveNewInvitation(teamId, email, accessLevel, inviterId));
+                            .then(saveNewInvitation(teamId, email, accessLevel, inviter));
                 })
-                .switchIfEmpty(saveNewInvitation(teamId, email, accessLevel, inviterId));
+                .switchIfEmpty(saveNewInvitation(teamId, email, accessLevel, inviter));
     }
 
-    private Mono<TeamInvitation> saveNewInvitation(UUID teamId, String email, AccessLevel accessLevel, Long inviterId) {
+    private Mono<TeamInvitation> saveNewInvitation(UUID teamId, String email, AccessLevel accessLevel, User inviter) {
         TeamInvitation invitation = TeamInvitation.builder()
                 .teamId(teamId)
                 .email(email)
                 .accessLevel(accessLevel)
                 .token(generateToken())
                 .status(InvitationStatus.PENDING)
-                .invitedBy(inviterId)
+                .invitedBy(inviter.getId())
                 .expiresAt(LocalDateTime.now().plusDays(INVITATION_EXPIRY_DAYS))
                 .isNew(true)
                 .build();
         invitation.setId(UUID.randomUUID());
 
-        return invitationRepository.save(invitation);
+        return invitationRepository.save(invitation)
+                .flatMap(savedInvitation ->
+                // Send email after saving invitation
+                teamRepository.findById(teamId)
+                        .flatMap(team -> emailService.sendTeamInvitationEmail(
+                                email,
+                                team.getName(),
+                                inviter.getUsername(),
+                                savedInvitation.getToken(),
+                                frontendUrl + "/teams/invitations"))
+                        .thenReturn(savedInvitation)
+                        .onErrorResume(emailError -> {
+                            log.warn("Failed to send invitation email, but invitation was created successfully",
+                                    emailError);
+                            return Mono.just(savedInvitation);
+                        }));
     }
 
     public Mono<TeamMember> acceptInvitation(String token) {
@@ -106,7 +131,8 @@ public class InvitationService {
                             }
 
                             if (!user.getEmail().equalsIgnoreCase(invitation.getEmail())) {
-                                return Mono.error(new BadRequestException("This invitation is for a different email address"));
+                                return Mono.error(
+                                        new BadRequestException("This invitation is for a different email address"));
                             }
 
                             return teamMemberRepository.findByUserIdAndTeamId(user.getId(), invitation.getTeamId())
@@ -114,7 +140,8 @@ public class InvitationService {
                                             new BadRequestException("You are already a member of this team")))
                                     .switchIfEmpty(createTeamMember(user.getId(), invitation));
                         }))
-                .doOnSuccess(member -> log.info("User {} accepted invitation and joined team {}", member.getUserId(), member.getTeamId()))
+                .doOnSuccess(member -> log.info("User {} accepted invitation and joined team {}", member.getUserId(),
+                        member.getTeamId()))
                 .doOnError(error -> log.error("Failed to accept invitation with token {}", token, error));
     }
 

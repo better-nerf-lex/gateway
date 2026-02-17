@@ -52,12 +52,22 @@ jwt:
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:8080}
+  email:
+    from: ${EMAIL_FROM:noreply@paragrafic.pl}
+    enabled: ${EMAIL_ENABLED:false}
   file-service:
     url: ${FILE_SERVICE_URL:http://localhost:3001}
   http:
     connect-timeout: 30000 # 0.5 minute
     read-timeout: 300000    # 5 minutes for AI responses
     write-timeout: 60000 # 1 minute
+
+subscription:
+  service:
+    url: ${SUBSCRIPTION_SERVICE_URL:http://localhost:3002}
+
+postmark:
+  api-token: ${POSTMARK_API_TOKEN:disabled}
 
 logging:
   level:

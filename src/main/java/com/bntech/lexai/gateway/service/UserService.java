@@ -27,6 +27,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
     private final CognitoUserSyncService cognitoUserSyncService;
+    private final SubscriptionClientService subscriptionClientService;
 
     private Mono<User> getAuthenticatedUser() {
         return cognitoUserSyncService.getCurrentUser()
@@ -69,21 +70,39 @@ public class UserService {
     }
 
     public Mono<BillingInfoDto> getBillingInfo() {
-        return Mono.just(BillingInfoDto.builder()
-                .planName("Pro Plan")
-                .status("ACTIVE")
-                .tokensRemaining(5000)
-                .nextBillingDate(LocalDateTime.now().plusMonths(1).toString())
-                .build());
+        return getAuthenticatedUser()
+                .flatMap(user -> subscriptionClientService.hasActiveUserSubscription(user.getId())
+                        .map(hasSubscription -> BillingInfoDto.builder()
+                                .planName(hasSubscription ? "Pro Plan" : "Free Plan")
+                                .status(hasSubscription ? "ACTIVE" : "INACTIVE")
+                                .tokensRemaining(hasSubscription ? 10000 : 0)
+                                .nextBillingDate(hasSubscription ?
+                                        LocalDateTime.now().plusMonths(1).toString() : "N/A")
+                                .build())
+                );
     }
 
     public Mono<Void> subscribe() {
-        log.info("Subscription requested");
-        return Mono.empty();
+        return getAuthenticatedUser()
+                .flatMap(user -> {
+                    log.info("Subscription requested for user ID: {}", user.getId());
+                    // TODO: Integrate with Stripe to create checkout session
+                    // For now, this is a placeholder that should redirect to Stripe checkout
+                    return Mono.error(new BadRequestException("subscription",
+                            "Please use the Stripe checkout link to subscribe. " +
+                            "This endpoint will be updated to create checkout sessions."));
+                });
     }
 
     public Mono<Void> cancelSubscription() {
-        log.info("Subscription cancellation requested");
-        return Mono.empty();
+        return getAuthenticatedUser()
+                .flatMap(user -> {
+                    log.info("Subscription cancellation requested for user ID: {}", user.getId());
+                    // TODO: Call subscription service to cancel subscription
+                    // DELETE /api/v1/subscriptions/{id}
+                    return Mono.error(new BadRequestException("subscription",
+                            "Subscription cancellation must be done through the subscription service. " +
+                            "This endpoint will be updated to handle cancellation."));
+                });
     }
 }

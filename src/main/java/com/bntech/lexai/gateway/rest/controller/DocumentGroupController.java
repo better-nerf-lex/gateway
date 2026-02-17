@@ -3,6 +3,7 @@ package com.bntech.lexai.gateway.rest.controller;
 import com.bntech.lexai.gateway.rest.dto.document.StorageFileDto;
 import com.bntech.lexai.gateway.security.AuthenticationHelper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentGroupDto;
+import com.bntech.lexai.gateway.security.RequireSubscription;
 import com.bntech.lexai.gateway.service.StorageFileService;
 import com.bntech.lexai.gateway.service.DocumentGroupService;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,8 @@ public class DocumentGroupController {
     }
 
     @PostMapping()
+    @RequireSubscription(entityType = RequireSubscription.SubscriptionEntityType.TEAM,
+                         message = "Active team subscription required to create document groups")
     public Mono<DocumentGroupDto> createDocumentGroup(@RequestBody DocumentGroupDto dto,
             Authentication authentication) {
         return authHelper.getUserId(authentication)
