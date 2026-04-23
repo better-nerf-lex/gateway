@@ -15,7 +15,6 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.Base64;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -89,7 +88,6 @@ public class CognitoUserSyncService {
                             .cognitoSub(cognitoSub)
                             .username(email)
                             .email(email)
-                            .password(UUID.randomUUID().toString())
                             .emailVerified(emailVerified != null ? emailVerified : false)
                             .enabled(true)
                             .version(0)
