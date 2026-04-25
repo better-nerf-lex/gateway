@@ -47,6 +47,9 @@ public class User extends Auditable<Long> implements Persistable<Long> {
     @Column("enabled")
     private boolean enabled;
 
+    @Column("superadmin")
+    private boolean superadmin;
+
     @Column()
     private LocalDateTime updatedAt;
 

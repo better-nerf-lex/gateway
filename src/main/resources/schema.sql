@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS users
     cognito_sub     VARCHAR(255) UNIQUE,
     email_verified  BOOLEAN   DEFAULT FALSE,
     enabled         BOOLEAN   DEFAULT TRUE,
+    superadmin      BOOLEAN   NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by      BIGINT,

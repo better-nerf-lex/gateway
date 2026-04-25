@@ -1,7 +1,10 @@
 package com.bntech.lexai.gateway.security;
 
+import com.bntech.lexai.gateway.data.entity.security.User;
+import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.exception.SubscriptionRequiredException;
 import com.bntech.lexai.gateway.service.SubscriptionClientService;
+import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -10,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -20,15 +24,13 @@ import reactor.core.publisher.Mono;
  */
 @Aspect
 @Component
+@RequiredArgsConstructor
 public class SubscriptionAspect {
 
     private static final Logger log = LoggerFactory.getLogger(SubscriptionAspect.class);
 
     private final SubscriptionClientService subscriptionClientService;
-
-    public SubscriptionAspect(SubscriptionClientService subscriptionClientService) {
-        this.subscriptionClientService = subscriptionClientService;
-    }
+    private final UserRepository userRepository;
 
     /**
      * Around advice for methods annotated with @RequireSubscription.
@@ -96,47 +98,74 @@ public class SubscriptionAspect {
      * Validate user subscription.
      */
     private Mono<Void> validateUserSubscription(Authentication authentication, String errorMessage) {
-        Long userId = extractUserId(authentication);
-
-        if (userId == null) {
-            log.error("Could not extract user ID from authentication");
-            return Mono.error(new SubscriptionRequiredException("User ID not found in authentication context"));
-        }
-
-        log.debug("Validating user subscription for user ID: {}", userId);
-
-        return subscriptionClientService.hasActiveUserSubscription(userId)
-                .flatMap(hasSubscription -> {
-                    if (!hasSubscription) {
-                        log.info("User {} does not have active subscription", userId);
-                        return Mono.error(new SubscriptionRequiredException(errorMessage));
-                    }
-                    log.debug("User {} has active subscription", userId);
-                    return Mono.empty();
-                });
+        return isSuperadmin(authentication).flatMap(isSuper -> {
+            if (isSuper) {
+                log.debug("Superadmin user, bypassing user subscription check");
+                return Mono.empty();
+            }
+            Long userId = extractUserId(authentication);
+            if (userId == null) {
+                log.error("Could not extract user ID from authentication");
+                return Mono.error(new SubscriptionRequiredException("User ID not found in authentication context"));
+            }
+            log.debug("Validating user subscription for user ID: {}", userId);
+            return subscriptionClientService.hasActiveUserSubscription(userId)
+                    .flatMap(hasSubscription -> {
+                        if (!hasSubscription) {
+                            log.info("User {} does not have active subscription", userId);
+                            return Mono.error(new SubscriptionRequiredException(errorMessage));
+                        }
+                        log.debug("User {} has active subscription", userId);
+                        return Mono.empty();
+                    });
+        });
     }
 
     /**
      * Validate team subscription.
      */
     private Mono<Void> validateTeamSubscription(Authentication authentication, String errorMessage) {
-        String teamId = extractTeamId(authentication);
+        return isSuperadmin(authentication).flatMap(isSuper -> {
+            if (isSuper) {
+                log.debug("Superadmin user, bypassing team subscription check");
+                return Mono.empty();
+            }
+            String teamId = extractTeamId(authentication);
+            if (teamId == null || teamId.isBlank()) {
+                log.error("Could not extract team ID from authentication");
+                return Mono.error(new SubscriptionRequiredException("Team ID not found in authentication context"));
+            }
+            log.debug("Validating team subscription for team ID: {}", teamId);
+            return subscriptionClientService.hasActiveTeamSubscription(teamId)
+                    .flatMap(hasSubscription -> {
+                        if (!hasSubscription) {
+                            log.info("Team {} does not have active subscription", teamId);
+                            return Mono.error(new SubscriptionRequiredException(errorMessage));
+                        }
+                        log.debug("Team {} has active subscription", teamId);
+                        return Mono.empty();
+                    });
+        });
+    }
 
-        if (teamId == null || teamId.isBlank()) {
-            log.error("Could not extract team ID from authentication");
-            return Mono.error(new SubscriptionRequiredException("Team ID not found in authentication context"));
+    /**
+     * Check if the authenticated user is a superadmin (subscription checks are bypassed).
+     * Looks up the user in the gateway DB by Cognito sub from the JWT.
+     */
+    private Mono<Boolean> isSuperadmin(Authentication authentication) {
+        if (!(authentication instanceof JwtAuthenticationToken jwt)) {
+            return Mono.just(false);
         }
-
-        log.debug("Validating team subscription for team ID: {}", teamId);
-
-        return subscriptionClientService.hasActiveTeamSubscription(teamId)
-                .flatMap(hasSubscription -> {
-                    if (!hasSubscription) {
-                        log.info("Team {} does not have active subscription", teamId);
-                        return Mono.error(new SubscriptionRequiredException(errorMessage));
-                    }
-                    log.debug("Team {} has active subscription", teamId);
-                    return Mono.empty();
+        String cognitoSub = jwt.getToken().getSubject();
+        if (cognitoSub == null || cognitoSub.isBlank()) {
+            return Mono.just(false);
+        }
+        return userRepository.findByCognitoSub(cognitoSub)
+                .map(User::isSuperadmin)
+                .defaultIfEmpty(false)
+                .onErrorResume(err -> {
+                    log.warn("Failed superadmin lookup for sub {}: {}", cognitoSub, err.getMessage());
+                    return Mono.just(false);
                 });
     }
 
