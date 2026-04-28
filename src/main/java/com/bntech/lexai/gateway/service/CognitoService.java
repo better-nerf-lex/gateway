@@ -74,7 +74,11 @@ public class CognitoService {
                     .build();
 
             InitiateAuthResponse response = cognitoClient.initiateAuth(authRequest);
-            return toAuthResult(response);
+            if (response.challengeName() != null) {
+                log.info("Cognito login challenge returned for {}: {}", normalizedEmail, response.challengeNameAsString());
+                return CognitoAuthResult.challenge(response.challengeNameAsString(), response.session());
+            }
+            return toAuthResult(response.authenticationResult(), null, null);
 
         } catch (NotAuthorizedException e) {
             throw new IllegalArgumentException("Invalid email or password");
