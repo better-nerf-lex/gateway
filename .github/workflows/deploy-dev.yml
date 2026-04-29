@@ -72,6 +72,26 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
+      - name: Verify ECS service uses latest task definition
+        run: |
+          CURRENT_TASK_DEFINITION=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          LATEST_TASK_DEFINITION=$(aws ecs describe-task-definition \
+            --task-definition ${{ env.ECS_TASK_DEFINITION }} \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "Current service task definition: $CURRENT_TASK_DEFINITION"
+          echo "Latest task definition: $LATEST_TASK_DEFINITION"
+
+          if [ "$CURRENT_TASK_DEFINITION" != "$LATEST_TASK_DEFINITION" ]; then
+            echo "ECS service did not move to the latest task definition. Check service events and stopped task logs."
+            exit 1
+          fi
+
       - name: Deployment summary
         run: |
           echo "### Deployment Successful! :rocket:" >> $GITHUB_STEP_SUMMARY
