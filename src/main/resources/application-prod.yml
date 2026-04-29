@@ -87,6 +87,8 @@ management:
       exposure:
         include: health,info,metrics
   health:
+    defaults:
+      enabled: false
     elasticsearch:
       enabled: false
 
