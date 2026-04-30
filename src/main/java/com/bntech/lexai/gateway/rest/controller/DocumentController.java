@@ -9,7 +9,6 @@ import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import com.bntech.lexai.gateway.rest.dto.document.UpdateDocumentRequest;
-import com.bntech.lexai.gateway.security.RequireSubscription;
 import org.springframework.security.access.prepost.PreAuthorize;
 import com.bntech.lexai.gateway.service.DocumentService;
 import lombok.RequiredArgsConstructor;
@@ -50,15 +49,11 @@ public class DocumentController {
     }
 
     @PostMapping()
-    @RequireSubscription(entityType = RequireSubscription.SubscriptionEntityType.TEAM,
-                         message = "Active team subscription required to generate documents with AI")
     public Mono<SubmitPromptResponse> submitPrompt(@RequestBody SubmitPromptRequest request) {
         return documentService.submitPrompt(request);
     }
 
     @PostMapping("/generate")
-    @RequireSubscription(entityType = RequireSubscription.SubscriptionEntityType.TEAM,
-                         message = "Active team subscription required to generate documents with AI")
     public Mono<DocumentDto> generateDocument(@RequestBody GenerateDocumentRequest request) {
         return documentService.generateDocument(request);
     }
@@ -71,8 +66,6 @@ public class DocumentController {
 
     @PostMapping("/{id}/chat")
     @PreAuthorize("@access.documentRead(authentication, #id)")
-    @RequireSubscription(entityType = RequireSubscription.SubscriptionEntityType.TEAM,
-                         message = "Active team subscription required to use AI document chat")
     public Mono<DocumentChatResponse> chatWithDocument(@PathVariable String id,
             @RequestBody DocumentChatRequest request) {
         request.setDocumentId(id);

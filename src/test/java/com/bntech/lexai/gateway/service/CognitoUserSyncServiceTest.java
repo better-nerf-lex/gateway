@@ -1,15 +1,21 @@
 package com.bntech.lexai.gateway.service;
 
+import com.bntech.lexai.gateway.data.entity.security.Team;
+import com.bntech.lexai.gateway.data.entity.security.TeamMember;
+import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
+import com.bntech.lexai.gateway.data.repository.TeamRepository;
 import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,7 +36,10 @@ class CognitoUserSyncServiceTest {
                 .build();
         AtomicReference<User> savedUser = new AtomicReference<>();
         UserRepository userRepository = userRepositoryReturning(existingUser, savedUser);
-        CognitoUserSyncService service = new CognitoUserSyncService(userRepository);
+        CognitoUserSyncService service = new CognitoUserSyncService(
+                userRepository,
+                emptyTeamRepository(),
+                teamMemberRepositoryWithExistingMembership());
 
         StepVerifier.create(service.syncUserFromIdTokenString(idToken("cognito-sub", "user@example.invalid", true)))
                 .assertNext(user -> {
@@ -41,6 +50,33 @@ class CognitoUserSyncServiceTest {
 
         assertThat(savedUser.get()).isNotNull();
         assertThat(savedUser.get().isNew()).isFalse();
+    }
+
+    private TeamRepository emptyTeamRepository() {
+        return (TeamRepository) Proxy.newProxyInstance(
+                TeamRepository.class.getClassLoader(),
+                new Class<?>[]{TeamRepository.class},
+                (proxy, method, args) -> {
+                    if ("save".equals(method.getName())) {
+                        return Mono.just((Team) args[0]);
+                    }
+                    throw new UnsupportedOperationException(method.getName());
+                });
+    }
+
+    private TeamMemberRepository teamMemberRepositoryWithExistingMembership() {
+        TeamMember member = new TeamMember();
+        member.setId(UUID.randomUUID());
+        member.setTeamId(UUID.randomUUID());
+        member.setUserId(7L);
+        return (TeamMemberRepository) Proxy.newProxyInstance(
+                TeamMemberRepository.class.getClassLoader(),
+                new Class<?>[]{TeamMemberRepository.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "findByUserId" -> Flux.just(member);
+                    case "save" -> Mono.just((TeamMember) args[0]);
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
     }
 
     private UserRepository userRepositoryReturning(User existingUser, AtomicReference<User> savedUser) {

@@ -10,8 +10,12 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BillingInfoDto {
+    private String teamId;
     private String planName;
     private String status;
     private Integer tokensRemaining;
+    private Integer monthlyTokensRemaining;
+    private Integer topUpTokensRemaining;
     private String nextBillingDate;
+    private String nextResetAt;
 }

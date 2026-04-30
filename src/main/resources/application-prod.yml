@@ -66,6 +66,10 @@ app:
     read-timeout: 300000
     write-timeout: 60000
 
+subscription:
+  service:
+    url: ${SUBSCRIPTION_SERVICE_URL}
+
 postmark:
   api-token: ${POSTMARK_API_TOKEN}
 

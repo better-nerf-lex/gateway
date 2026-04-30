@@ -57,6 +57,7 @@ public class DocumentService {
     private final DocumentExampleService documentExampleService;
     private final ActivityService activityService;
     private final CognitoUserSyncService cognitoUserSyncService;
+    private final SubscriptionClientService subscriptionClientService;
 
     public DocumentService(
             DocumentRepository documents,
@@ -71,7 +72,8 @@ public class DocumentService {
             DocumentExampleMapper documentExampleMapper,
             @Autowired(required = false) DocumentExampleService documentExampleService,
             ActivityService activityService,
-            @Autowired(required = false) CognitoUserSyncService cognitoUserSyncService) {
+            @Autowired(required = false) CognitoUserSyncService cognitoUserSyncService,
+            SubscriptionClientService subscriptionClientService) {
         this.documents = documents;
         this.aggregates = aggregates;
         this.documentsHistory = documentsHistory;
@@ -85,6 +87,7 @@ public class DocumentService {
         this.documentExampleService = documentExampleService;
         this.activityService = activityService;
         this.cognitoUserSyncService = cognitoUserSyncService;
+        this.subscriptionClientService = subscriptionClientService;
     }
 
     private Mono<com.bntech.lexai.gateway.data.entity.security.User> getCurrentUser() {
@@ -244,17 +247,22 @@ public class DocumentService {
                                     .defaultIfEmpty(request);
                         }
 
-                        return requestMono.flatMap(req -> documents.save(document)
+                        String reservationKey = "document:" + document.getId();
+                        return requestMono.flatMap(req -> subscriptionClientService
+                                .reserveDocumentToken(teamId.toString(), reservationKey, document.getId().toString())
+                                .then(documents.save(document))
                                 .map(doc -> {
                                     doc.setNotNew();
                                     return doc;
                                 })
-                                .flatMap(savedDocument -> processAIGeneration(savedDocument, req)));
+                                .flatMap(savedDocument -> processAIGeneration(savedDocument, req, reservationKey))
+                                .onErrorResume(error -> subscriptionClientService.refundTokenReservation(reservationKey)
+                                        .then(Mono.error(error))));
                     });
                 });
     }
 
-    private Mono<DocumentDto> processAIGeneration(Document document, GenerateDocumentRequest request) {
+    private Mono<DocumentDto> processAIGeneration(Document document, GenerateDocumentRequest request, String reservationKey) {
         return aiService.generateDocumentWithAnswers(request)
                 .map(content -> {
                     log.info("Generated document content raw: {}", content);
@@ -273,6 +281,7 @@ public class DocumentService {
                     return cleanedContent;
                 })
                 .flatMap(content -> updateDocumentWithContent(document, content))
+                .flatMap(result -> subscriptionClientService.commitTokenReservation(reservationKey).thenReturn(result))
                 .doOnSuccess(result -> {
                     log.info("✅ AI generation completed for: {}", document.getTitle());
                     activityService.logActivity(
@@ -284,7 +293,8 @@ public class DocumentService {
                             "Generated document: " + document.getTitle());
                 })
                 .doOnError(error -> log.error("❌ AI generation failed for: {}", document.getTitle(), error))
-                .onErrorResume(error -> failDocument(document)); // Remove documentMapper.toDto() here
+                .onErrorResume(error -> subscriptionClientService.refundTokenReservation(reservationKey)
+                        .then(failDocument(document)));
     }
 
     private Mono<DocumentDto> updateDocumentWithContent(Document document, String content) {

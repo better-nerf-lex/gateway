@@ -1,6 +1,9 @@
 package com.bntech.lexai.gateway.rest.controller;
 
 import com.bntech.lexai.gateway.rest.dto.security.BillingInfoDto;
+import com.bntech.lexai.gateway.rest.dto.security.CheckoutSessionDto;
+import com.bntech.lexai.gateway.rest.dto.security.CreateCheckoutRequest;
+import com.bntech.lexai.gateway.rest.dto.security.CreateTopUpCheckoutRequest;
 import com.bntech.lexai.gateway.rest.dto.security.UpdatePasswordRequest;
 import com.bntech.lexai.gateway.rest.dto.security.UpdateProfileRequest;
 import com.bntech.lexai.gateway.rest.dto.security.UserDto;
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
@@ -41,15 +45,21 @@ public class UserController {
     }
 
     @GetMapping("/billing")
-    public Mono<ResponseEntity<BillingInfoDto>> getBillingInfo() {
-        return userService.getBillingInfo()
+    public Mono<ResponseEntity<BillingInfoDto>> getBillingInfo(@RequestParam(required = false) String teamId) {
+        return userService.getBillingInfo(teamId)
                 .map(ResponseEntity::ok);
     }
 
     @PostMapping("/billing/subscribe")
-    public Mono<ResponseEntity<Void>> subscribe() {
-        return userService.subscribe()
-                .then(Mono.just(ResponseEntity.ok().build()));
+    public Mono<ResponseEntity<CheckoutSessionDto>> subscribe(@RequestBody CreateCheckoutRequest request) {
+        return userService.subscribe(request.getTeamId(), request.getPlan())
+                .map(ResponseEntity::ok);
+    }
+
+    @PostMapping("/billing/top-up")
+    public Mono<ResponseEntity<CheckoutSessionDto>> buyTopUp(@RequestBody CreateTopUpCheckoutRequest request) {
+        return userService.buyTopUp(request.getTeamId(), request.getPack())
+                .map(ResponseEntity::ok);
     }
 
     @PostMapping("/billing/cancel")

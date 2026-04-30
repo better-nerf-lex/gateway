@@ -1,7 +1,12 @@
 package com.bntech.lexai.gateway.service;
 
+import com.bntech.lexai.gateway.data.entity.security.Team;
+import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.entity.security.User;
+import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
+import com.bntech.lexai.gateway.data.repository.TeamRepository;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.security.access.AccessLevel;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +20,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +28,8 @@ import java.util.Base64;
 public class CognitoUserSyncService {
 
     private final UserRepository userRepository;
+    private final TeamRepository teamRepository;
+    private final TeamMemberRepository teamMemberRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Mono<User> syncUserFromJwt(Jwt jwt) {
@@ -79,9 +87,10 @@ public class CognitoUserSyncService {
                         existingUser.setNotNew();
                         existingUser.setUpdatedAt(LocalDateTime.now());
                         log.info("Updating existing user {} with Cognito data", email);
-                        return userRepository.save(existingUser);
+                        return userRepository.save(existingUser)
+                                .flatMap(this::ensurePersonalTeam);
                     }
-                    return Mono.just(existingUser);
+                    return ensurePersonalTeam(existingUser);
                 })
                 .switchIfEmpty(Mono.defer(() -> {
                     log.info("Creating new user from Cognito: {}", email);
@@ -95,8 +104,35 @@ public class CognitoUserSyncService {
                             .createdAt(LocalDateTime.now())
                             .updatedAt(LocalDateTime.now())
                             .build();
-                    return userRepository.save(newUser);
+                    return userRepository.save(newUser)
+                            .flatMap(this::ensurePersonalTeam);
                 }));
+    }
+
+    private Mono<User> ensurePersonalTeam(User user) {
+        return teamMemberRepository.findByUserId(user.getId())
+                .hasElements()
+                .flatMap(hasTeam -> {
+                    if (hasTeam) {
+                        return Mono.just(user);
+                    }
+                    Team team = new Team();
+                    team.setId(UUID.randomUUID());
+                    team.setName(user.getEmail() + "'s Team");
+                    team.setCreatedAt(LocalDateTime.now());
+                    team.setNew(true);
+
+                    return teamRepository.save(team)
+                            .flatMap(savedTeam -> {
+                                TeamMember member = new TeamMember();
+                                member.setId(UUID.randomUUID());
+                                member.setUserId(user.getId());
+                                member.setTeamId(savedTeam.getId());
+                                member.setAccessLevel(AccessLevel.ADMIN);
+                                return teamMemberRepository.save(member);
+                            })
+                            .thenReturn(user);
+                });
     }
 
     public Mono<User> getCurrentUser() {

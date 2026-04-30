@@ -1,6 +1,9 @@
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.exception.SubscriptionRequiredException;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -55,6 +58,54 @@ public class SubscriptionClientService {
             return Mono.just(false);
         }
         return checkSubscriptionStatus("team", teamId);
+    }
+
+    public Mono<BillingStatusResponse> getTeamBillingStatus(String teamId) {
+        return webClient.get()
+                .uri("/api/v1/subscriptions/entity/team/{teamId}/billing", teamId)
+                .retrieve()
+                .bodyToMono(BillingStatusResponse.class);
+    }
+
+    public Mono<CheckoutSessionResponse> createSubscriptionCheckout(String teamId, String plan) {
+        return webClient.post()
+                .uri("/api/v1/subscriptions/checkout/subscription")
+                .bodyValue(new SubscriptionCheckoutRequest(teamId, "team", plan))
+                .retrieve()
+                .bodyToMono(CheckoutSessionResponse.class);
+    }
+
+    public Mono<CheckoutSessionResponse> createTopUpCheckout(String teamId, String pack) {
+        return webClient.post()
+                .uri("/api/v1/subscriptions/checkout/top-up")
+                .bodyValue(new TopUpCheckoutRequest(teamId, "team", pack))
+                .retrieve()
+                .bodyToMono(CheckoutSessionResponse.class);
+    }
+
+    public Mono<Void> reserveDocumentToken(String teamId, String reservationKey, String documentId) {
+        return webClient.post()
+                .uri("/api/v1/subscriptions/tokens/reserve")
+                .bodyValue(new ReserveTokensRequest(teamId, "team", reservationKey, 1, documentId))
+                .retrieve()
+                .onStatus(
+                        status -> status.equals(HttpStatus.PAYMENT_REQUIRED),
+                        response -> Mono.error(new SubscriptionRequiredException(
+                                "Not enough document tokens for this team. Buy tokens or start a subscription.")))
+                .bodyToMono(TokenReservationResponse.class)
+                .then();
+    }
+
+    public Mono<Void> commitTokenReservation(String reservationKey) {
+        return updateReservation("/api/v1/subscriptions/tokens/commit", reservationKey);
+    }
+
+    public Mono<Void> refundTokenReservation(String reservationKey) {
+        return updateReservation("/api/v1/subscriptions/tokens/refund", reservationKey)
+                .onErrorResume(error -> {
+                    log.warn("Failed to refund token reservation {}: {}", reservationKey, error.getMessage());
+                    return Mono.empty();
+                });
     }
 
     /**
@@ -118,6 +169,82 @@ public class SubscriptionClientService {
                 .onErrorReturn(false)  // Default to no subscription on errors
                 .doOnNext(isActive -> log.debug("Subscription check for {} {}: {}",
                         entityType, entityId, isActive ? "active" : "inactive"));
+    }
+
+    private Mono<Void> updateReservation(String uri, String reservationKey) {
+        return webClient.post()
+                .uri(uri)
+                .bodyValue(new ReservationKeyRequest(reservationKey))
+                .retrieve()
+                .bodyToMono(TokenReservationResponse.class)
+                .then();
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BillingStatusResponse {
+        private String entityId;
+        private String entityType;
+        private String activePlan;
+        private String subscriptionStatus;
+        private String subscriptionValidUntil;
+        private String nextResetAt;
+        private Integer monthlyTokensRemaining;
+        private Integer topUpTokensRemaining;
+        private Integer tokensRemaining;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CheckoutSessionResponse {
+        private String sessionId;
+        private String checkoutUrl;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    private static class SubscriptionCheckoutRequest {
+        private String entityId;
+        private String entityType;
+        private String plan;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    private static class TopUpCheckoutRequest {
+        private String entityId;
+        private String entityType;
+        private String pack;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    private static class ReserveTokensRequest {
+        private String entityId;
+        private String entityType;
+        private String reservationKey;
+        private Integer amount;
+        private String documentId;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    private static class ReservationKeyRequest {
+        private String reservationKey;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    private static class TokenReservationResponse {
+        private String reservationKey;
+        private String status;
     }
 
     /**
