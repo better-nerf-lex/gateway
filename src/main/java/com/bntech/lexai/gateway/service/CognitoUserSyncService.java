@@ -76,6 +76,7 @@ public class CognitoUserSyncService {
                     }
 
                     if (changed) {
+                        existingUser.setNotNew();
                         existingUser.setUpdatedAt(LocalDateTime.now());
                         log.info("Updating existing user {} with Cognito data", email);
                         return userRepository.save(existingUser);
