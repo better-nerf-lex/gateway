@@ -189,8 +189,11 @@ public class SubscriptionClientService {
         private String activePlan;
         private String subscriptionStatus;
         private String subscriptionValidUntil;
+        private String pendingPlan;
+        private String pendingPlanEffectiveAt;
         private String nextResetAt;
         private Integer monthlyTokensRemaining;
+        private Integer carryoverTokensRemaining;
         private Integer topUpTokensRemaining;
         private Integer tokensRemaining;
     }
@@ -201,6 +204,9 @@ public class SubscriptionClientService {
     public static class CheckoutSessionResponse {
         private String sessionId;
         private String checkoutUrl;
+        private String action;
+        private String message;
+        private String effectiveAt;
     }
 
     @Data

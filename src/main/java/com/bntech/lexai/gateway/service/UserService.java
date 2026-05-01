@@ -85,8 +85,11 @@ public class UserService {
                                 .teamId(resolvedTeamId.toString())
                                 .planName(status.getActivePlan() == null ? "No plan" : formatPlanName(status.getActivePlan()))
                                 .status(status.getSubscriptionStatus() == null ? "inactive" : status.getSubscriptionStatus())
+                                .pendingPlanName(status.getPendingPlan() == null ? null : formatPlanName(status.getPendingPlan()))
+                                .pendingPlanEffectiveAt(status.getPendingPlanEffectiveAt())
                                 .tokensRemaining(defaultInt(status.getTokensRemaining()))
                                 .monthlyTokensRemaining(defaultInt(status.getMonthlyTokensRemaining()))
+                                .carryoverTokensRemaining(defaultInt(status.getCarryoverTokensRemaining()))
                                 .topUpTokensRemaining(defaultInt(status.getTopUpTokensRemaining()))
                                 .nextBillingDate(status.getSubscriptionValidUntil())
                                 .nextResetAt(status.getNextResetAt())
@@ -102,6 +105,9 @@ public class UserService {
                         .map(response -> CheckoutSessionDto.builder()
                                 .sessionId(response.getSessionId())
                                 .checkoutUrl(response.getCheckoutUrl())
+                                .action(response.getAction())
+                                .message(response.getMessage())
+                                .effectiveAt(response.getEffectiveAt())
                                 .build()));
     }
 

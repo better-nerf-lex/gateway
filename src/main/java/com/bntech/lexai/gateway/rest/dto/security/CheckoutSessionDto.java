@@ -12,4 +12,7 @@ import lombok.NoArgsConstructor;
 public class CheckoutSessionDto {
     private String sessionId;
     private String checkoutUrl;
+    private String action;
+    private String message;
+    private String effectiveAt;
 }
