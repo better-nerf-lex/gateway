@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.config;
 
 import com.bntech.lexai.gateway.security.OAuth2SuccessHandler;
+import com.bntech.lexai.gateway.security.CookieBearerTokenServerAuthenticationConverter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -22,6 +23,7 @@ import org.springframework.web.cors.reactive.CorsConfigurationSource;
 public class ProdSecurityConfig {
 
         private final OAuth2SuccessHandler oAuth2SuccessHandler;
+        private final CookieBearerTokenServerAuthenticationConverter cookieBearerTokenConverter;
 
         @Bean
         @Order(1)
@@ -36,8 +38,9 @@ public class ProdSecurityConfig {
                                                                 "/.well-known/**", "/actuator/health", "/actuator/info")
                                                 .permitAll()
                                                 .anyExchange().authenticated())
-                                .oauth2ResourceServer(oauth2 -> oauth2.jwt(
-                                                jwt -> jwt.jwtAuthenticationConverter(
+                                .oauth2ResourceServer(oauth2 -> oauth2
+                                                .bearerTokenConverter(cookieBearerTokenConverter)
+                                                .jwt(jwt -> jwt.jwtAuthenticationConverter(
                                                                 new CognitoAuthenticationConverter())))
                                 .oauth2Login(oauth2Login -> oauth2Login
                                                 .authenticationSuccessHandler(oAuth2SuccessHandler))

@@ -2,6 +2,7 @@ package com.bntech.lexai.gateway.rest.controller;
 
 import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.exception.UnauthorizedException;
 import com.bntech.lexai.gateway.rest.dto.security.CompleteNewPasswordRequest;
 import com.bntech.lexai.gateway.rest.dto.security.LoginRequest;
 import com.bntech.lexai.gateway.rest.dto.security.LoginResponse;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 
@@ -25,6 +27,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final OAuth2AuthService oAuth2AuthService;
+    private final AuthSessionService authSessionService;
 
     @Autowired(required = false)
     private CognitoService cognitoService;
@@ -55,17 +58,17 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public Mono<ResponseEntity<LoginResponse>> login(@RequestBody LoginRequest loginRequest) {
+    public Mono<ResponseEntity<LoginResponse>> login(@RequestBody LoginRequest loginRequest, ServerWebExchange exchange) {
         // Use Cognito in prod, fallback to local AuthService otherwise
         if (cognitoService != null && cognitoUserSyncService != null && teamService != null) {
             return Mono.fromCallable(() -> cognitoService.login(loginRequest.getUsername(),
                             loginRequest.getPassword()))
-                    .flatMap(result -> finalizeCognitoAuth(result, loginRequest.getInvitationToken()))
-                    .map(ResponseEntity::ok);
+                    .flatMap(result -> finalizeCognitoAuth(result, loginRequest.getInvitationToken())
+                            .flatMap(response -> loginResponseEntity(exchange, response, result.expiresIn())));
         }
         // Fallback to local auth for dev environment
         return authService.authenticate(loginRequest)
-                .map(ResponseEntity::ok);
+                .flatMap(response -> loginResponseEntity(exchange, response, null));
     }
 
     /**
@@ -74,14 +77,16 @@ public class AuthController {
      * (e.g. when the user was created via AdminCreateUser with a temporary password).
      */
     @PostMapping("/complete-new-password")
-    public Mono<ResponseEntity<LoginResponse>> completeNewPassword(@RequestBody CompleteNewPasswordRequest request) {
+    public Mono<ResponseEntity<LoginResponse>> completeNewPassword(
+            @RequestBody CompleteNewPasswordRequest request,
+            ServerWebExchange exchange) {
         if (cognitoService == null || cognitoUserSyncService == null || teamService == null) {
             return Mono.just(ResponseEntity.status(501).build());
         }
         return Mono.fromCallable(() -> cognitoService.respondToNewPasswordChallenge(
                         request.getUsername(), request.getNewPassword(), request.getSession()))
-                .flatMap(result -> finalizeCognitoAuth(result, request.getInvitationToken()))
-                .map(ResponseEntity::ok);
+                .flatMap(result -> finalizeCognitoAuth(result, request.getInvitationToken())
+                        .flatMap(response -> loginResponseEntity(exchange, response, result.expiresIn())));
     }
 
     /**
@@ -121,17 +126,19 @@ public class AuthController {
     }
 
     @GetMapping("/oauth2/success")
-    public Mono<ResponseEntity<LoginResponse>> oauth2Success(Authentication authentication) {
+    public Mono<ResponseEntity<LoginResponse>> oauth2Success(Authentication authentication, ServerWebExchange exchange) {
         if (authentication.getPrincipal() instanceof OAuth2User oauth2User) {
             return oAuth2AuthService.handleOAuth2Success(oauth2User)
-                    .map(ResponseEntity::ok);
+                    .flatMap(response -> loginResponseEntity(exchange, response, null));
         }
         return Mono.just(ResponseEntity.badRequest().build());
     }
 
     @PostMapping("/logout")
-    public Mono<ResponseEntity<Void>> logout(Authentication authentication) {
-        return authService.logout(authentication)
+    public Mono<ResponseEntity<Void>> logout(ServerWebExchange exchange) {
+        authSessionService.clearAuthCookies(exchange);
+        return authSessionService.revokeCurrentSession(exchange)
+                .onErrorResume(error -> Mono.empty())
                 .then(Mono.just(ResponseEntity.ok().build()));
     }
 
@@ -160,9 +167,28 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public Mono<ResponseEntity<RefreshTokenResponse>> refreshToken(
-            @RequestBody RefreshTokenRequest request) {
-        return authService.refreshToken(request.getRefreshToken())
-                .map(ResponseEntity::ok);
+            @RequestBody(required = false) RefreshTokenRequest request,
+            ServerWebExchange exchange) {
+        Mono<String> refreshToken = authSessionService.getRefreshToken(exchange)
+                .switchIfEmpty(Mono.justOrEmpty(request != null ? request.getRefreshToken() : null));
+
+        if (cognitoService != null) {
+            return refreshToken
+                    .switchIfEmpty(Mono.error(new UnauthorizedException("Missing refresh token")))
+                    .flatMap(token -> Mono.fromCallable(() -> cognitoService.refresh(token)))
+                    .flatMap(result -> authSessionService.updateCurrentSession(
+                                    exchange,
+                                    result.accessToken(),
+                                    result.refreshToken(),
+                                    result.expiresIn())
+                            .thenReturn(ResponseEntity.ok(RefreshTokenResponse.builder().build())));
+        }
+
+        return refreshToken
+                .switchIfEmpty(Mono.error(new UnauthorizedException("Missing refresh token")))
+                .flatMap(authService::refreshToken)
+                .flatMap(response -> authSessionService.updateCurrentSession(exchange, response.getToken(), null, null)
+                        .thenReturn(ResponseEntity.ok(RefreshTokenResponse.builder().build())));
     }
 
     @GetMapping("/authorize")
@@ -206,5 +232,24 @@ public class AuthController {
                     .onErrorResume(e -> Mono.just(ResponseEntity.status(500).<Void>build()));
         }
         return Mono.just(ResponseEntity.status(501).<Void>build());
+    }
+
+    private Mono<ResponseEntity<LoginResponse>> loginResponseEntity(
+            ServerWebExchange exchange,
+            LoginResponse response,
+            Long accessTokenTtlSeconds) {
+        if (response.getChallenge() != null) {
+            return Mono.just(ResponseEntity.ok(response));
+        }
+
+        return authSessionService.createSession(
+                        exchange,
+                        response.getUser().getId(),
+                        response.getToken(),
+                        response.getRefreshToken(),
+                        accessTokenTtlSeconds)
+                .thenReturn(ResponseEntity.ok(LoginResponse.builder()
+                        .user(response.getUser())
+                        .build()));
     }
 }

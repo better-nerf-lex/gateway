@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.security;
 
+import com.bntech.lexai.gateway.service.AuthSessionService;
 import com.bntech.lexai.gateway.service.OAuth2AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ import java.net.URI;
 public class OAuth2SuccessHandler implements ServerAuthenticationSuccessHandler {
 
     private final OAuth2AuthService oAuth2AuthService;
+    private final AuthSessionService authSessionService;
 
     @Value("${app.frontend-url:http://localhost:8080}")
     private String frontendUrl;
@@ -31,19 +33,24 @@ public class OAuth2SuccessHandler implements ServerAuthenticationSuccessHandler 
                     .flatMap(loginResponse -> {
                         String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl)
                                 .path("/oauth/callback")
-                                .queryParam("token", loginResponse.getToken())
-                                .queryParam("refreshToken", loginResponse.getRefreshToken())
                                 .build()
                                 .toUriString();
 
                         log.info("OAuth2 success, redirecting to: {}", frontendUrl + "/oauth/callback");
 
-                        webFilterExchange.getExchange().getResponse()
-                                .getHeaders()
-                                .setLocation(URI.create(redirectUrl));
-                        webFilterExchange.getExchange().getResponse().setRawStatusCode(302);
-
-                        return webFilterExchange.getExchange().getResponse().setComplete();
+                        return authSessionService.createSession(
+                                        webFilterExchange.getExchange(),
+                                        loginResponse.getUser().getId(),
+                                        loginResponse.getToken(),
+                                        loginResponse.getRefreshToken(),
+                                        null)
+                                .then(Mono.defer(() -> {
+                                    webFilterExchange.getExchange().getResponse()
+                                            .getHeaders()
+                                            .setLocation(URI.create(redirectUrl));
+                                    webFilterExchange.getExchange().getResponse().setRawStatusCode(302);
+                                    return webFilterExchange.getExchange().getResponse().setComplete();
+                                }));
                     })
                     .onErrorResume(error -> {
                         log.error("OAuth2 authentication failed: {}", error.getMessage());

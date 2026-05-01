@@ -3,6 +3,7 @@ DROP TABLE IF EXISTS event_participants CASCADE;
 DROP TABLE IF EXISTS events CASCADE;
 DROP TABLE IF EXISTS case_documents CASCADE;
 DROP TABLE IF EXISTS case_parties CASCADE;
+DROP TABLE IF EXISTS auth_sessions CASCADE;
 DROP TABLE IF EXISTS authorization_codes CASCADE;
 DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS team_members CASCADE;
@@ -31,6 +32,19 @@ CREATE TABLE IF NOT EXISTS users
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by      BIGINT,
     version         INTEGER             NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS auth_sessions
+(
+    id                 VARCHAR(255) PRIMARY KEY,
+    user_id            BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    access_token       TEXT NOT NULL,
+    refresh_token      TEXT,
+    access_expires_at  TIMESTAMP NOT NULL,
+    refresh_expires_at TIMESTAMP NOT NULL,
+    revoked_at         TIMESTAMP,
+    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS teams
@@ -264,6 +278,8 @@ CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members (team_id);
 CREATE INDEX IF NOT EXISTS idx_team_invitations_token ON team_invitations (token);
 CREATE INDEX IF NOT EXISTS idx_team_invitations_email ON team_invitations (email);
 CREATE INDEX IF NOT EXISTS idx_team_invitations_team_id ON team_invitations (team_id);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_refresh_expires_at ON auth_sessions (refresh_expires_at);
 CREATE INDEX IF NOT EXISTS idx_case_documents_case_id ON case_documents (case_id);
 CREATE INDEX IF NOT EXISTS idx_case_documents_document_id ON case_documents (document_id);
 CREATE INDEX IF NOT EXISTS idx_cases_owner_id ON cases (owner_id);

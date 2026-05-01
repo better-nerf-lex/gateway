@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.security;
 
 import com.bntech.lexai.gateway.service.JwtService;
+import com.bntech.lexai.gateway.service.AuthSessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -23,6 +24,7 @@ public class JwtAuthenticationFilter implements WebFilter {
 
     private final JwtService jwtService;
     private final ReactiveUserDetailsService userDetailsService;
+    private final AuthSessionService authSessionService;
 
     @Override
     @NonNull
@@ -35,14 +37,19 @@ public class JwtAuthenticationFilter implements WebFilter {
             return chain.filter(exchange);
         }
 
-        String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        Mono<String> token = authSessionService.getAccessToken(exchange)
+                .switchIfEmpty(Mono.justOrEmpty(extractBearerToken(exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION))));
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.debug("No Bearer token found in header for {} {}", method, path);
-            return chain.filter(exchange);
-        }
+        return token
+                .flatMap(value -> authenticate(exchange, chain, method, path, value))
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.debug("No auth token found for {} {}", method, path);
+                    return chain.filter(exchange);
+                }))
+                .then();
+    }
 
-        String token = authHeader.substring(7);
+    private Mono<Void> authenticate(ServerWebExchange exchange, WebFilterChain chain, String method, String path, String token) {
         log.debug("Validating token for {} {}", method, path);
 
         return jwtService.validateAndGetClaims(token)
@@ -74,5 +81,12 @@ public class JwtAuthenticationFilter implements WebFilter {
                     return chain.filter(exchange).then(Mono.empty());
                 }))
                 .then();
+    }
+
+    private String extractBearerToken(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        return authHeader.substring(7);
     }
 }

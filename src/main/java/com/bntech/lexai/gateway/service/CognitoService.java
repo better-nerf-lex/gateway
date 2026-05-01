@@ -121,6 +121,24 @@ public class CognitoService {
         }
     }
 
+    public CognitoAuthResult refresh(String refreshToken) {
+        try {
+            InitiateAuthRequest authRequest = InitiateAuthRequest.builder()
+                    .clientId(clientId)
+                    .authFlow(AuthFlowType.REFRESH_TOKEN_AUTH)
+                    .authParameters(Map.of("REFRESH_TOKEN", refreshToken))
+                    .build();
+
+            InitiateAuthResponse response = cognitoClient.initiateAuth(authRequest);
+            return toAuthResult(response.authenticationResult(), response.challengeNameAsString(), response.session());
+        } catch (NotAuthorizedException e) {
+            throw new IllegalArgumentException("Invalid refresh token");
+        } catch (CognitoIdentityProviderException e) {
+            log.error("Cognito refresh failed", e);
+            throw new RuntimeException("Refresh failed: " + e.awsErrorDetails().errorMessage());
+        }
+    }
+
     private CognitoAuthResult toAuthResult(InitiateAuthResponse response) {
         return toAuthResult(response.authenticationResult(), response.challengeNameAsString(), response.session());
     }
