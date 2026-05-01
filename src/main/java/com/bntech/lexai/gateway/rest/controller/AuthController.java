@@ -6,7 +6,6 @@ import com.bntech.lexai.gateway.exception.UnauthorizedException;
 import com.bntech.lexai.gateway.rest.dto.security.CompleteNewPasswordRequest;
 import com.bntech.lexai.gateway.rest.dto.security.LoginRequest;
 import com.bntech.lexai.gateway.rest.dto.security.LoginResponse;
-import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenRequest;
 import com.bntech.lexai.gateway.rest.dto.security.RefreshTokenResponse;
 import com.bntech.lexai.gateway.rest.dto.security.UserDto;
 import com.bntech.lexai.gateway.service.*;
@@ -166,11 +165,8 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public Mono<ResponseEntity<RefreshTokenResponse>> refreshToken(
-            @RequestBody(required = false) RefreshTokenRequest request,
-            ServerWebExchange exchange) {
-        Mono<String> refreshToken = authSessionService.getRefreshToken(exchange)
-                .switchIfEmpty(Mono.justOrEmpty(request != null ? request.getRefreshToken() : null));
+    public Mono<ResponseEntity<RefreshTokenResponse>> refreshToken(ServerWebExchange exchange) {
+        Mono<String> refreshToken = authSessionService.getRefreshToken(exchange);
 
         if (cognitoService != null) {
             return refreshToken
