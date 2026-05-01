@@ -21,7 +21,10 @@ public class GenerateDocumentRequest {
     private List<String> requirements;
     private List<String> base;
     private String teamId;
+    private String caseId;
+    private String documentGroupId;
     private String exampleId;
     private List<TemplateFile> templateFiles;
     private List<String> contextFileIds;
+    private String caseContext;
 }

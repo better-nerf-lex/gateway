@@ -2,10 +2,12 @@ package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.Document;
 import com.bntech.lexai.gateway.data.entity.document.DocumentHistory;
+import com.bntech.lexai.gateway.data.entity.document.CaseDocument;
 import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
 import com.bntech.lexai.gateway.data.object.ActionType;
 import com.bntech.lexai.gateway.data.repository.CaseRepository;
+import com.bntech.lexai.gateway.data.repository.CaseDocumentRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentAggregateRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentHistoryRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentRepository;
@@ -58,6 +60,8 @@ public class DocumentService {
     private final ActivityService activityService;
     private final CognitoUserSyncService cognitoUserSyncService;
     private final SubscriptionClientService subscriptionClientService;
+    private final DocumentGenerationContextService generationContextService;
+    private final CaseDocumentRepository caseDocumentRepository;
 
     public DocumentService(
             DocumentRepository documents,
@@ -73,7 +77,9 @@ public class DocumentService {
             @Autowired(required = false) DocumentExampleService documentExampleService,
             ActivityService activityService,
             @Autowired(required = false) CognitoUserSyncService cognitoUserSyncService,
-            SubscriptionClientService subscriptionClientService) {
+            SubscriptionClientService subscriptionClientService,
+            DocumentGenerationContextService generationContextService,
+            CaseDocumentRepository caseDocumentRepository) {
         this.documents = documents;
         this.aggregates = aggregates;
         this.documentsHistory = documentsHistory;
@@ -88,6 +94,8 @@ public class DocumentService {
         this.activityService = activityService;
         this.cognitoUserSyncService = cognitoUserSyncService;
         this.subscriptionClientService = subscriptionClientService;
+        this.generationContextService = generationContextService;
+        this.caseDocumentRepository = caseDocumentRepository;
     }
 
     private Mono<com.bntech.lexai.gateway.data.entity.security.User> getCurrentUser() {
@@ -219,10 +227,10 @@ public class DocumentService {
                                 .map(TeamMember::getTeamId);
                     }
 
-                    return teamIdMono.flatMap(teamId -> {
+                    return teamIdMono.flatMap(teamId -> generationContextService.enrich(request, teamId).flatMap(enrichedRequest -> {
                         Document document = mapper.toEntity(DocumentDto.builder()
                                 .id(UUID.randomUUID().toString())
-                                .title(request.getTitle())
+                                .title(enrichedRequest.getTitle())
                                 .type(null)
                                 .status(DocumentStatus.PENDING)
                                 .createdAt(LocalDateTime.now())
@@ -233,18 +241,21 @@ public class DocumentService {
                         if (teamId != null) {
                             document.setTeamId(teamId);
                         }
+                        if (enrichedRequest.getDocumentGroupId() != null && !enrichedRequest.getDocumentGroupId().isBlank()) {
+                            document.setDocumentGroupId(UUID.fromString(enrichedRequest.getDocumentGroupId()));
+                        }
 
-                        Mono<GenerateDocumentRequest> requestMono = Mono.just(request);
-                        if (request.getExampleId() != null && !request.getExampleId().isBlank()) {
-                            requestMono = documentExampleService.findById(request.getExampleId())
+                        Mono<GenerateDocumentRequest> requestMono = Mono.just(enrichedRequest);
+                        if (enrichedRequest.getExampleId() != null && !enrichedRequest.getExampleId().isBlank()) {
+                            requestMono = documentExampleService.findById(enrichedRequest.getExampleId())
                                     .map(example -> {
-                                        if (request.getTemplateFiles() == null
-                                                || request.getTemplateFiles().isEmpty()) {
-                                            request.setTemplateFiles(example.getTemplateFiles());
+                                        if (enrichedRequest.getTemplateFiles() == null
+                                                || enrichedRequest.getTemplateFiles().isEmpty()) {
+                                            enrichedRequest.setTemplateFiles(example.getTemplateFiles());
                                         }
-                                        return request;
+                                        return enrichedRequest;
                                     })
-                                    .defaultIfEmpty(request);
+                                    .defaultIfEmpty(enrichedRequest);
                         }
 
                         String reservationKey = "document:" + document.getId();
@@ -256,10 +267,21 @@ public class DocumentService {
                                     return doc;
                                 })
                                 .flatMap(savedDocument -> processAIGeneration(savedDocument, req, reservationKey))
+                                .flatMap(dto -> assignGeneratedDocumentToCase(req, document.getId()).thenReturn(dto))
                                 .onErrorResume(error -> subscriptionClientService.refundTokenReservation(reservationKey)
                                         .then(Mono.error(error))));
-                    });
+                    }));
                 });
+    }
+
+    private Mono<Void> assignGeneratedDocumentToCase(GenerateDocumentRequest request, UUID documentId) {
+        if (request.getCaseId() == null || request.getCaseId().isBlank()) {
+            return Mono.empty();
+        }
+        UUID caseId = UUID.fromString(request.getCaseId());
+        return caseDocumentRepository.findByCaseIdAndDocumentId(caseId, documentId)
+                .switchIfEmpty(caseDocumentRepository.save(new CaseDocument(caseId, documentId)))
+                .then();
     }
 
     private Mono<DocumentDto> processAIGeneration(Document document, GenerateDocumentRequest request, String reservationKey) {

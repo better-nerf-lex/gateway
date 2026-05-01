@@ -2,10 +2,16 @@ package com.bntech.lexai.gateway.service;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.anthropic.models.messages.Base64ImageSource;
+import com.anthropic.models.messages.ContentBlockParam;
+import com.anthropic.models.messages.DocumentBlockParam;
+import com.anthropic.models.messages.ImageBlockParam;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.TextBlock;
+import com.anthropic.models.messages.TextBlockParam;
 import com.bntech.lexai.gateway.data.object.Prompts;
+import com.bntech.lexai.gateway.data.object.StorageFileType;
 import com.bntech.lexai.gateway.data.object.TemplateFile;
 import com.bntech.lexai.gateway.exception.ServiceException;
 import com.bntech.lexai.gateway.exception.RateLimitException;
@@ -29,7 +35,9 @@ import jakarta.annotation.PostConstruct;
 
 import com.bntech.lexai.gateway.util.RetryUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -227,7 +235,7 @@ public class AIService {
 
                     return Mono.fromCallable(() -> {
                         String userMessage = buildUserMessage(request, legalContext, templates, contextFiles);
-                        return generateViaAnthropic(request.getTitle(), userMessage);
+                        return generateViaAnthropic(request.getTitle(), userMessage, templates, contextFiles);
                     }).subscribeOn(Schedulers.boundedElastic());
                 })
                 .timeout(Duration.ofMinutes(5))
@@ -245,6 +253,10 @@ public class AIService {
 
         if (legalContext != null && !legalContext.isBlank()) {
             message.append("\n\n").append(legalContext);
+        }
+
+        if (request.getCaseContext() != null && !request.getCaseContext().isBlank()) {
+            message.append("\n\n").append(request.getCaseContext());
         }
 
         appendContextFiles(message, contextFiles);
@@ -265,8 +277,7 @@ public class AIService {
 
         for (int i = 0; i < contextFiles.size(); i++) {
             FileContent file = contextFiles.get(i);
-            message.append(String.format("=== Context File %d: %s ===\n", i + 1, file.name()));
-            message.append(String.format("Content (Base64 encoded): %s\n\n", file.base64Content()));
+            message.append(String.format("=== Context File %d: %s (%s) ===\n", i + 1, file.name(), file.fileType()));
         }
     }
 
@@ -286,15 +297,18 @@ public class AIService {
         for (int i = 0; i < templates.size(); i++) {
             FileContent template = templates.get(i);
             message.append(String.format("=== Template %d: %s ===\n", i + 1, template.name()));
-            message.append(String.format("Content (Base64 encoded): %s\n\n", template.base64Content()));
         }
     }
 
-    private String generateViaAnthropic(String title, String userMessage) {
+    private String generateViaAnthropic(
+            String title,
+            String userMessage,
+            List<FileContent> templates,
+            List<FileContent> contextFiles) {
         MessageCreateParams params = MessageCreateParams.builder()
                 .maxTokens(8192L)
                 .system(Prompts.EN_GENERATE_DOCUMENT)
-                .addUserMessage(userMessage)
+                .addUserMessageOfBlockParams(buildGenerationContentBlocks(userMessage, templates, contextFiles))
                 .model(genModel)
                 .temperature(reasoningTemperature)
                 .build();
@@ -311,7 +325,77 @@ public class AIService {
         return stripMarkdownCodeBlocks(rawContent);
     }
 
-    private record FileContent(String name, String base64Content) {
+    private List<ContentBlockParam> buildGenerationContentBlocks(
+            String userMessage,
+            List<FileContent> templates,
+            List<FileContent> contextFiles) {
+        List<ContentBlockParam> blocks = new ArrayList<>();
+        blocks.add(ContentBlockParam.ofText(TextBlockParam.builder().text(userMessage).build()));
+        appendFileBlocks(blocks, templates, "Template document");
+        appendFileBlocks(blocks, contextFiles, "Context document");
+        return blocks;
+    }
+
+    private void appendFileBlocks(List<ContentBlockParam> blocks, List<FileContent> files, String contextLabel) {
+        if (files == null || files.isEmpty()) {
+            return;
+        }
+
+        files.forEach(file -> buildFileBlock(file, contextLabel).forEach(blocks::add));
+    }
+
+    private List<ContentBlockParam> buildFileBlock(FileContent file, String contextLabel) {
+        String base64 = Base64.getEncoder().encodeToString(file.content());
+        String context = contextLabel + ": " + file.name();
+
+        if (file.fileType() == StorageFileType.PDF) {
+            return List.of(ContentBlockParam.ofDocument(DocumentBlockParam.builder()
+                    .base64Source(base64)
+                    .title(file.name())
+                    .context(context)
+                    .build()));
+        }
+
+        if (file.fileType() == StorageFileType.TXT) {
+            return List.of(ContentBlockParam.ofDocument(DocumentBlockParam.builder()
+                    .textSource(new String(file.content(), StandardCharsets.UTF_8))
+                    .title(file.name())
+                    .context(context)
+                    .build()));
+        }
+
+        Base64ImageSource.MediaType mediaType = toImageMediaType(file.fileType());
+        if (mediaType != null) {
+            return List.of(
+                    ContentBlockParam.ofText(TextBlockParam.builder().text(context).build()),
+                    ContentBlockParam.ofImage(ImageBlockParam.builder()
+                            .source(Base64ImageSource.builder()
+                                    .data(base64)
+                                    .mediaType(mediaType)
+                                    .build())
+                            .build()));
+        }
+
+        return List.of(ContentBlockParam.ofText(TextBlockParam.builder()
+                .text(context + " was available in storage but cannot be attached directly because its type is "
+                        + file.fileType() + ".")
+                .build()));
+    }
+
+    private Base64ImageSource.MediaType toImageMediaType(StorageFileType fileType) {
+        if (fileType == StorageFileType.JPG || fileType == StorageFileType.JPEG) {
+            return Base64ImageSource.MediaType.IMAGE_JPEG;
+        }
+        if (fileType == StorageFileType.PNG) {
+            return Base64ImageSource.MediaType.IMAGE_PNG;
+        }
+        if (fileType == StorageFileType.GIF) {
+            return Base64ImageSource.MediaType.IMAGE_GIF;
+        }
+        return null;
+    }
+
+    private record FileContent(String name, byte[] content, StorageFileType fileType) {
     }
 
     private Mono<List<FileContent>> fetchTemplateFiles(List<TemplateFile> templateFiles) {
@@ -327,7 +411,8 @@ public class AIService {
                     return storageFileService.getFileContentByKey(templateFile.getS3Key())
                             .map(content -> new FileContent(
                                     templateFile.getName(),
-                                    Base64.getEncoder().encodeToString(content)))
+                                    content,
+                                    StorageFileType.PDF))
                             .onErrorResume(e -> {
                                 log.warn("Failed to fetch template file {}: {}", templateFile.getS3Key(),
                                         e.getMessage());
@@ -354,7 +439,8 @@ public class AIService {
                         .flatMap(dto -> storageFileService.getFileContent(id)
                                 .map(content -> new FileContent(
                                         dto.getName(),
-                                        Base64.getEncoder().encodeToString(content))))
+                                        content,
+                                        dto.getFileType())))
                         .onErrorResume(e -> {
                             log.warn("Failed to fetch context file {}: {}", id, e.getMessage());
                             return Mono.empty();
