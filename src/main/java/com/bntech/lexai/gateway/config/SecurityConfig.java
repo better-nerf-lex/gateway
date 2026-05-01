@@ -53,7 +53,7 @@ public class SecurityConfig {
                                 .authorizeExchange(exchanges -> exchanges
                                                 .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .pathMatchers("/auth/**", "/oauth2/**", "/login",
-                                                                "/.well-known/**", "/actuator/**")
+                                                                "/.well-known/**", "/actuator/health", "/actuator/info")
                                                 .permitAll()
                                                 .anyExchange().authenticated())
                                 .oauth2Login(oauth2Login -> oauth2Login

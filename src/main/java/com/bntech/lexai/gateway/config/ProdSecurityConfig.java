@@ -33,7 +33,7 @@ public class ProdSecurityConfig {
                                 .authorizeExchange(exchanges -> exchanges
                                                 .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .pathMatchers("/auth/**", "/oauth2/**", "/login",
-                                                                "/.well-known/**", "/actuator/**")
+                                                                "/.well-known/**", "/actuator/health", "/actuator/info")
                                                 .permitAll()
                                                 .anyExchange().authenticated())
                                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(
