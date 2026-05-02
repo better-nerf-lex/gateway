@@ -34,7 +34,12 @@ public class ProdSecurityConfig {
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                                 .authorizeExchange(exchanges -> exchanges
                                                 .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                                                .pathMatchers("/auth/**", "/oauth2/**", "/login",
+                                                .pathMatchers(HttpMethod.POST, "/auth/login", "/auth/register",
+                                                                "/auth/complete-new-password", "/auth/refresh",
+                                                                "/auth/logout", "/auth/token")
+                                                .permitAll()
+                                                .pathMatchers(HttpMethod.GET, "/auth/google", "/auth/oauth2/success",
+                                                                "/auth/authorize", "/oauth2/**", "/login",
                                                                 "/.well-known/**", "/actuator/health", "/actuator/info")
                                                 .permitAll()
                                                 .anyExchange().authenticated())

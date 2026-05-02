@@ -154,6 +154,7 @@ public class AuthController {
                             .username(user.getUsername())
                             .roles(java.util.Collections.emptyList())
                             .build()))
+                    .switchIfEmpty(Mono.just(ResponseEntity.status(401).build()))
                     .onErrorResume(e -> Mono.just(ResponseEntity.status(401).build()));
         }
         return Mono.just(ResponseEntity.status(401).build());
