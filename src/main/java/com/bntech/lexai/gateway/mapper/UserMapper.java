@@ -10,17 +10,23 @@ import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface UserMapper {
+    String COGNITO_USER_PASSWORD_PLACEHOLDER = "{noop}cognito-authenticated-user";
+
     UserDto toDto(User user);
 
     default UserPrincipal toUserPrincipal(User user, List<? extends GrantedAuthority> authorities) {
         return new UserPrincipal(
                 user.getId(),
                 user.getUsername(),
-                user.getPassword(),
+                principalPassword(user),
                 user.isEnabled(),
                 true,
                 true,
                 true,
                 authorities);
+    }
+
+    private String principalPassword(User user) {
+        return user.getPassword() == null ? COGNITO_USER_PASSWORD_PLACEHOLDER : user.getPassword();
     }
 }
