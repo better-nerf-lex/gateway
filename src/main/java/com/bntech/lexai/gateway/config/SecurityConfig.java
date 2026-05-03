@@ -1,7 +1,7 @@
 package com.bntech.lexai.gateway.config;
 
-import com.bntech.lexai.gateway.security.JwtAuthenticationFilter;
 import com.bntech.lexai.gateway.security.OAuth2SuccessHandler;
+import com.bntech.lexai.gateway.security.SessionAuthenticationFilter;
 import com.bntech.lexai.gateway.service.DatabaseUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -30,7 +30,7 @@ import org.springframework.web.cors.reactive.CorsConfigurationSource;
 public class SecurityConfig {
 
         private final DatabaseUserDetailsService userDetailsService;
-        private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final SessionAuthenticationFilter sessionAuthenticationFilter;
         private final PasswordEncoder passwordEncoder;
         private final OAuth2SuccessHandler oAuth2SuccessHandler;
 
@@ -49,7 +49,7 @@ public class SecurityConfig {
                 return http
                                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                                .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+                                .addFilterAt(sessionAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                                 .authorizeExchange(exchanges -> exchanges
                                                 .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .pathMatchers(HttpMethod.POST, "/auth/login", "/auth/register",

@@ -1,7 +1,9 @@
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.security.AuthSession;
+import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.repository.AuthSessionRepository;
+import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.security.AuthCookieService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,6 +26,7 @@ public class AuthSessionService {
     private static final int SESSION_TOKEN_BYTES = 32;
 
     private final AuthSessionRepository sessions;
+    private final UserRepository users;
     private final AuthCookieService authCookieService;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -67,6 +70,12 @@ public class AuthSessionService {
         return findCurrentSession(exchange)
                 .map(AuthSession::getRefreshToken)
                 .filter(token -> token != null && !token.isBlank());
+    }
+
+    public Mono<User> getCurrentUser(ServerWebExchange exchange) {
+        return findCurrentSession(exchange)
+                .flatMap(session -> users.findById(session.getUserId()))
+                .filter(User::isEnabled);
     }
 
     public Mono<Void> updateCurrentSession(

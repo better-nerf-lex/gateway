@@ -6,6 +6,7 @@ import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
 import com.bntech.lexai.gateway.data.repository.TeamRepository;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.security.UserPrincipal;
 import com.bntech.lexai.gateway.security.access.AccessLevel;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -142,7 +143,10 @@ public class CognitoUserSyncService {
                     if (auth instanceof JwtAuthenticationToken jwtAuth) {
                         return syncUserFromJwt(jwtAuth.getToken());
                     }
-                    return Mono.error(new IllegalStateException("Not authenticated with JWT"));
+                    if (auth.getPrincipal() instanceof UserPrincipal userPrincipal) {
+                        return userRepository.findById(userPrincipal.getUserId());
+                    }
+                    return Mono.error(new IllegalStateException("Not authenticated"));
                 });
     }
 }
