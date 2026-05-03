@@ -171,21 +171,27 @@ public class AuthController {
 
         if (cognitoService != null) {
             return refreshToken
-                    .switchIfEmpty(Mono.error(new UnauthorizedException("Missing refresh token")))
                     .flatMap(token -> Mono.fromCallable(() -> cognitoService.refresh(token)))
                     .flatMap(result -> authSessionService.updateCurrentSession(
                                     exchange,
                                     result.accessToken(),
                                     result.refreshToken(),
                                     result.expiresIn())
-                            .thenReturn(ResponseEntity.ok(RefreshTokenResponse.builder().build())));
+                            .thenReturn(ResponseEntity.ok(RefreshTokenResponse.builder().build())))
+                    .switchIfEmpty(authSessionService.hasCurrentSession(exchange)
+                            .flatMap(hasSession -> hasSession
+                                    ? Mono.just(ResponseEntity.ok(RefreshTokenResponse.builder().build()))
+                                    : Mono.error(new UnauthorizedException("Missing refresh token"))));
         }
 
         return refreshToken
-                .switchIfEmpty(Mono.error(new UnauthorizedException("Missing refresh token")))
                 .flatMap(authService::refreshToken)
                 .flatMap(response -> authSessionService.updateCurrentSession(exchange, response.getToken(), null, null)
-                        .thenReturn(ResponseEntity.ok(RefreshTokenResponse.builder().build())));
+                        .thenReturn(ResponseEntity.ok(RefreshTokenResponse.builder().build())))
+                .switchIfEmpty(authSessionService.hasCurrentSession(exchange)
+                        .flatMap(hasSession -> hasSession
+                                ? Mono.just(ResponseEntity.ok(RefreshTokenResponse.builder().build()))
+                                : Mono.error(new UnauthorizedException("Missing refresh token"))));
     }
 
     @GetMapping("/authorize")

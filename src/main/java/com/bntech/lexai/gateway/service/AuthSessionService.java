@@ -72,6 +72,11 @@ public class AuthSessionService {
                 .filter(token -> token != null && !token.isBlank());
     }
 
+    public Mono<Boolean> hasCurrentSession(ServerWebExchange exchange) {
+        return findCurrentSession(exchange)
+                .hasElement();
+    }
+
     public Mono<User> getCurrentUser(ServerWebExchange exchange) {
         return findCurrentSession(exchange)
                 .flatMap(session -> users.findById(session.getUserId()))
