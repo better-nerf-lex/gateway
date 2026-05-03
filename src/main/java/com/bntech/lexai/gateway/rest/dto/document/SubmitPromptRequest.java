@@ -14,4 +14,6 @@ import java.util.List;
 public class SubmitPromptRequest {
     private String prompt;
     private List<String> attachedFileIds;
+    private String exampleId;
+    private boolean skipTemplateSearch;
 }

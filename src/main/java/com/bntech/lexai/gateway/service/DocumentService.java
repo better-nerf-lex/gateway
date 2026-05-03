@@ -183,8 +183,21 @@ public class DocumentService {
         log.info("Processing prompt submission: {}", request.getPrompt());
 
         boolean hasFiles = request.getAttachedFileIds() != null && !request.getAttachedFileIds().isEmpty();
+        boolean hasExampleId = request.getExampleId() != null && !request.getExampleId().isBlank();
 
-        Mono<SubmitPromptResponse> templateSearch = (documentExampleService != null && !hasFiles)
+        Mono<SubmitPromptResponse> selectedTemplate = (hasExampleId && documentExampleService != null)
+                ? documentExampleService.findById(request.getExampleId())
+                        .map(template -> {
+                            log.info("Selected template: {} ({}) with {} template files",
+                                    template.getTitle(), template.getId(),
+                                    template.getTemplateFiles() != null ? template.getTemplateFiles().size() : 0);
+                            return documentExampleMapper.toSubmitPromptResponse(template);
+                        })
+                        .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentExample", request.getExampleId())))
+                : Mono.empty();
+
+        Mono<SubmitPromptResponse> templateSearch = (documentExampleService != null && !hasFiles
+                && !request.isSkipTemplateSearch() && !hasExampleId)
                 ? documentExampleService.searchTemplates(request.getPrompt())
                         .next()
                         .map(template -> {
@@ -195,7 +208,8 @@ public class DocumentService {
                         })
                 : Mono.empty();
 
-        return templateSearch
+        return selectedTemplate
+                .switchIfEmpty(templateSearch)
                 .switchIfEmpty(aiService.analyzePrompt(request.getPrompt(), request.getAttachedFileIds()))
                 .doOnSuccess(response -> {
                     log.info("✅ Prompt analysis completed {}", response);
