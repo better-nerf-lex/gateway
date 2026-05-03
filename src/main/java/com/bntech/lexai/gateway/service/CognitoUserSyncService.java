@@ -146,6 +146,9 @@ public class CognitoUserSyncService {
                     if (auth.getPrincipal() instanceof UserPrincipal userPrincipal) {
                         return userRepository.findById(userPrincipal.getUserId());
                     }
+                    if (auth.isAuthenticated() && auth.getName() != null && !auth.getName().isBlank()) {
+                        return userRepository.findByUsername(auth.getName());
+                    }
                     return Mono.error(new IllegalStateException("Not authenticated"));
                 });
     }

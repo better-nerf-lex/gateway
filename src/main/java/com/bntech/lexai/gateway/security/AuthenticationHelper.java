@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.security;
 
 import com.bntech.lexai.gateway.data.entity.security.User;
+import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.service.CognitoUserSyncService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,8 @@ import reactor.core.publisher.Mono;
 @Component
 @RequiredArgsConstructor
 public class AuthenticationHelper {
+
+    private final UserRepository userRepository;
 
     @Autowired(required = false)
     private CognitoUserSyncService cognitoUserSyncService;
@@ -38,6 +41,11 @@ public class AuthenticationHelper {
                     .map(User::getId);
         }
 
+        if (authentication.isAuthenticated() && authentication.getName() != null && !authentication.getName().isBlank()) {
+            return userRepository.findByUsername(authentication.getName())
+                    .map(User::getId);
+        }
+
         return Mono.error(new IllegalStateException("Unable to extract user ID from authentication"));
     }
 
@@ -48,6 +56,14 @@ public class AuthenticationHelper {
 
         if (authentication instanceof JwtAuthenticationToken jwtAuth && cognitoUserSyncService != null) {
             return cognitoUserSyncService.syncUserFromJwt(jwtAuth.getToken());
+        }
+
+        if (authentication.getPrincipal() instanceof UserPrincipal userPrincipal) {
+            return userRepository.findById(userPrincipal.getUserId());
+        }
+
+        if (authentication.isAuthenticated() && authentication.getName() != null && !authentication.getName().isBlank()) {
+            return userRepository.findByUsername(authentication.getName());
         }
 
         return Mono.error(new IllegalStateException("Unable to get user from authentication"));
