@@ -50,7 +50,9 @@ public class DocumentGenerationContextService {
 
     public Mono<GenerateDocumentRequest> enrich(GenerateDocumentRequest request, UUID teamId) {
         Mono<List<String>> explicitFiles = Mono.justOrEmpty(request.getContextFileIds()).defaultIfEmpty(List.of());
-        Mono<List<String>> groupFiles = resolveGroupFiles(request.getDocumentGroupId(), teamId);
+        Mono<List<String>> groupFiles = explicitFiles.flatMap(files -> files.isEmpty()
+                ? resolveGroupFiles(request.getDocumentGroupId(), teamId)
+                : Mono.just(List.of()));
         Mono<List<String>> caseFiles = resolveCaseFiles(request.getCaseId(), teamId);
         Mono<String> caseContext = buildCaseContext(request.getCaseId(), teamId);
 
