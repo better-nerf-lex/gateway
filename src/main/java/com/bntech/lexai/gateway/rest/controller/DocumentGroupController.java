@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -30,8 +31,9 @@ public class DocumentGroupController {
     private final AuthenticationHelper authHelper;
 
     @GetMapping()
-    public Flux<DocumentGroupDto> getDocumentGroups() {
-        return documentGroupService.getAllDocumentGroups();
+    @PreAuthorize("@access.teamRead(authentication, #teamId)")
+    public Flux<DocumentGroupDto> getDocumentGroups(@RequestParam(required = false) String teamId) {
+        return documentGroupService.getDocumentGroups(teamId);
     }
 
     @GetMapping("/{id}")
@@ -75,7 +77,7 @@ public class DocumentGroupController {
     }
 
     @PutMapping("/{id}/case/{caseId}")
-    @PreAuthorize("@access.documentGroupWrite(authentication, #id)")
+    @PreAuthorize("@access.documentGroupWrite(authentication, #id) and @access.caseWrite(authentication, #caseId)")
     public Mono<DocumentGroupDto> assignToCase(@PathVariable String id, @PathVariable String caseId) {
         return documentGroupService.assignToCase(id, caseId);
     }

@@ -1,17 +1,27 @@
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.DocumentGroup;
+import com.bntech.lexai.gateway.data.entity.document.LegalCase;
+import com.bntech.lexai.gateway.data.entity.security.TeamMember;
+import com.bntech.lexai.gateway.data.entity.security.User;
+import com.bntech.lexai.gateway.data.repository.CaseRepository;
 import com.bntech.lexai.gateway.data.repository.DocumentGroupRepository;
+import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
+import com.bntech.lexai.gateway.data.repository.UserRepository;
 import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
 import com.bntech.lexai.gateway.mapper.DocumentGroupMapper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentGroupDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -22,9 +32,32 @@ public class DocumentGroupService {
     private final DocumentGroupRepository documentGroupRepository;
     private final StorageFileService storageFileService;
     private final DocumentGroupMapper documentGroupMapper;
+    private final TeamMemberRepository teamMemberRepository;
+    private final UserRepository userRepository;
+    private final CaseRepository caseRepository;
+    private final CognitoUserSyncService cognitoUserSyncService;
 
-    public Flux<DocumentGroupDto> getAllDocumentGroups() {
-        return documentGroupRepository.findAllByOrderByCreatedAtDesc()
+    private Mono<User> getCurrentUser() {
+        return cognitoUserSyncService.getCurrentUser()
+                .onErrorResume(e -> ReactiveSecurityContextHolder.getContext()
+                        .map(SecurityContext::getAuthentication)
+                        .flatMap(auth -> userRepository.findByUsername(auth.getName())));
+    }
+
+    public Flux<DocumentGroupDto> getDocumentGroups(String teamId) {
+        if (teamId != null && !teamId.isBlank() && !teamId.equals("null") && !teamId.equals("undefined")) {
+            return getDocumentGroupsByTeamId(UUID.fromString(teamId));
+        }
+
+        return getCurrentUser()
+                .flatMapMany(user -> {
+                    Flux<DocumentGroup> byUser = documentGroupRepository.findByOwnerIdOrderByCreatedAtDesc(user.getId());
+                    Flux<DocumentGroup> byTeams = teamMemberRepository.findByUserId(user.getId())
+                            .map(TeamMember::getTeamId)
+                            .flatMap(documentGroupRepository::findByTeamIdOrderByCreatedAtDesc);
+                    return Flux.merge(byUser, byTeams);
+                })
+                .distinct(DocumentGroup::getId)
                 .map(documentGroupMapper::toDto)
                 .flatMap(this::enrichWithFiles);
     }
@@ -56,7 +89,21 @@ public class DocumentGroupService {
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
 
-        return documentGroupRepository.save(entity)
+        Mono<UUID> teamIdMono = entity.getTeamId() != null
+                ? Mono.just(entity.getTeamId())
+                : teamMemberRepository.findByUserId(ownerId)
+                        .map(TeamMember::getTeamId)
+                        .next();
+
+        return teamIdMono
+                .switchIfEmpty(Mono.error(new AccessDeniedException("DocumentGroup requires an accessible team")))
+                .flatMap(teamId -> teamMemberRepository.findByUserIdAndTeamId(ownerId, teamId)
+                        .switchIfEmpty(Mono.error(new AccessDeniedException("Insufficient team access")))
+                        .thenReturn(teamId))
+                .flatMap(teamId -> {
+                    entity.setTeamId(teamId);
+                    return documentGroupRepository.save(entity);
+                })
                 .map(documentGroupMapper::toDto)
                 .doOnSuccess(result -> log.info("✅ DocumentGroup created: {}", result.getId()));
     }
@@ -114,8 +161,20 @@ public class DocumentGroupService {
         UUID groupUuid = UUID.fromString(groupId);
         UUID caseUuid = UUID.fromString(caseId);
 
-        return documentGroupRepository.findById(groupUuid)
-                .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentGroup", groupId)))
+        Mono<DocumentGroup> groupMono = documentGroupRepository.findById(groupUuid)
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("DocumentGroup", groupId)));
+        Mono<LegalCase> caseMono = caseRepository.findById(caseUuid)
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("Case", caseId)));
+
+        return Mono.zip(groupMono, caseMono)
+                .flatMap(tuple -> {
+                    DocumentGroup group = tuple.getT1();
+                    LegalCase legalCase = tuple.getT2();
+                    if (!Objects.equals(group.getTeamId(), legalCase.getTeamId())) {
+                        return Mono.error(new AccessDeniedException("DocumentGroup and case belong to different teams"));
+                    }
+                    return Mono.just(group);
+                })
                 .flatMap(group -> {
                     if (group.getCaseId() != null && !group.getCaseId().equals(caseUuid)) {
                         // Moving between cases requires file migration

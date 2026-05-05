@@ -8,6 +8,7 @@ import com.bntech.lexai.gateway.data.repository.LegalEntityRepository;
 import com.bntech.lexai.gateway.data.repository.StorageFileRepository;
 import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
 import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.data.entity.OwnableEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -160,7 +161,11 @@ public class AccessPermissionService {
                     .flatMap(entity -> {
                         UUID teamId = extractTeamId(entity);
                         if (teamId == null) {
-                            return Mono.just(false);
+                            Long ownerId = extractOwnerId(entity);
+                            if (ownerId == null) {
+                                return Mono.just(false);
+                            }
+                            return evaluateOwner(authentication, ownerId);
                         }
                         return evaluate(authentication, teamId, level.name());
                     })
@@ -169,6 +174,13 @@ public class AccessPermissionService {
         } catch (IllegalArgumentException e) {
             return Mono.just(false);
         }
+    }
+
+    private Long extractOwnerId(Object entity) {
+        if (entity instanceof OwnableEntity ownableEntity) {
+            return ownableEntity.getOwnerId();
+        }
+        return null;
     }
 
     private UUID extractTeamId(Object entity) {
@@ -225,6 +237,16 @@ public class AccessPermissionService {
                         }))
                 .defaultIfEmpty(false)
                 .doOnError(e -> log.error("hasTeamAccess: exception occurred", e))
+                .onErrorReturn(false);
+    }
+
+    private Mono<Boolean> evaluateOwner(Authentication authentication, Long ownerId) {
+        if (isAdmin(authentication)) {
+            return Mono.just(true);
+        }
+        return userRepository.findByUsername(authentication.getName())
+                .map(user -> user.getId().equals(ownerId))
+                .defaultIfEmpty(false)
                 .onErrorReturn(false);
     }
 
