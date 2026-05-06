@@ -1,9 +1,11 @@
 package com.bntech.lexai.gateway.service;
 
 import com.bntech.lexai.gateway.data.entity.document.LegalCase;
+import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.object.ActionType;
 import com.bntech.lexai.gateway.data.repository.*;
 import com.bntech.lexai.gateway.mapper.*;
+import org.springframework.security.access.AccessDeniedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,5 +72,33 @@ class CaseServiceTest {
                 .verifyComplete();
 
         verify(activityService).logActivity(any(), eq(teamId), eq(ActionType.CASE_DELETE), eq(id), eq("LegalCase"), anyString());
+    }
+
+    @Test
+    void getCase_ShouldReturnForbidden_WhenCurrentUserIsNotTeamMember() {
+        UUID id = UUID.randomUUID();
+        UUID teamId = UUID.randomUUID();
+        LegalCase legalCase = new LegalCase();
+        legalCase.setId(id);
+        legalCase.setTeamId(teamId);
+        legalCase.setOwnerId(1L);
+
+        User user = User.builder()
+                .id(2L)
+                .username("case-fixture@example.invalid")
+                .email("case-fixture@example.invalid")
+                .enabled(true)
+                .superadmin(false)
+                .build();
+
+        when(caseRepository.findById(id)).thenReturn(Mono.just(legalCase));
+        when(cognitoUserSyncService.getCurrentUser()).thenReturn(Mono.just(user));
+        when(teamMemberRepository.findByUserIdAndTeamId(user.getId(), teamId)).thenReturn(Mono.empty());
+
+        StepVerifier.create(caseService.getCase(id.toString()))
+                .expectError(AccessDeniedException.class)
+                .verify();
+
+        verify(caseMapper, never()).toDto(any());
     }
 }

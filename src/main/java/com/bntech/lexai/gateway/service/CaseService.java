@@ -89,9 +89,35 @@ public class CaseService {
         UUID uuid = UUID.fromString(id);
         return caseRepository.findById(uuid)
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("Case", id)))
+                .flatMap(this::ensureCanReadCase)
                 .map(caseMapper::toDto)
                 .flatMap(this::enrichCase)
-                .doOnError(error -> log.error("Error retrieving case: {}", id, error));
+                .doOnError(error -> {
+                    if (error instanceof AccessDeniedException) {
+                        log.warn("Access denied retrieving case: {}", id);
+                    } else {
+                        log.error("Error retrieving case: {}", id, error);
+                    }
+                });
+    }
+
+    private Mono<LegalCase> ensureCanReadCase(LegalCase legalCase) {
+        return getCurrentUser()
+                .flatMap(user -> {
+                    if (user.isSuperadmin()) {
+                        return Mono.just(legalCase);
+                    }
+                    if (legalCase.getTeamId() != null) {
+                        return teamMemberRepository.findByUserIdAndTeamId(user.getId(), legalCase.getTeamId())
+                                .hasElement()
+                                .flatMap(hasAccess -> hasAccess
+                                        ? Mono.just(legalCase)
+                                        : Mono.error(new AccessDeniedException("Insufficient case access")));
+                    }
+                    return user.getId().equals(legalCase.getOwnerId())
+                            ? Mono.just(legalCase)
+                            : Mono.error(new AccessDeniedException("Insufficient case access"));
+                });
     }
 
     private Mono<CaseDto> enrichCase(CaseDto dto) {
