@@ -24,6 +24,7 @@ public class OAuth2AuthService {
     private final JwtService jwts;
     private final UserRepository users;
     private final AuthorizationCodeRepository authCodes;
+    private final TeamService teamService;
 
     private final Map<String, ClientInfo> clients = Map.of(
             "web-app",
@@ -37,10 +38,14 @@ public class OAuth2AuthService {
         }
         String name = oauth2User.getAttribute("name");
 
+        if (email == null || email.isBlank()) {
+            return Mono.error(new IllegalArgumentException("OAuth2 provider did not return an email address"));
+        }
+
         return findOrCreateUserFromOAuth2(oauth2User, email, name)
+                .flatMap(user -> teamService.ensureDefaultTeam(user).thenReturn(user))
                 .flatMap(user -> {
                     String accessToken = jwts.generateTokenFromOAuth2User(oauth2User, user.getUsername());
-                    String refreshToken = jwts.generateRefreshTokenFromOAuth2User(oauth2User, user.getUsername());
 
                     UserDto userDto = UserDto.builder()
                             .id(user.getId())
@@ -51,7 +56,6 @@ public class OAuth2AuthService {
 
                     return Mono.just(LoginResponse.builder()
                             .token(accessToken)
-                            .refreshToken(refreshToken)
                             .user(userDto)
                             .build());
                 });
@@ -69,6 +73,10 @@ public class OAuth2AuthService {
         user.setEmail(normalizedEmail);
         user.setPassword("");
         user.setEnabled(true);
+        user.setEmailVerified(Boolean.TRUE.equals(oauth2User.getAttribute("email_verified")));
+        user.setCreatedAt(LocalDateTime.now());
+        user.setUpdatedAt(LocalDateTime.now());
+        user.setVersion(0);
 
         return users.save(user);
     }
