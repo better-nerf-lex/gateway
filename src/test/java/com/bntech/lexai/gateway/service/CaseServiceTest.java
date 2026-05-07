@@ -4,7 +4,9 @@ import com.bntech.lexai.gateway.data.entity.document.LegalCase;
 import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.object.ActionType;
 import com.bntech.lexai.gateway.data.repository.*;
+import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
 import com.bntech.lexai.gateway.mapper.*;
+import com.bntech.lexai.gateway.rest.dto.document.CaseDto;
 import org.springframework.security.access.AccessDeniedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -100,5 +102,32 @@ class CaseServiceTest {
                 .verify();
 
         verify(caseMapper, never()).toDto(any());
+    }
+
+    @Test
+    void getCase_ShouldReturnError_WhenMapperReturnsEmptyDto() {
+        UUID id = UUID.randomUUID();
+        LegalCase legalCase = new LegalCase();
+        legalCase.setId(id);
+        legalCase.setOwnerId(1L);
+
+        User user = User.builder()
+                .id(1L)
+                .username("case-fixture@example.invalid")
+                .email("case-fixture@example.invalid")
+                .enabled(true)
+                .superadmin(false)
+                .build();
+
+        when(caseRepository.findById(id)).thenReturn(Mono.just(legalCase));
+        when(cognitoUserSyncService.getCurrentUser()).thenReturn(Mono.just(user));
+        when(caseMapper.toDto(legalCase)).thenReturn(new CaseDto());
+
+        StepVerifier.create(caseService.getCase(id.toString()))
+                .expectError(ResourceNotFoundException.class)
+                .verify();
+
+        verify(casePartyRepository, never()).findByCaseId(any());
+        verify(documentGroupService, never()).getDocumentGroupsByCaseId(any());
     }
 }

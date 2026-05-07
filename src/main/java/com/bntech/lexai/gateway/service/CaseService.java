@@ -91,14 +91,27 @@ public class CaseService {
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("Case", id)))
                 .flatMap(this::ensureCanReadCase)
                 .map(caseMapper::toDto)
+                .flatMap(dto -> requireValidCaseDto(dto, id))
                 .flatMap(this::enrichCase)
                 .doOnError(error -> {
                     if (error instanceof AccessDeniedException) {
                         log.warn("Access denied retrieving case: {}", id);
+                    } else if (error instanceof ResourceNotFoundException) {
+                        log.warn("Case not found or invalid response while retrieving case: {}", id);
                     } else {
                         log.error("Error retrieving case: {}", id, error);
                     }
                 });
+    }
+
+    private Mono<CaseDto> requireValidCaseDto(CaseDto dto, String requestedId) {
+        if (dto.getId() == null || dto.getId().isBlank()) {
+            return Mono.error(new ResourceNotFoundException("Case", requestedId));
+        }
+        if (!requestedId.equals(dto.getId())) {
+            return Mono.error(new ResourceNotFoundException("Case", requestedId));
+        }
+        return Mono.just(dto);
     }
 
     private Mono<LegalCase> ensureCanReadCase(LegalCase legalCase) {
