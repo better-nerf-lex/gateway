@@ -1,6 +1,8 @@
 package com.bntech.lexai.gateway.config;
 
+import com.bntech.lexai.gateway.security.CookieOAuth2AuthorizationRequestRepository;
 import com.bntech.lexai.gateway.security.OAuth2SuccessHandler;
+import com.bntech.lexai.gateway.security.OAuth2FailureHandler;
 import com.bntech.lexai.gateway.security.SessionAuthenticationFilter;
 import com.bntech.lexai.gateway.service.DatabaseUserDetailsService;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,8 @@ public class SecurityConfig {
         private final SessionAuthenticationFilter sessionAuthenticationFilter;
         private final PasswordEncoder passwordEncoder;
         private final OAuth2SuccessHandler oAuth2SuccessHandler;
+        private final OAuth2FailureHandler oAuth2FailureHandler;
+        private final CookieOAuth2AuthorizationRequestRepository oAuth2AuthorizationRequestRepository;
 
         @Bean
         public ReactiveAuthenticationManager authenticationManager() {
@@ -62,6 +66,8 @@ public class SecurityConfig {
                                                 .permitAll()
                                                 .anyExchange().authenticated())
                                 .oauth2Login(oauth2Login -> oauth2Login
+                                                .authorizationRequestRepository(oAuth2AuthorizationRequestRepository)
+                                                .authenticationFailureHandler(oAuth2FailureHandler)
                                                 .authenticationSuccessHandler(oAuth2SuccessHandler))
                                 .exceptionHandling(exceptions -> exceptions
                                                 .authenticationEntryPoint(

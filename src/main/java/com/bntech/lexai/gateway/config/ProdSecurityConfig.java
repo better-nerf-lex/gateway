@@ -1,6 +1,8 @@
 package com.bntech.lexai.gateway.config;
 
+import com.bntech.lexai.gateway.security.CookieOAuth2AuthorizationRequestRepository;
 import com.bntech.lexai.gateway.security.OAuth2SuccessHandler;
+import com.bntech.lexai.gateway.security.OAuth2FailureHandler;
 import com.bntech.lexai.gateway.security.SessionAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -24,6 +26,8 @@ import org.springframework.web.cors.reactive.CorsConfigurationSource;
 public class ProdSecurityConfig {
 
         private final OAuth2SuccessHandler oAuth2SuccessHandler;
+        private final OAuth2FailureHandler oAuth2FailureHandler;
+        private final CookieOAuth2AuthorizationRequestRepository oAuth2AuthorizationRequestRepository;
         private final SessionAuthenticationFilter sessionAuthenticationFilter;
 
         @Bean
@@ -46,6 +50,8 @@ public class ProdSecurityConfig {
                                                 .permitAll()
                                                 .anyExchange().authenticated())
                                 .oauth2Login(oauth2Login -> oauth2Login
+                                                .authorizationRequestRepository(oAuth2AuthorizationRequestRepository)
+                                                .authenticationFailureHandler(oAuth2FailureHandler)
                                                 .authenticationSuccessHandler(oAuth2SuccessHandler))
                                 .exceptionHandling(exceptions -> exceptions
                                                 .authenticationEntryPoint(
