@@ -1,13 +1,13 @@
 package com.bntech.lexai.gateway.security.access;
 
-import com.bntech.lexai.gateway.data.repository.CaseRepository;
-import com.bntech.lexai.gateway.data.repository.DocumentGroupRepository;
-import com.bntech.lexai.gateway.data.repository.DocumentRepository;
-import com.bntech.lexai.gateway.data.repository.EventRepository;
-import com.bntech.lexai.gateway.data.repository.LegalEntityRepository;
-import com.bntech.lexai.gateway.data.repository.StorageFileRepository;
-import com.bntech.lexai.gateway.data.repository.TeamMemberRepository;
-import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.data.repository.document.CaseRepository;
+import com.bntech.lexai.gateway.data.repository.document.DocumentGroupRepository;
+import com.bntech.lexai.gateway.data.repository.document.DocumentRepository;
+import com.bntech.lexai.gateway.data.repository.document.EventRepository;
+import com.bntech.lexai.gateway.data.repository.document.LegalEntityRepository;
+import com.bntech.lexai.gateway.data.repository.document.StorageFileRepository;
+import com.bntech.lexai.gateway.data.repository.security.TeamMemberRepository;
+import com.bntech.lexai.gateway.data.repository.security.UserRepository;
 import com.bntech.lexai.gateway.data.entity.OwnableEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

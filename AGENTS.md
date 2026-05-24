@@ -10,11 +10,11 @@ When this repository is opened inside the Lexai parent workspace, also follow `.
 
 | Package | Responsibility |
 | --- | --- |
-| `rest/controller` | HTTP routing, request validation, response mapping only |
+| `rest/controller/document` and `rest/controller/security` | HTTP routing, request validation, response mapping only |
 | `rest/dto` | Explicit API contracts |
-| `service` | Domain workflows, access-sensitive operations, external orchestration |
-| `data/entity` and `data/repository` | Persistence model and reactive queries |
-| `mapper` | DTO/entity transformations through existing MapStruct patterns |
+| `service/document`, `service/security`, `service/ai`, `service/integration` | Domain workflows, access-sensitive operations, external orchestration |
+| `data/entity/*` and `data/repository/*` | Persistence model and reactive queries separated by domain |
+| `mapper/document` and `mapper/security` | DTO/entity transformations through existing MapStruct patterns |
 | `security` and `security/access` | Authentication, subscription gates, ownership permissions |
 | `config` | Runtime clients, security and framework configuration |
 | `exception` | Sanitized HTTP error translation |

@@ -1,7 +1,7 @@
 package com.bntech.lexai.gateway.security;
 
-import com.bntech.lexai.gateway.service.JwtService;
-import com.bntech.lexai.gateway.service.AuthSessionService;
+import com.bntech.lexai.gateway.service.security.JwtService;
+import com.bntech.lexai.gateway.service.security.AuthSessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;

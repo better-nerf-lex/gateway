@@ -1,6 +1,6 @@
 package com.bntech.lexai.gateway.config;
 
-import com.bntech.lexai.gateway.service.DocumentExampleService;
+import com.bntech.lexai.gateway.service.document.DocumentExampleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

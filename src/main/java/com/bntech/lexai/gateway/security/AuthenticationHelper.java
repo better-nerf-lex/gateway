@@ -1,8 +1,8 @@
 package com.bntech.lexai.gateway.security;
 
 import com.bntech.lexai.gateway.data.entity.security.User;
-import com.bntech.lexai.gateway.data.repository.UserRepository;
-import com.bntech.lexai.gateway.service.CognitoUserSyncService;
+import com.bntech.lexai.gateway.data.repository.security.UserRepository;
+import com.bntech.lexai.gateway.service.security.CognitoUserSyncService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;

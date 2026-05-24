@@ -1,7 +1,7 @@
 package com.bntech.lexai.gateway.security;
 
-import com.bntech.lexai.gateway.service.AuthSessionService;
-import com.bntech.lexai.gateway.service.OAuth2AuthService;
+import com.bntech.lexai.gateway.service.security.AuthSessionService;
+import com.bntech.lexai.gateway.service.security.OAuth2AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

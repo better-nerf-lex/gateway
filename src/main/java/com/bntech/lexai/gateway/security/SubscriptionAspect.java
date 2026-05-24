@@ -1,9 +1,9 @@
 package com.bntech.lexai.gateway.security;
 
 import com.bntech.lexai.gateway.data.entity.security.User;
-import com.bntech.lexai.gateway.data.repository.UserRepository;
+import com.bntech.lexai.gateway.data.repository.security.UserRepository;
 import com.bntech.lexai.gateway.exception.SubscriptionRequiredException;
-import com.bntech.lexai.gateway.service.SubscriptionClientService;
+import com.bntech.lexai.gateway.service.integration.billing.SubscriptionClientService;
 import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -85,7 +85,7 @@ public class SubscriptionAspect {
             return Mono.error(new SubscriptionRequiredException("Authentication required"));
         }
 
-        RequireSubscription.SubscriptionEntityType entityType = requireSubscription.entityType();
+        SubscriptionEntityType entityType = requireSubscription.entityType();
         String errorMessage = requireSubscription.message();
 
         return switch (entityType) {

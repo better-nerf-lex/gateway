@@ -4,7 +4,7 @@ import com.bntech.lexai.gateway.security.CookieOAuth2AuthorizationRequestReposit
 import com.bntech.lexai.gateway.security.OAuth2SuccessHandler;
 import com.bntech.lexai.gateway.security.OAuth2FailureHandler;
 import com.bntech.lexai.gateway.security.SessionAuthenticationFilter;
-import com.bntech.lexai.gateway.service.DatabaseUserDetailsService;
+import com.bntech.lexai.gateway.service.security.DatabaseUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -31,15 +31,4 @@ public @interface RequireSubscription {
      */
     String message() default "Active subscription required for this operation";
 
-    enum SubscriptionEntityType {
-        /**
-         * Check subscription for the current user
-         */
-        USER,
-
-        /**
-         * Check subscription for the current team (extracted from request context)
-         */
-        TEAM
-    }
 }

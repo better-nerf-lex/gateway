@@ -1,7 +1,7 @@
 package com.bntech.lexai.gateway.security;
 
-import com.bntech.lexai.gateway.service.AuthSessionService;
-import com.bntech.lexai.gateway.service.DatabaseUserDetailsService;
+import com.bntech.lexai.gateway.service.security.AuthSessionService;
+import com.bntech.lexai.gateway.service.security.DatabaseUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpMethod;

@@ -1,6 +1,6 @@
 package com.bntech.lexai.gateway.security;
 
-import com.bntech.lexai.gateway.service.AuthSessionService;
+import com.bntech.lexai.gateway.service.security.AuthSessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthenticationToken;
