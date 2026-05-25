@@ -20,6 +20,7 @@ import com.bntech.lexai.gateway.exception.ResourceNotFoundException;
 import com.bntech.lexai.gateway.mapper.document.CaseMapper;
 import com.bntech.lexai.gateway.mapper.document.DocumentMapper;
 import com.bntech.lexai.gateway.mapper.document.DocumentExampleMapper;
+import com.bntech.lexai.gateway.rest.dto.document.AnalyzeFollowUpQuestionsRequest;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentHistoryDto;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentStatsDto;
@@ -221,6 +222,13 @@ public class DocumentService {
 
     public Mono<DocumentChatResponse> chatWithDocument(DocumentChatRequest request) {
         return aiService.chatWithDocument(request);
+    }
+
+    public Mono<SubmitPromptResponse> analyzeFollowUpQuestions(AnalyzeFollowUpQuestionsRequest request) {
+        return aiService.analyzeFollowUpQuestions(request)
+                .doOnSuccess(response -> log.info("✅ Follow-up question analysis completed with {} questions",
+                        response.getQuestions() != null ? response.getQuestions().size() : 0))
+                .doOnError(error -> log.error("❌ Error analyzing follow-up questions", error));
     }
 
     public Mono<DocumentDto> generateDocument(GenerateDocumentRequest request) {

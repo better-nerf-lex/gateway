@@ -192,8 +192,8 @@ public class Prompts {
             """;
 
     public static final String EN_GENERATE_QUESTIONS = """
-                Your task is to prepare structured input data to generate a document based on a graphic template (form image) that will be provided as an attachment.
-                All in Polish.
+                Your task is to prepare the FIRST PASS of structured input data for generating a legal document.
+                All questions must be in Polish.
 
                 The legal basis for this document has already been determined: %s
 
@@ -213,18 +213,60 @@ public class Prompts {
                 }
 
                 Step-by-step instructions:
-                1. Analyze the image (template) to determine which fields and data points are required.
-                2. Extract all data fields as user-facing questions and list them under `questions`.
-                3. For each question, assign a unique `id` and determine its `type`.
+                1. Generate broad screening questions first. Do not ask every nested detail yet.
+                2. Prefer generic questions that determine whether a branch applies, e.g. whether there are children, whether there is a contract, whether payment was made, whether there is a court case, whether there are attachments.
+                3. Ask for core facts that are always necessary for the document, such as applicant/party, recipient/court/authority, dates, amount, case number if applicable, and requested outcome.
                 4. Use `PERSON`, `COMPANY`, `COURT`, or `LAW_FIRM` if the question specifically asks for details of such a legal entity. Use `ENTITY` if it's generic but clearly about a legal entity. Otherwise use `TEXT`.
-                5. Include questions for personal data such as case reference number or mother’s maiden name **only if** they are required for this specific type of form.
+                5. Do not ask conditional deep follow-up questions in this first pass. For example, ask "Czy strony mają dzieci?" now, but do not ask for each child’s detailed data until the user confirms that children exist.
                 6. Use the pre-verified legal basis provided above in the `base` field.
                 7. In the `name` field, provide a suggested name for the application or request.
-                8. In `requirements`, list the necessary supporting documents or attachments.
+                8. In `requirements`, list only obvious supporting documents or attachments. More precise requirements may be updated after follow-up analysis.
 
                 Return only the JSON data. Do not include any explanations, comments, or additional content.
                 Remember that data like applicant, date it was created and legal entity to which the application is directed must be provided.
                 There is no need to signature space.
+            """;
+
+    public static final String EN_ANALYZE_FOLLOW_UP_QUESTIONS = """
+            You analyze a Polish legal-document questionnaire after the user answered the current questions.
+
+            Goal:
+            Decide whether the existing answers require additional concrete follow-up questions before document generation.
+            This is for unknown document types, so reason from the user's request, current questions, answers, legal basis, and requirements.
+            The `answers` object is keyed by the zero-based index of the corresponding item in `questions`.
+
+            Return strictly JSON in this schema:
+            {
+                "questions": [
+                    {
+                        "id": "unique_follow_up_id",
+                        "text": "follow_up_question_in_polish",
+                        "type": "TEXT | PERSON | COMPANY | COURT | LAW_FIRM | ENTITY"
+                    }
+                ],
+                "base": ["eli/DU/..."],
+                "name": "documentName",
+                "requirements": ["updatedRequirement1"]
+            }
+
+            Rules:
+            1. Add follow-up questions only when an answer creates a need for more concrete data.
+            2. Do not repeat questions already asked. Do not ask for information already answered.
+            3. If a broad answer is negative or says the branch does not apply, do not ask branch details.
+            4. If the user confirms a branch applies, ask for the missing concrete data needed to draft correctly.
+               Examples:
+               - If there are children, ask for each child's name, birth date, residence, custody/contact/alimony details as relevant.
+               - If money is owed, ask for amount, due date, payment basis, debtor, creditor, interest, and evidence if missing.
+               - If a contract exists, ask for parties, date, object, key clauses, breach, and evidence if missing.
+               - If there is a court/administrative case, ask for court/authority, case number, parties, dates, and requested action if missing.
+               - If attachments are mentioned, ask which documents exist and what they prove if missing.
+            5. Prefer a small number of high-value follow-ups. Avoid overwhelming the user.
+            6. Keep questions generic enough for the UI, but concrete enough to collect draftable legal facts.
+            7. Update `requirements` based on all known answers. Keep existing valid requirements and add newly implied attachments.
+            8. Keep `base` as the best known legal basis. Do not hallucinate ELI URIs; keep existing base if unsure.
+            9. If no more follow-ups are needed, return `"questions": []` with updated `base`, `name`, and `requirements`.
+
+            Return only JSON. No markdown, no comments, no explanation.
             """;
     public static final String EN_CHAT_WITH_DOCUMENT = """
             You are a legal document editing assistant. Your task is to modify a legal document (HTML) based on the user's request.

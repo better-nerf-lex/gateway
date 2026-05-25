@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.rest.controller.document;
 
+import com.bntech.lexai.gateway.rest.dto.document.AnalyzeFollowUpQuestionsRequest;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentChatRequest;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentChatResponse;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentDto;
@@ -51,6 +52,11 @@ public class DocumentController {
     @PostMapping()
     public Mono<SubmitPromptResponse> submitPrompt(@RequestBody SubmitPromptRequest request) {
         return documentService.submitPrompt(request);
+    }
+
+    @PostMapping("/follow-ups")
+    public Mono<SubmitPromptResponse> analyzeFollowUpQuestions(@RequestBody AnalyzeFollowUpQuestionsRequest request) {
+        return documentService.analyzeFollowUpQuestions(request);
     }
 
     @PostMapping("/generate")

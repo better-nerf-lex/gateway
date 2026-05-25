@@ -15,6 +15,7 @@ import com.bntech.lexai.gateway.data.object.StorageFileType;
 import com.bntech.lexai.gateway.data.object.TemplateFile;
 import com.bntech.lexai.gateway.exception.ServiceException;
 import com.bntech.lexai.gateway.exception.RateLimitException;
+import com.bntech.lexai.gateway.rest.dto.document.AnalyzeFollowUpQuestionsRequest;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentChatRequest;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentChatResponse;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
@@ -175,6 +176,57 @@ public class AIService {
                 .timeout(Duration.ofMinutes(2))
                 .retryWhen(buildRetrySpec("prompt analysis"))
                 .doOnError(error -> log.error("❌ Error analyzing prompt", error));
+    }
+
+    public Mono<SubmitPromptResponse> analyzeFollowUpQuestions(AnalyzeFollowUpQuestionsRequest request) {
+        log.info("Analyzing whether follow-up questions are required for: {}", request.getName());
+        return Mono.fromCallable(() -> {
+            String inputJson = objectMapper.writeValueAsString(Map.of(
+                    "prompt", request.getPrompt() != null ? request.getPrompt() : "",
+                    "name", request.getName() != null ? request.getName() : "",
+                    "questions", request.getQuestions() != null ? request.getQuestions() : List.of(),
+                    "answers", request.getAnswers() != null ? request.getAnswers() : Map.of(),
+                    "base", request.getBase() != null ? request.getBase() : List.of(),
+                    "requirements", request.getRequirements() != null ? request.getRequirements() : List.of()));
+
+            MessageCreateParams params = MessageCreateParams.builder()
+                    .maxTokens(4096L)
+                    .system(Prompts.EN_ANALYZE_FOLLOW_UP_QUESTIONS)
+                    .addUserMessage(inputJson)
+                    .model(genModel)
+                    .temperature(reasoningTemperature)
+                    .build();
+
+            log.debug("Sending follow-up question analysis request to Anthropic API");
+            Message message = client.messages().create(params);
+            String jsonResponse = message.content().getFirst()
+                    .text()
+                    .map(TextBlock::text)
+                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+
+            SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
+                    SubmitPromptResponse.class);
+            response.setTemplateFiles(request.getTemplateFiles());
+            response.setExampleId(request.getExampleId());
+            if (response.getName() == null || response.getName().isBlank()) {
+                response.setName(request.getName());
+            }
+            if (response.getQuestions() == null) {
+                response.setQuestions(List.of());
+            }
+            if (response.getBase() == null) {
+                response.setBase(request.getBase());
+            }
+            if (response.getRequirements() == null) {
+                response.setRequirements(request.getRequirements());
+            }
+            log.info("✅ Follow-up analysis returned {} questions", response.getQuestions().size());
+            return response;
+        })
+                .subscribeOn(Schedulers.boundedElastic())
+                .timeout(Duration.ofMinutes(2))
+                .retryWhen(buildRetrySpec("follow-up question analysis"))
+                .doOnError(error -> log.error("❌ Error analyzing follow-up questions", error));
     }
 
     public Mono<DocumentChatResponse> chatWithDocument(DocumentChatRequest request) {
