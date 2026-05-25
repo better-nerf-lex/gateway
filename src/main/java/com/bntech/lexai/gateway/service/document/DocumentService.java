@@ -29,7 +29,6 @@ import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
 import com.bntech.lexai.gateway.rest.dto.document.UpdateDocumentRequest;
-import org.jsoup.Jsoup;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
@@ -303,22 +302,6 @@ public class DocumentService {
 
     private Mono<DocumentDto> processAIGeneration(Document document, GenerateDocumentRequest request, String reservationKey) {
         return aiService.generateDocumentWithAnswers(request)
-                .map(content -> {
-                    log.info("Generated document content raw: {}", content);
-                    String cleanedContent = content;
-                    try {
-                        org.jsoup.nodes.Document doc = Jsoup.parse(content);
-                        if (doc.body() != null && !doc.body().html().isBlank()) {
-                            cleanedContent = doc.body().html();
-                        } else {
-                            cleanedContent = doc.html();
-                        }
-                    } catch (Exception e) {
-                        log.warn("Failed to parse/clean HTML content, using raw", e);
-                    }
-                    log.info("Cleaned document content: {}", cleanedContent);
-                    return cleanedContent;
-                })
                 .flatMap(content -> updateDocumentWithContent(document, content))
                 .flatMap(result -> subscriptionClientService.commitTokenReservation(reservationKey).thenReturn(result))
                 .doOnSuccess(result -> {

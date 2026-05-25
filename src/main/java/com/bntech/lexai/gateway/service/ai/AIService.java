@@ -67,6 +67,7 @@ public class AIService {
     private final ObjectMapper objectMapper;
     private final EliService eliService;
     private final StorageFileService storageFileService;
+    private final DocumentGenerationQualityService qualityService;
 
     @PostConstruct
     private void initializeClient() {
@@ -236,7 +237,7 @@ public class AIService {
 
                     return Mono.fromCallable(() -> {
                         String userMessage = buildUserMessage(request, legalContext, templates, contextFiles);
-                        return generateViaAnthropic(request.getTitle(), userMessage, templates, contextFiles);
+                        return generateQualityCheckedDocument(request, userMessage, templates, contextFiles);
                     }).subscribeOn(Schedulers.boundedElastic());
                 })
                 .timeout(Duration.ofMinutes(5))
@@ -301,14 +302,40 @@ public class AIService {
         }
     }
 
+    private String generateQualityCheckedDocument(
+            GenerateDocumentRequest request,
+            String userMessage,
+            List<FileContent> templates,
+            List<FileContent> contextFiles) {
+        String generated = qualityService.cleanHtmlFragment(
+                generateViaAnthropic(request.getTitle(), Prompts.EN_GENERATE_DOCUMENT, userMessage, templates,
+                        contextFiles));
+
+        List<String> issues = qualityService.validate(generated, request);
+        if (issues.isEmpty()) {
+            return generated;
+        }
+
+        log.warn("Generated document for {} failed quality checks, requesting repair: {}",
+                request.getTitle(), issues);
+
+        String revisionMessage = qualityService.buildRevisionUserMessage(userMessage, generated, issues);
+        String revised = qualityService.cleanHtmlFragment(
+                generateViaAnthropic(request.getTitle(), Prompts.EN_REPAIR_GENERATED_DOCUMENT, revisionMessage,
+                        templates, contextFiles));
+
+        return qualityService.validateOrThrow(revised, request);
+    }
+
     private String generateViaAnthropic(
             String title,
+            String systemPrompt,
             String userMessage,
             List<FileContent> templates,
             List<FileContent> contextFiles) {
         MessageCreateParams params = MessageCreateParams.builder()
-                .maxTokens(8192L)
-                .system(Prompts.EN_GENERATE_DOCUMENT)
+                .maxTokens(12000L)
+                .system(systemPrompt)
                 .addUserMessageOfBlockParams(buildGenerationContentBlocks(userMessage, templates, contextFiles))
                 .model(genModel)
                 .temperature(reasoningTemperature)

@@ -73,50 +73,51 @@ public class Prompts {
             """;
 
     public static final String EN_GENERATE_DOCUMENT = """
-            Generate a formal legal document in Polish using HTML.
-            The document must be suitable for submission to court and ready for later conversion to PDF.
+            You are a senior Polish legal drafting assistant. Generate a complete, formal legal document in Polish as an HTML fragment.
+            The document must be suitable for professional review and later conversion to PDF.
 
-            CRITICAL FORMATTING RULES:
-            1. return ONLY the HTML content. Do NOT include `<html>`, `<head>`, `<body>`, or `<!DOCTYPE>` tags.
+            Critical output rules:
+            1. Return ONLY the HTML content. Do NOT include `<html>`, `<head>`, `<body>`, or `<!DOCTYPE>` tags.
             2. Do NOT use `<style>` blocks. You MUST use inline `style="..."` attributes for ALL styling.
-            3. Use a simple clean layout.
-            4. Use `<div>` or `<p>` tags for structure.
+            3. Do NOT use markdown fences, explanations, comments, metadata, or alternate drafts.
+            4. Use a simple A4-friendly layout with readable spacing and professional typography.
+            5. Use semantic HTML fragments built from `<div>`, `<p>`, `<h1>`, `<h2>`, `<strong>`, `<ol>`, `<ul>`, and `<li>`.
 
-            Content rules:
-            1. Use the value of "name" as the exact document title, centered and bold.
-            2. The main body of the document must contain the data from "questions", written in proper legal and formal style. Each {"question": "answer"} should be converted into a coherent paragraph.
-            3. The document layout and appearance must follow the structure described in "requirements". Treat "requirements" as layout and formatting guidelines (e.g., margins, sections, titles).
-            4. IMPORTANT: Do NOT include any citations, legal bases, or ELI URIs in the generated document content.
+            Drafting rules:
+            1. Use the value of `name` as the exact document title, centered and bold.
+            2. Convert `questions` and answers into coherent legal prose, not a questionnaire recap.
+            3. Preserve every concrete fact supplied by the user: names, addresses, dates, amounts, case numbers, courts, companies, and requested relief.
+            4. Do not invent missing facts. If a legally necessary fact is missing, include a neutral placeholder in natural Polish only when unavoidable, e.g. `[uzupełnić datę]`.
+            5. Avoid casual language, generic filler, and repeated sentences.
+            6. Treat `requirements` as drafting and layout requirements, including attachments, requested sections, or special formatting.
+            7. If case context or attached context files are provided, use them as factual context and keep facts consistent across the document.
+            8. If templates are provided, mirror their section order, spacing style, and professional structure while using the user's actual data.
+            9. End with only sections that are appropriate for this document type, such as requests, justification, attachments, or closing/signature area when expected.
 
             LEGAL BASIS USAGE (IMPORTANT):
             - The "base" field contains ELI URIs with links to legal documents on eli.gov.pl.
             - These links are provided ONLY as reference for you to understand the legal framework.
             - DO NOT include a "Podstawa prawna" section in the generated document.
             - DO NOT list or cite the legal bases (ELI URIs) or their links in the document output.
-            - Use your knowledge of these legal acts to ensure correct legal terminology, proper phrasing, and accurate article references where naturally appropriate in the document text.
+            - Use legal basis only to choose correct legal terminology, document structure, and article references where naturally appropriate in the document text.
             - The legal basis information helps you write legally accurate content, but should NOT appear as a separate section or explicit citation in the output.
 
-            TEMPLATE DOCUMENTS USAGE:
-            If a "TEMPLATE DOCUMENTS" section is provided below, these are reference documents that serve as:
-            - Visual and structural guides for the document you are generating
-            - Examples of proper formatting, section organization, and layout conventions
-            - Reference for the expected document structure and professional appearance
-            
-            When template documents are provided:
-            - Match the general structure and section organization of the templates
-            - Follow similar formatting patterns (headers, paragraphs, spacing)
-            - Use the templates as a guide for professional legal document presentation
-            - Fill in the actual data from "questions" while maintaining the template's structural approach
-            - The templates represent the expected output format - generate a document that would look similar in structure
+            Quality checklist before responding:
+            - The title is present and matches `name`.
+            - The document contains all supplied answers unless they are irrelevant duplicates.
+            - The output is long enough to be useful, with a clear structure and formal justification.
+            - The output has no markdown, no full-page wrapper tags, no `<style>` block, and no unexplained placeholders.
+            """;
 
-            Additional notes:
-            - Use only formal legal language, no casual or informal tone.
-            - Do not include any explanation, metadata, or comments.
-            - Output only the final document content HTML fragment.
+    public static final String EN_REPAIR_GENERATED_DOCUMENT = """
+            You are repairing a generated Polish legal document that failed quality checks.
 
-            JSON input:
-
-             %s
+            Return only a corrected HTML fragment.
+            Preserve the user's facts exactly.
+            Do not add markdown fences, comments, `<html>`, `<head>`, `<body>`, `<!DOCTYPE>`, or `<style>` blocks.
+            Use inline styles only.
+            Remove generic filler and unresolved placeholders unless the original input truly lacks a legally required fact.
+            Ensure the final document is complete, formal, structured, and suitable for professional review before PDF conversion.
             """;
 
     public static final String EN_EXTRACT_LEGAL_BASIS = """
