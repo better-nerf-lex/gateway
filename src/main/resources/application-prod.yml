@@ -56,6 +56,9 @@ jwt:
 
 app:
   frontend-url: ${FRONTEND_URL}
+  auth:
+    cookie:
+      secure: ${AUTH_COOKIE_SECURE:true}
   email:
     from: ${EMAIL_FROM}
     enabled: ${EMAIL_ENABLED:true}

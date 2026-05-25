@@ -61,6 +61,14 @@ public class AuthService {
                 });
     }
 
+    public Mono<LoginResponse> authenticateSuperadmin(LoginRequest loginRequest) {
+        return authenticate(loginRequest)
+                .filterWhen(response -> users.findById(response.getUser().getId())
+                        .map(User::isSuperadmin)
+                        .defaultIfEmpty(false))
+                .switchIfEmpty(Mono.defer(() -> Mono.error(new UnauthorizedException("Invalid credentials"))));
+    }
+
     private Mono<User> findUserByUsernameOrEmail(String usernameOrEmail) {
         return users.findByUsername(usernameOrEmail)
                 .switchIfEmpty(

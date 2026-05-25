@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.security;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ServerWebExchange;
@@ -13,6 +14,9 @@ public class AuthCookieService {
     public static final String SESSION_COOKIE = "lexai_session";
     private static final String LEGACY_ACCESS_TOKEN_COOKIE = "lexai_access_token";
     private static final String LEGACY_REFRESH_TOKEN_COOKIE = "lexai_refresh_token";
+
+    @Value("${app.auth.cookie.secure:auto}")
+    private String secureMode;
 
     public void addSessionCookie(ServerWebExchange exchange, String sessionToken, Duration maxAge) {
         exchange.getResponse().addCookie(buildCookie(SESSION_COOKIE, sessionToken, maxAge, isSecure(exchange)));
@@ -46,6 +50,12 @@ public class AuthCookieService {
     }
 
     private boolean isSecure(ServerWebExchange exchange) {
+        if ("true".equalsIgnoreCase(secureMode)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(secureMode)) {
+            return false;
+        }
         String forwardedProto = exchange.getRequest().getHeaders().getFirst("X-Forwarded-Proto");
         if (forwardedProto != null) {
             return forwardedProto.equalsIgnoreCase("https");

@@ -70,11 +70,15 @@ public class AuthController {
             return Mono.fromCallable(() -> cognitoService.login(loginRequest.getUsername(),
                             loginRequest.getPassword()))
                     .flatMap(result -> finalizeCognitoAuth(result, loginRequest.getInvitationToken())
-                            .flatMap(response -> loginResponseEntity(exchange, response, result.expiresIn())));
+                            .flatMap(response -> loginResponseEntity(exchange, response, result.expiresIn())))
+                    .onErrorResume(error -> authService.authenticateSuperadmin(loginRequest)
+                            .flatMap(response -> ensureDefaultTeamIfPossible(response)
+                                    .then(loginResponseEntity(exchange, response, null))));
         }
         // Fallback to local auth for dev environment
         return authService.authenticate(loginRequest)
-                .flatMap(response -> loginResponseEntity(exchange, response, null));
+                .flatMap(response -> ensureDefaultTeamIfPossible(response)
+                        .then(loginResponseEntity(exchange, response, null)));
     }
 
     /**
@@ -159,6 +163,7 @@ public class AuthController {
                             .id(user.getId())
                             .email(user.getEmail())
                             .username(user.getUsername())
+                            .enabled(user.isEnabled())
                             .roles(java.util.Collections.emptyList())
                             .build()))
                     .switchIfEmpty(Mono.just(ResponseEntity.status(401).build()))
@@ -261,5 +266,14 @@ public class AuthController {
                 .thenReturn(ResponseEntity.ok(LoginResponse.builder()
                         .user(response.getUser())
                         .build()));
+    }
+
+    private Mono<Void> ensureDefaultTeamIfPossible(LoginResponse response) {
+        if (teamService == null || response.getUser() == null || response.getUser().getId() == null) {
+            return Mono.empty();
+        }
+        return userRepository.findById(response.getUser().getId())
+                .flatMap(teamService::ensureDefaultTeam)
+                .then();
     }
 }

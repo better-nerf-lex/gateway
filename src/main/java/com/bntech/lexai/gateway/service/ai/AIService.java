@@ -69,6 +69,7 @@ public class AIService {
     private final EliService eliService;
     private final StorageFileService storageFileService;
     private final DocumentGenerationQualityService qualityService;
+    private final QuestionQualityService questionQualityService;
 
     @PostConstruct
     private void initializeClient() {
@@ -169,8 +170,10 @@ public class AIService {
 
             SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
                     SubmitPromptResponse.class);
-            log.info("✅ Parsed response with {} questions", response.getQuestions().size());
-            return response;
+            SubmitPromptResponse cleanedResponse = questionQualityService.cleanFirstPassQuestions(response);
+            int questionCount = cleanedResponse.getQuestions() != null ? cleanedResponse.getQuestions().size() : 0;
+            log.info("✅ Parsed response with {} questions", questionCount);
+            return cleanedResponse;
         })
                 .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofMinutes(2))

@@ -14,4 +14,5 @@ public class QuestionDto {
     private String id;
     private String text;
     private QuestionType type;
+    private boolean followup;
 }

@@ -203,7 +203,8 @@ public class Prompts {
                         {
                             "id": "unique_id_1",
                             "text": "question_text_1",
-                            "type": "TEXT | PERSON | COMPANY | COURT | LAW_FIRM | ENTITY"
+                            "type": "TEXT | PERSON | COMPANY | COURT | LAW_FIRM | ENTITY",
+                            "followup": true
                         },
                         ...
                     ],
@@ -217,10 +218,15 @@ public class Prompts {
                 2. Prefer generic questions that determine whether a branch applies, e.g. whether there are children, whether there is a contract, whether payment was made, whether there is a court case, whether there are attachments.
                 3. Ask for core facts that are always necessary for the document, such as applicant/party, recipient/court/authority, dates, amount, case number if applicable, and requested outcome.
                 4. Use `PERSON`, `COMPANY`, `COURT`, or `LAW_FIRM` if the question specifically asks for details of such a legal entity. Use `ENTITY` if it's generic but clearly about a legal entity. Otherwise use `TEXT`.
-                5. Do not ask conditional deep follow-up questions in this first pass. For example, ask "Czy strony mają dzieci?" now, but do not ask for each child’s detailed data until the user confirms that children exist.
-                6. Use the pre-verified legal basis provided above in the `base` field.
-                7. In the `name` field, provide a suggested name for the application or request.
-                8. In `requirements`, list only obvious supporting documents or attachments. More precise requirements may be updated after follow-up analysis.
+                5. Set `followup` to true only when this question is a broad branch/screening question whose positive answer may require later details. Examples: children exist, contract exists, payment was made, damage happened, attachments exist.
+                6. Set `followup` to false when the answer is already concrete enough or the question asks for always-required data such as applicant, recipient, date, amount, case number, or requested outcome.
+                7. Each first-pass question must ask exactly one thing. Do not combine a screening question with a conditional detail request.
+                8. Do not ask conditional deep follow-up questions in this first pass. For example, ask "Czy strony mają dzieci?" now with `followup: true`, but do not ask for each child’s detailed data until the user confirms that children exist.
+                9. Forbidden first-pass question patterns include: "Jeśli tak, ...", "Jeżeli tak, ...", "W przypadku odpowiedzi twierdzącej, ...", "Czy ...? Jeśli tak, podaj ...", and any equivalent wording that asks for branch details upfront.
+                10. If a detail is needed only after a yes/positive answer, omit that detail from the first pass. The follow-up analyzer will ask it later only when the answer makes it relevant.
+                11. Use the pre-verified legal basis provided above in the `base` field.
+                12. In the `name` field, provide a suggested name for the application or request.
+                13. In `requirements`, list only obvious supporting documents or attachments. More precise requirements may be updated after follow-up analysis.
 
                 Return only the JSON data. Do not include any explanations, comments, or additional content.
                 Remember that data like applicant, date it was created and legal entity to which the application is directed must be provided.
@@ -241,7 +247,8 @@ public class Prompts {
                     {
                         "id": "unique_follow_up_id",
                         "text": "follow_up_question_in_polish",
-                        "type": "TEXT | PERSON | COMPANY | COURT | LAW_FIRM | ENTITY"
+                        "type": "TEXT | PERSON | COMPANY | COURT | LAW_FIRM | ENTITY",
+                        "followup": false
                     }
                 ],
                 "base": ["eli/DU/..."],
@@ -250,7 +257,7 @@ public class Prompts {
             }
 
             Rules:
-            1. Add follow-up questions only when an answer creates a need for more concrete data.
+            1. Analyze only questions where `followup` is true. Add follow-up questions only when that answer creates a need for more concrete data.
             2. Do not repeat questions already asked. Do not ask for information already answered.
             3. If a broad answer is negative or says the branch does not apply, do not ask branch details.
             4. If the user confirms a branch applies, ask for the missing concrete data needed to draft correctly.
@@ -262,6 +269,7 @@ public class Prompts {
                - If attachments are mentioned, ask which documents exist and what they prove if missing.
             5. Prefer a small number of high-value follow-ups. Avoid overwhelming the user.
             6. Keep questions generic enough for the UI, but concrete enough to collect draftable legal facts.
+            6a. Set `followup` to false on every question you return. This follow-up pass must not create another follow-up chain.
             7. Update `requirements` based on all known answers. Keep existing valid requirements and add newly implied attachments.
             8. Keep `base` as the best known legal basis. Do not hallucinate ELI URIs; keep existing base if unsure.
             9. If no more follow-ups are needed, return `"questions": []` with updated `base`, `name`, and `requirements`.
