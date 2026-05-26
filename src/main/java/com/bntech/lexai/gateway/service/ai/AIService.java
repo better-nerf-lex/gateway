@@ -362,9 +362,9 @@ public class AIService {
             String userMessage,
             List<FileContent> templates,
             List<FileContent> contextFiles) {
-        String generated = qualityService.cleanHtmlFragment(
+        String generated = qualityService.removeLegalBasisSection(qualityService.cleanHtmlFragment(
                 generateViaAnthropic(request.getTitle(), Prompts.EN_GENERATE_DOCUMENT, userMessage, templates,
-                        contextFiles));
+                        contextFiles)), request.getBase());
 
         List<String> issues = qualityService.validate(generated, request);
         if (issues.isEmpty()) {
@@ -375,9 +375,9 @@ public class AIService {
                 request.getTitle(), issues);
 
         String revisionMessage = qualityService.buildRevisionUserMessage(userMessage, generated, issues);
-        String revised = qualityService.cleanHtmlFragment(
+        String revised = qualityService.removeLegalBasisSection(qualityService.cleanHtmlFragment(
                 generateViaAnthropic(request.getTitle(), Prompts.EN_REPAIR_GENERATED_DOCUMENT, revisionMessage,
-                        templates, contextFiles));
+                        templates, contextFiles)), request.getBase());
 
         return qualityService.validateOrThrow(revised, request);
     }
@@ -554,8 +554,7 @@ public class AIService {
             Map<String, Object> jsonData = Map.of(
                     "name", request.getTitle() != null ? request.getTitle() : "",
                     "questions", request.getAnswers() != null ? request.getAnswers() : Map.of(),
-                    "requirements", request.getRequirements() != null ? request.getRequirements() : List.of(),
-                    "base", request.getBase() != null ? request.getBase() : List.of());
+                    "requirements", request.getRequirements() != null ? request.getRequirements() : List.of());
 
             return objectMapper.writeValueAsString(jsonData);
         } catch (Exception e) {

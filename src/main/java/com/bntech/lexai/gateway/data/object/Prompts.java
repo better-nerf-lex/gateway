@@ -95,17 +95,18 @@ public class Prompts {
             9. End with only sections that are appropriate for this document type, such as requests, justification, attachments, or closing/signature area when expected.
 
             LEGAL BASIS USAGE (IMPORTANT):
-            - The "base" field contains ELI URIs with links to legal documents on eli.gov.pl.
-            - These links are provided ONLY as reference for you to understand the legal framework.
-            - DO NOT include a "Podstawa prawna" section in the generated document.
-            - DO NOT list or cite the legal bases (ELI URIs) or their links in the document output.
+            - Legal basis material may be provided as reference context outside the JSON input.
+            - It is metadata for internal drafting only and is saved separately by the application.
+            - NEVER include a "Podstawa prawna", "Podstawy prawne", or "Legal basis" section in the generated document.
+            - NEVER list legal bases, ELI URIs, eli.gov.pl links, or statute lists at the end of the document.
             - Use legal basis only to choose correct legal terminology, document structure, and article references where naturally appropriate in the document text.
-            - The legal basis information helps you write legally accurate content, but should NOT appear as a separate section or explicit citation in the output.
+            - The legal basis information helps you write legally accurate content, but should NOT appear as a separate section, appendix, metadata block, or explicit source list in the output.
 
             Quality checklist before responding:
             - The title is present and matches `name`.
             - The document contains all supplied answers unless they are irrelevant duplicates.
             - The output is long enough to be useful, with a clear structure and formal justification.
+            - The output contains no legal-basis section, no ELI URI, and no eli.gov.pl link.
             - The output has no markdown, no full-page wrapper tags, no `<style>` block, and no unexplained placeholders.
             """;
 
@@ -117,6 +118,7 @@ public class Prompts {
             Do not add markdown fences, comments, `<html>`, `<head>`, `<body>`, `<!DOCTYPE>`, or `<style>` blocks.
             Use inline styles only.
             Remove generic filler and unresolved placeholders unless the original input truly lacks a legally required fact.
+            Remove any legal-basis/source section, ELI URI, eli.gov.pl link, or statute list appended as metadata.
             Ensure the final document is complete, formal, structured, and suitable for professional review before PDF conversion.
             """;
 

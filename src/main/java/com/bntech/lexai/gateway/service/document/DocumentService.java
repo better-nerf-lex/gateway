@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -260,6 +261,7 @@ public class DocumentService {
                                 .createdAt(LocalDateTime.now())
                                 .updatedAt(LocalDateTime.now())
                                 .text("")
+                                .legalBasis(enrichedRequest.getBase())
                                 .build());
                         document.setOwnerId(user.getId());
                         if (teamId != null) {
@@ -310,7 +312,7 @@ public class DocumentService {
 
     private Mono<DocumentDto> processAIGeneration(Document document, GenerateDocumentRequest request, String reservationKey) {
         return aiService.generateDocumentWithAnswers(request)
-                .flatMap(content -> updateDocumentWithContent(document, content))
+                .flatMap(content -> updateDocumentWithContent(document, content, request.getBase()))
                 .flatMap(result -> subscriptionClientService.commitTokenReservation(reservationKey).thenReturn(result))
                 .doOnSuccess(result -> {
                     log.info("✅ AI generation completed for: {}", document.getTitle());
@@ -327,13 +329,14 @@ public class DocumentService {
                         .then(failDocument(document)));
     }
 
-    private Mono<DocumentDto> updateDocumentWithContent(Document document, String content) {
+    private Mono<DocumentDto> updateDocumentWithContent(Document document, String content, List<String> legalBasis) {
         return documents.findById(document.getId())
                 .map(existingDoc -> {
                     existingDoc.setStatus(DocumentStatus.COMPLETED);
                     existingDoc.setUpdatedAt(LocalDateTime.now());
                     existingDoc.setNotNew();
                     existingDoc.setText(content);
+                    existingDoc.setLegalBasis(legalBasis);
                     return existingDoc;
                 })
                 .switchIfEmpty(Mono.just(document)
@@ -341,6 +344,7 @@ public class DocumentService {
                             doc.setStatus(DocumentStatus.COMPLETED);
                             doc.setUpdatedAt(LocalDateTime.now());
                             doc.setText(content);
+                            doc.setLegalBasis(legalBasis);
                             return doc;
                         }))
                 .flatMap(documents::save)

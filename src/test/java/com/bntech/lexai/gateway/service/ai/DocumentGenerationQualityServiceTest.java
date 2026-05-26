@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -96,6 +97,52 @@ class DocumentGenerationQualityServiceTest {
         assertThatThrownBy(() -> qualityService.validateOrThrow("", request))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("Generated document failed quality checks");
+    }
+
+    @Test
+    void removeLegalBasisSectionRemovesTrailingBasisMetadata() {
+        String cleaned = qualityService.removeLegalBasisSection("""
+                <div>
+                  <h1>Pozew o zapłatę</h1>
+                  <p>Jan Kowalski wnosi o zasądzenie kwoty 12 000 zł od ABC Sp. z o.o. wraz z kosztami postępowania.</p>
+                  <p>Uzasadnienie opisuje zawarcie umowy, wymagalność roszczenia i brak zapłaty mimo wezwania.</p>
+                  <h2>Podstawa prawna</h2>
+                  <ul><li>eli/DU/1964/93/ogl</li><li>eli/DU/1964/296/ogl</li></ul>
+                </div>
+                """, List.of("eli/DU/1964/93/ogl", "eli/DU/1964/296/ogl"));
+
+        assertThat(cleaned).contains("Pozew o zapłatę");
+        assertThat(cleaned).doesNotContain("Podstawa prawna", "eli/DU/1964/93/ogl", "eli/DU/1964/296/ogl");
+    }
+
+    @Test
+    void validateRejectsLegalBasisMetadataInDocumentBody() {
+        GenerateDocumentRequest request = GenerateDocumentRequest.builder()
+                .title("Pozew o zapłatę")
+                .base(List.of("eli/DU/1964/93/ogl"))
+                .answers(Map.of(
+                        "claimant", "Jan Kowalski",
+                        "defendant", "ABC Sp. z o.o.",
+                        "amount", "12 000 zł",
+                        "date", "12 maja 2026 r."))
+                .build();
+
+        String content = """
+                <div style="font-family: Arial; font-size: 12pt; line-height: 1.5;">
+                  <h1 style="text-align: center;">Pozew o zapłatę</h1>
+                  <p><strong>Powód:</strong> Jan Kowalski wnosi o zasądzenie należności od ABC Sp. z o.o.</p>
+                  <p>Przedmiotem żądania jest kwota 12 000 zł wynikająca z niewykonanego zobowiązania.</p>
+                  <p>W dniu 12 maja 2026 r. pozwany pozostawał w opóźnieniu z zapłatą, mimo wezwania.</p>
+                  <p>Powód wnosi o zasądzenie dochodzonej kwoty wraz z odsetkami oraz kosztami postępowania.</p>
+                  <p>Uzasadnienie obejmuje okoliczności zobowiązania, wymagalność roszczenia, brak zapłaty oraz potrzebę ochrony prawnej.</p>
+                  <p>Załączniki obejmują dokumenty potwierdzające istnienie zobowiązania, wezwanie do zapłaty oraz dowód doręczenia wezwania.</p>
+                  <h2>Podstawa prawna</h2>
+                  <p>eli/DU/1964/93/ogl</p>
+                </div>
+                """;
+
+        assertThat(qualityService.validate(content, request))
+                .contains("document includes legal basis metadata that must be stored separately");
     }
 
     @Test

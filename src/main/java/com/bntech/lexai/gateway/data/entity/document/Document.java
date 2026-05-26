@@ -16,6 +16,7 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @EqualsAndHashCode(callSuper = true)
@@ -40,6 +41,9 @@ public class Document extends Auditable<UUID> implements OwnableEntity, SoftDele
 
     @Column()
     private String text;
+
+    @Column("legal_basis")
+    private List<String> legalBasis;
 
     @Column()
     private UUID teamId;

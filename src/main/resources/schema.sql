@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS documents
     status            VARCHAR(20) CHECK (status IN ('PENDING', 'COMPLETED', 'ERROR')),
     updated_at        TIMESTAMP,
     text              TEXT,
+    legal_basis       JSONB,
     created_at        TIMESTAMP,
     created_by        BIGINT,
     version           INTEGER NOT NULL,
@@ -102,6 +103,8 @@ CREATE TABLE IF NOT EXISTS documents
     document_group_id UUID REFERENCES document_groups (id) ON DELETE SET NULL,
     deleted_at        TIMESTAMP
 );
+
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS legal_basis JSONB;
 
 CREATE TABLE IF NOT EXISTS document_history
 (

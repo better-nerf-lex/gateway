@@ -15,6 +15,11 @@ import java.util.Locale;
 public class DocumentGenerationQualityService {
 
     private static final int MIN_VISIBLE_TEXT_LENGTH = 350;
+    private static final List<String> LEGAL_BASIS_HEADINGS = List.of(
+            "podstawa prawna",
+            "podstawy prawne",
+            "legal basis",
+            "legal bases");
 
     public String cleanHtmlFragment(String content) {
         if (content == null) {
@@ -60,6 +65,9 @@ public class DocumentGenerationQualityService {
         if (containsPlaceholder(cleaned)) {
             issues.add("document contains unresolved placeholders or draft markers");
         }
+        if (containsLegalBasisLeak(cleaned, request)) {
+            issues.add("document includes legal basis metadata that must be stored separately");
+        }
 
         Document parsed = Jsoup.parseBodyFragment(cleaned);
         String visibleText = parsed.text().strip();
@@ -77,6 +85,22 @@ public class DocumentGenerationQualityService {
         }
 
         return issues;
+    }
+
+    public String removeLegalBasisSection(String content, List<String> legalBasis) {
+        if (content == null || content.isBlank()) {
+            return content == null ? "" : content.strip();
+        }
+
+        Document parsed = Jsoup.parseBodyFragment(content);
+        Element body = parsed.body();
+        if (body == null) {
+            return content.strip();
+        }
+
+        boolean removedAny = removeTrailingLegalBasisChildren(body, legalBasis);
+
+        return removedAny ? body.html().strip() : content.strip();
     }
 
     public String buildRevisionUserMessage(String originalUserMessage, String failedOutput, List<String> issues) {
@@ -109,6 +133,68 @@ public class DocumentGenerationQualityService {
                 || lower.contains("{{")
                 || lower.contains("}}")
                 || lower.contains("___");
+    }
+
+    private boolean removeTrailingLegalBasisChildren(Element container, List<String> legalBasis) {
+        boolean removedAny = false;
+        for (Element child : new ArrayList<>(container.children())) {
+            removedAny = removeTrailingLegalBasisChildren(child, legalBasis) || removedAny;
+        }
+
+        List<Element> children = new ArrayList<>(container.children());
+        for (int i = children.size() - 1; i >= 0; i--) {
+            Element child = children.get(i);
+            if (!isEmptyListContainer(child) && !isLegalBasisElement(child, legalBasis)) {
+                break;
+            }
+            child.remove();
+            removedAny = true;
+        }
+        return removedAny;
+    }
+
+    private boolean isEmptyListContainer(Element element) {
+        return element != null
+                && ("ul".equals(element.tagName()) || "ol".equals(element.tagName()))
+                && element.text().isBlank();
+    }
+
+    private boolean containsLegalBasisLeak(String content, GenerateDocumentRequest request) {
+        Document parsed = Jsoup.parseBodyFragment(content);
+        if (isLegalBasisElement(parsed.body(), request != null ? request.getBase() : List.of())) {
+            return true;
+        }
+
+        return parsed.select("h1, h2, h3, h4, strong, b, p, div, section, article, li").stream()
+                .anyMatch(element -> isLegalBasisElement(element, request != null ? request.getBase() : List.of()));
+    }
+
+    private boolean isLegalBasisElement(Element element, List<String> legalBasis) {
+        if (element == null) {
+            return false;
+        }
+
+        String text = normalize(element.text());
+        if (text.isBlank()) {
+            return false;
+        }
+
+        boolean hasLegalHeading = LEGAL_BASIS_HEADINGS.stream().anyMatch(text::contains);
+        boolean hasEliReference = text.contains("eli/")
+                || text.contains("eli.gov.pl")
+                || (legalBasis != null && legalBasis.stream()
+                        .filter(basis -> basis != null && !basis.isBlank())
+                        .map(this::normalize)
+                        .anyMatch(text::contains));
+
+        return hasEliReference || startsWithLegalBasisHeading(text, hasLegalHeading);
+    }
+
+    private boolean startsWithLegalBasisHeading(String text, boolean hasLegalHeading) {
+        if (!hasLegalHeading) {
+            return false;
+        }
+        return LEGAL_BASIS_HEADINGS.stream().anyMatch(heading -> text.startsWith(heading));
     }
 
     private boolean hasLegalDocumentStructure(Document document) {
