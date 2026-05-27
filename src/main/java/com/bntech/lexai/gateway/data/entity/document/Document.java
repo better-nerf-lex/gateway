@@ -5,6 +5,7 @@ import com.bntech.lexai.gateway.data.entity.OwnableEntity;
 import com.bntech.lexai.gateway.data.entity.SoftDeletable;
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
 import com.bntech.lexai.gateway.data.object.DocumentType;
+import com.bntech.lexai.gateway.data.object.DocumentGenerationMetadata;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,7 +17,6 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @EqualsAndHashCode(callSuper = true)
@@ -42,8 +42,8 @@ public class Document extends Auditable<UUID> implements OwnableEntity, SoftDele
     @Column()
     private String text;
 
-    @Column("legal_basis")
-    private List<String> legalBasis;
+    @Column("generation_metadata")
+    private DocumentGenerationMetadata generationMetadata;
 
     @Column()
     private UUID teamId;

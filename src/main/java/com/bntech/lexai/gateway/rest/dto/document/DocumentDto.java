@@ -2,6 +2,7 @@ package com.bntech.lexai.gateway.rest.dto.document;
 
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
 import com.bntech.lexai.gateway.data.object.DocumentType;
+import com.bntech.lexai.gateway.data.object.DocumentGenerationMetadata;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import lombok.Builder;
@@ -23,7 +24,7 @@ public class DocumentDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String text;
-    private List<String> legalBasis;
+    private DocumentGenerationMetadata generationMetadata;
     private String documentGroupId;
     private List<CaseDto> cases;
 }

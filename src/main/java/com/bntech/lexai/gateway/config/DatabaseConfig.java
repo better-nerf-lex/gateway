@@ -45,6 +45,8 @@ public class DatabaseConfig {
         converters.add(new QuestionDtoListToJsonConverter(objectMapper));
         converters.add(new JsonToStringListConverter(objectMapper));
         converters.add(new StringListToJsonConverter(objectMapper));
+        converters.add(new JsonToDocumentGenerationMetadataConverter(objectMapper));
+        converters.add(new DocumentGenerationMetadataToJsonConverter(objectMapper));
         converters.add(new JsonToTemplateFileListConverter(objectMapper));
         converters.add(new TemplateFileListToJsonConverter(objectMapper));
         converters.add(new StringToActionTypeConverter());

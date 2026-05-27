@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS documents
     status            VARCHAR(20) CHECK (status IN ('PENDING', 'COMPLETED', 'ERROR')),
     updated_at        TIMESTAMP,
     text              TEXT,
-    legal_basis       JSONB,
+    generation_metadata JSONB,
     created_at        TIMESTAMP,
     created_by        BIGINT,
     version           INTEGER NOT NULL,
@@ -104,7 +104,25 @@ CREATE TABLE IF NOT EXISTS documents
     deleted_at        TIMESTAMP
 );
 
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS legal_basis JSONB;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS generation_metadata JSONB;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'documents'
+          AND column_name = 'legal_basis'
+    ) THEN
+        UPDATE documents
+        SET generation_metadata = jsonb_build_object(
+            'legalBasis', legal_basis,
+            'requiredAttachments', '[]'::jsonb
+        )
+        WHERE generation_metadata IS NULL
+          AND legal_basis IS NOT NULL;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS document_history
 (
