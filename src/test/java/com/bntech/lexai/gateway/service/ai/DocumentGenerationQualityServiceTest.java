@@ -146,6 +146,31 @@ class DocumentGenerationQualityServiceTest {
     }
 
     @Test
+    void validateRejectsPrivateConversationTranscriptArtifacts() {
+        GenerateDocumentRequest request = GenerateDocumentRequest.builder()
+                .title("Odpowiedź na pozew")
+                .answers(Map.of(
+                        "participant", "Jan Kowalski",
+                        "court", "Sąd Rejonowy w Warszawie",
+                        "claim", "oddalenie pozwu"))
+                .build();
+
+        String content = """
+                <div style="font-family: Arial; font-size: 12pt; line-height: 1.5;">
+                  <h1 style="text-align: center;">Odpowiedź na pozew</h1>
+                  <p><strong>Pozwany:</strong> Jan Kowalski wnosi do Sąd Rejonowy w Warszawie o oddalenie pozwu w całości.</p>
+                  <p>Uzasadnienie przedstawia stanowisko strony pozwanej, wskazuje na brak zasadności roszczenia oraz potrzebę przeprowadzenia dowodów.</p>
+                  <p>Strona pozwana kwestionuje twierdzenia powoda co do zasady i wysokości, podnosząc brak wykazania przesłanek odpowiedzialności.</p>
+                  <p>Wniosek obejmuje oddalenie pozwu, zasądzenie kosztów postępowania oraz dopuszczenie dowodów z dokumentów i przesłuchania stron.</p>
+                  <p>ChatGPT przygotował tę wersję po analizie rozmowy.</p>
+                </div>
+                """;
+
+        assertThat(qualityService.validate(content, request))
+                .contains("document includes private conversation transcript artifacts");
+    }
+
+    @Test
     void buildRevisionUserMessageIncludesIssuesAndFailedDraft() {
         String revision = qualityService.buildRevisionUserMessage(
                 "{\"name\":\"Pozew o zapłatę\"}",

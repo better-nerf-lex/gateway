@@ -20,6 +20,11 @@ public class DocumentGenerationQualityService {
             "podstawy prawne",
             "legal basis",
             "legal bases");
+    private static final List<String> TRANSCRIPT_ARTIFACTS = List.of(
+            "chatgpt",
+            "thought for",
+            "this is a conversation between",
+            "responding will create a branch");
 
     public String cleanHtmlFragment(String content) {
         if (content == null) {
@@ -67,6 +72,9 @@ public class DocumentGenerationQualityService {
         }
         if (containsLegalBasisLeak(cleaned, request)) {
             issues.add("document includes legal basis metadata that must be stored separately");
+        }
+        if (containsTranscriptArtifact(cleaned)) {
+            issues.add("document includes private conversation transcript artifacts");
         }
 
         Document parsed = Jsoup.parseBodyFragment(cleaned);
@@ -167,6 +175,11 @@ public class DocumentGenerationQualityService {
 
         return parsed.select("h1, h2, h3, h4, strong, b, p, div, section, article, li").stream()
                 .anyMatch(element -> isLegalBasisElement(element, request != null ? request.getBase() : List.of()));
+    }
+
+    private boolean containsTranscriptArtifact(String content) {
+        String text = normalize(Jsoup.parseBodyFragment(content).text());
+        return TRANSCRIPT_ARTIFACTS.stream().anyMatch(text::contains);
     }
 
     private boolean isLegalBasisElement(Element element, List<String> legalBasis) {

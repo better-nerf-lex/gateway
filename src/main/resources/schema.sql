@@ -394,9 +394,7 @@ VALUES
      ]'::jsonb,
      '["eli/MP/1964/155/ogl", "eli/MP/1964/155/ogl"]'::jsonb,
      '["Odpis aktu małżeństwa", "Odpisy aktów urodzenia dzieci", "Zaświadczenie o zarobkach"]'::jsonb,
-     '[
-       {"id":"t1111111-1111-1111-1111-111111111111","name":"pozew_rozwod_alimenty.pdf","s3Key":"templates/document-examples/11111111-1111-1111-1111-111111111111/pozew_rozwod_alimenty.pdf"}
-     ]'::jsonb),
+     '[]'::jsonb),
 
     ('22222222-2222-2222-2222-222222222222',
      'Pozew o rozwód (bez dzieci)',
@@ -415,9 +413,7 @@ VALUES
      ]'::jsonb,
      '["eli/MP/1964/155/ogl", "eli/MP/1964/155/ogl"]'::jsonb,
      '["Skrócony odpis aktu małżeństwa"]'::jsonb,
-     '[
-       {"id":"t2222222-2222-2222-2222-222222222222","name":"pozew_rozwod_bez-dzieci.pdf","s3Key":"templates/document-examples/22222222-2222-2222-2222-222222222222/pozew_rozwod_bez-dzieci.pdf"}
-     ]'::jsonb),
+     '[]'::jsonb),
 
     ('33333333-3333-3333-3333-333333333333',
      'Ponaglenie płatności',

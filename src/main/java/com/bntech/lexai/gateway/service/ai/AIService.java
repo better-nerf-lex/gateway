@@ -38,11 +38,16 @@ import jakarta.annotation.PostConstruct;
 import com.bntech.lexai.gateway.util.RetryUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -63,6 +68,18 @@ public class AIService {
 
     @Value("${spring.ai.anthropic.chat.options.reasoning-temperature}")
     private double reasoningTemperature;
+
+    @Value("${app.knowledge.enabled:true}")
+    private boolean knowledgeEnabled;
+
+    @Value("${app.knowledge.manifest-key:knowledge/manifest.json}")
+    private String knowledgeManifestKey;
+
+    @Value("${app.knowledge.max-conversations:2}")
+    private int knowledgeMaxConversations;
+
+    @Value("${app.knowledge.max-chars-per-conversation:8000}")
+    private int knowledgeMaxCharsPerConversation;
 
     private AnthropicClient client;
     private final ObjectMapper objectMapper;
@@ -283,15 +300,18 @@ public class AIService {
         Mono<String> legalContextMono = fetchEliDocumentsContext(request.getBase());
         Mono<List<FileContent>> templateContentsMono = fetchTemplateFiles(templateFiles);
         Mono<List<FileContent>> contextFilesMono = fetchContextFiles(contextFileIds);
+        Mono<List<KnowledgeConversation>> knowledgeConversationsMono = fetchKnowledgeConversations(request);
 
-        return Mono.zip(legalContextMono, templateContentsMono, contextFilesMono)
+        return Mono.zip(legalContextMono, templateContentsMono, contextFilesMono, knowledgeConversationsMono)
                 .flatMap(tuple -> {
                     String legalContext = tuple.getT1();
                     List<FileContent> templates = tuple.getT2();
                     List<FileContent> contextFiles = tuple.getT3();
+                    List<KnowledgeConversation> knowledgeConversations = tuple.getT4();
 
                     return Mono.fromCallable(() -> {
-                        String userMessage = buildUserMessage(request, legalContext, templates, contextFiles);
+                        String userMessage = buildUserMessage(request, legalContext, templates, contextFiles,
+                                knowledgeConversations);
                         return generateQualityCheckedDocument(request, userMessage, templates, contextFiles);
                     }).subscribeOn(Schedulers.boundedElastic());
                 })
@@ -302,7 +322,8 @@ public class AIService {
     }
 
     private String buildUserMessage(GenerateDocumentRequest request, String legalContext,
-            List<FileContent> templates, List<FileContent> contextFiles) {
+            List<FileContent> templates, List<FileContent> contextFiles,
+            List<KnowledgeConversation> knowledgeConversations) {
         StringBuilder message = new StringBuilder();
 
         String jsonData = buildJsonForGeneration(request);
@@ -318,6 +339,7 @@ public class AIService {
 
         appendContextFiles(message, contextFiles);
         appendTemplateFiles(message, templates);
+        appendKnowledgeConversations(message, knowledgeConversations);
 
         return message.toString();
     }
@@ -354,6 +376,28 @@ public class AIService {
         for (int i = 0; i < templates.size(); i++) {
             FileContent template = templates.get(i);
             message.append(String.format("=== Template %d: %s ===\n", i + 1, template.name()));
+        }
+    }
+
+    private void appendKnowledgeConversations(StringBuilder message, List<KnowledgeConversation> conversations) {
+        if (conversations == null || conversations.isEmpty()) {
+            return;
+        }
+
+        log.info("Using {} private knowledge conversation(s) for generation", conversations.size());
+
+        message.append("\n\n--- PRIVATE KNOWLEDGE CONVERSATION EXAMPLES ---\n");
+        message.append("The following private ChatGPT conversation transcripts were selected by filename/title/tags.\n");
+        message.append("Use them only as confidential drafting knowledge: structure, legal reasoning, tone, section order, and quality bar.\n");
+        message.append("Do NOT copy parties, addresses, PESEL numbers, case-specific facts, uploaded-file names, or transcript metadata.\n");
+        message.append("Do NOT reproduce artifacts such as \"ChatGPT\", \"Thought for\", \"PDF\", branch notices, or user/assistant labels.\n");
+        message.append("The generated document must still be based on the current user's facts and answers.\n\n");
+
+        for (int i = 0; i < conversations.size(); i++) {
+            KnowledgeConversation conversation = conversations.get(i);
+            message.append(String.format("=== Knowledge Conversation %d: %s (%s) ===\n",
+                    i + 1, conversation.title(), conversation.path()));
+            message.append(conversation.content()).append("\n\n");
         }
     }
 
@@ -492,7 +536,7 @@ public class AIService {
                             .map(content -> new FileContent(
                                     templateFile.getName(),
                                     content,
-                                    StorageFileType.PDF))
+                                    determineFileType(templateFile.getName())))
                             .onErrorResume(e -> {
                                 log.warn("Failed to fetch template file {}: {}", templateFile.getS3Key(),
                                         e.getMessage());
@@ -529,6 +573,170 @@ public class AIService {
                 .doOnSuccess(contents -> log.info("✅ Fetched {} context files successfully", contents.size()));
     }
 
+    private Mono<List<KnowledgeConversation>> fetchKnowledgeConversations(GenerateDocumentRequest request) {
+        if (!knowledgeEnabled || knowledgeMaxConversations <= 0) {
+            return Mono.just(List.of());
+        }
+
+        return storageFileService.getFileContentByKey(knowledgeManifestKey)
+                .map(this::readKnowledgeManifest)
+                .map(manifest -> selectRelevantKnowledgeEntries(manifest, request))
+                .flatMapMany(Flux::fromIterable)
+                .flatMap(entry -> fetchKnowledgeConversation(entry)
+                        .onErrorResume(e -> {
+                            log.warn("Failed to fetch knowledge conversation {}: {}", entry.path(), e.getMessage());
+                            return Mono.empty();
+                        }))
+                .collectList()
+                .doOnSuccess(conversations -> {
+                    if (!conversations.isEmpty()) {
+                        List<String> titles = conversations.stream()
+                                .map(KnowledgeConversation::title)
+                                .toList();
+                        log.info("Selected private knowledge conversations: {}", titles);
+                    }
+                })
+                .onErrorResume(e -> {
+                    log.warn("Private knowledge manifest unavailable, proceeding without it: {}", e.getMessage());
+                    return Mono.just(List.of());
+                });
+    }
+
+    private KnowledgeManifest readKnowledgeManifest(byte[] content) {
+        try {
+            return objectMapper.readValue(content, KnowledgeManifest.class);
+        } catch (Exception e) {
+            throw new ServiceException("AIService", "Invalid private knowledge manifest", e);
+        }
+    }
+
+    private List<KnowledgeConversationEntry> selectRelevantKnowledgeEntries(
+            KnowledgeManifest manifest,
+            GenerateDocumentRequest request) {
+        if (manifest == null || manifest.conversations() == null || manifest.conversations().isEmpty()) {
+            return List.of();
+        }
+
+        String requestText = buildKnowledgeSearchText(request);
+        String requestSlug = slugify(requestText);
+
+        return manifest.conversations().stream()
+                .filter(entry -> entry.path() != null && !entry.path().isBlank())
+                .map(entry -> Map.entry(entry, scoreKnowledgeEntry(entry, requestText, requestSlug)))
+                .filter(scored -> scored.getValue() > 0)
+                .sorted(Map.Entry.<KnowledgeConversationEntry, Integer>comparingByValue(Comparator.reverseOrder()))
+                .limit(knowledgeMaxConversations)
+                .map(Map.Entry::getKey)
+                .toList();
+    }
+
+    private int scoreKnowledgeEntry(KnowledgeConversationEntry entry, String requestText, String requestSlug) {
+        int score = 0;
+
+        String idSlug = slugify(entry.id());
+        String titleSlug = slugify(entry.title());
+        if (!idSlug.isBlank() && requestSlug.contains(idSlug)) {
+            score += 30;
+        }
+        if (!titleSlug.isBlank() && requestSlug.contains(titleSlug)) {
+            score += 25;
+        }
+
+        for (String value : knowledgeEntryTerms(entry)) {
+            String normalized = normalizeForSearch(value);
+            String slug = slugify(value);
+            if (normalized.length() >= 3 && requestText.contains(normalized)) {
+                score += 6;
+            }
+            if (slug.length() >= 3 && requestSlug.contains(slug)) {
+                score += 6;
+            }
+            for (String token : normalized.split(" ")) {
+                if (token.length() >= 4 && requestText.contains(token)) {
+                    score += 1;
+                }
+            }
+        }
+
+        return score;
+    }
+
+    private Set<String> knowledgeEntryTerms(KnowledgeConversationEntry entry) {
+        Set<String> terms = new LinkedHashSet<>();
+        addIfPresent(terms, entry.id());
+        addIfPresent(terms, entry.title());
+        addIfPresent(terms, entry.description());
+        addAllIfPresent(terms, entry.documentTypes());
+        addAllIfPresent(terms, entry.tags());
+        return terms;
+    }
+
+    private void addIfPresent(Set<String> values, String value) {
+        if (value != null && !value.isBlank()) {
+            values.add(value);
+        }
+    }
+
+    private void addAllIfPresent(Set<String> values, List<String> source) {
+        if (source == null) {
+            return;
+        }
+        source.forEach(value -> addIfPresent(values, value));
+    }
+
+    private String buildKnowledgeSearchText(GenerateDocumentRequest request) {
+        if (request == null) {
+            return "";
+        }
+
+        List<String> parts = new ArrayList<>();
+        parts.add(request.getTitle());
+        parts.add(request.getPrompt());
+        if (request.getAnswers() != null) {
+            request.getAnswers().forEach((key, value) -> {
+                parts.add(key);
+                parts.add(value);
+            });
+        }
+        if (request.getRequirements() != null) {
+            parts.addAll(request.getRequirements());
+        }
+
+        return normalizeForSearch(String.join(" ", parts.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .toList()));
+    }
+
+    private Mono<KnowledgeConversation> fetchKnowledgeConversation(KnowledgeConversationEntry entry) {
+        String s3Key = normalizeKnowledgeConversationKey(entry.path());
+        return storageFileService.getFileContentByKey(s3Key)
+                .map(content -> new KnowledgeConversation(
+                        entry.title() != null && !entry.title().isBlank() ? entry.title() : entry.id(),
+                        entry.path(),
+                        truncateKnowledgeConversation(new String(content, StandardCharsets.UTF_8))));
+    }
+
+    private String normalizeKnowledgeConversationKey(String path) {
+        String normalized = path == null ? "" : path.strip().replace("\\", "/");
+        if (normalized.isBlank() || normalized.equals("..") || normalized.startsWith("/")
+                || normalized.startsWith("../") || normalized.contains("/../")
+                || normalized.endsWith("/..") || normalized.contains("..\\")) {
+            throw new ServiceException("AIService", "Invalid private knowledge conversation path");
+        }
+        if (normalized.startsWith("knowledge/")) {
+            return normalized;
+        }
+        return "knowledge/" + normalized;
+    }
+
+    private String truncateKnowledgeConversation(String content) {
+        if (content == null || content.length() <= knowledgeMaxCharsPerConversation) {
+            return content == null ? "" : content;
+        }
+        return content.substring(0, knowledgeMaxCharsPerConversation)
+                + "\n\n[conversation truncated for prompt size]";
+    }
+
     private Mono<String> fetchEliDocumentsContext(List<String> base) {
         if (base == null || base.isEmpty()) {
             return Mono.just("");
@@ -561,6 +769,30 @@ public class AIService {
             log.error("Error building JSON for generation", e);
             return "{}";
         }
+    }
+
+    private StorageFileType determineFileType(String filename) {
+        if (filename == null || !filename.contains(".")) {
+            return StorageFileType.OTHER;
+        }
+        return StorageFileType.fromValue(filename.substring(filename.lastIndexOf('.') + 1));
+    }
+
+    private String normalizeForSearch(String value) {
+        if (value == null) {
+            return "";
+        }
+        String withoutDiacritics = Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        return withoutDiacritics
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", " ")
+                .replaceAll("\\s+", " ")
+                .strip();
+    }
+
+    private String slugify(String value) {
+        return normalizeForSearch(value).replace(' ', '-');
     }
 
     private Retry buildRetrySpec(String identifier) {

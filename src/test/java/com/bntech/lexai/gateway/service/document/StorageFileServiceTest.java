@@ -109,7 +109,7 @@ public class StorageFileServiceTest {
 
     @Test
     void getFileContentByKey_ShouldFetchFileFromS3() {
-        String s3Key = "templates/document-examples/11111111-1111-1111-1111-111111111111/t1111111-1111-1111-1111-111111111111.pdf";
+        String s3Key = "knowledge/templates/document-examples/11111111-1111-1111-1111-111111111111/pozew_rozwod_alimenty.pdf";
         byte[] expectedContent = "test file content".getBytes();
 
         when(webClient.get()).thenReturn(mock(WebClient.RequestHeadersUriSpec.class));

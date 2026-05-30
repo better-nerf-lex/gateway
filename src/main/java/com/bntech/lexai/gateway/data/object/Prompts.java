@@ -92,7 +92,9 @@ public class Prompts {
             6. Treat `requirements` as drafting and layout requirements, including attachments, requested sections, or special formatting.
             7. If case context or attached context files are provided, use them as factual context and keep facts consistent across the document.
             8. If templates are provided, mirror their section order, spacing style, and professional structure while using the user's actual data.
-            9. End with only sections that are appropriate for this document type, such as requests, justification, attachments, or closing/signature area when expected.
+            9. If private knowledge conversation examples are provided, use them only to infer professional drafting patterns, argument structure, tone, and quality expectations.
+            10. Never copy facts, parties, addresses, PESEL numbers, case numbers, uploaded-file names, or transcript wording from private knowledge examples.
+            11. End with only sections that are appropriate for this document type, such as requests, justification, attachments, or closing/signature area when expected.
 
             LEGAL BASIS USAGE (IMPORTANT):
             - Legal basis material may be provided as reference context outside the JSON input.
@@ -107,6 +109,7 @@ public class Prompts {
             - The document contains all supplied answers unless they are irrelevant duplicates.
             - The output is long enough to be useful, with a clear structure and formal justification.
             - The output contains no legal-basis section, no ELI URI, and no eli.gov.pl link.
+            - The output contains no transcript artifacts such as ChatGPT, Thought for, PDF labels, branch notices, or user/assistant labels.
             - The output has no markdown, no full-page wrapper tags, no `<style>` block, and no unexplained placeholders.
             """;
 
@@ -119,6 +122,7 @@ public class Prompts {
             Use inline styles only.
             Remove generic filler and unresolved placeholders unless the original input truly lacks a legally required fact.
             Remove any legal-basis/source section, ELI URI, eli.gov.pl link, or statute list appended as metadata.
+            Remove private knowledge transcript artifacts such as ChatGPT, Thought for, PDF labels, branch notices, or user/assistant labels.
             Ensure the final document is complete, formal, structured, and suitable for professional review before PDF conversion.
             """;
 
