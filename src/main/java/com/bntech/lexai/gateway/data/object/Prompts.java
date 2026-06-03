@@ -94,21 +94,23 @@ public class Prompts {
             8. If templates are provided, mirror their section order, spacing style, and professional structure while using the user's actual data.
             9. If private knowledge conversation examples are provided, use them only to infer professional drafting patterns, argument structure, tone, and quality expectations.
             10. Never copy facts, parties, addresses, PESEL numbers, case numbers, uploaded-file names, or transcript wording from private knowledge examples.
-            11. End with only sections that are appropriate for this document type, such as requests, justification, attachments, or closing/signature area when expected.
+            11. If a legal frame is provided, treat it as the document's procedural map: competent authority logic, legal area, legal basis, facts the user can know, and legal conclusions the app must draw.
+            12. Do not make the user responsible for legal conclusions that follow from the document type. Use the frame and legal basis to infer the proper court/authority type, procedural posture, and statutory structure.
+            13. End with only sections that are appropriate for this document type, such as requests, justification, attachments, or closing/signature area when expected.
 
             LEGAL BASIS USAGE (IMPORTANT):
             - Legal basis material may be provided as reference context outside the JSON input.
-            - It is metadata for internal drafting only and is saved separately by the application.
-            - NEVER include a "Podstawa prawna", "Podstawy prawne", or "Legal basis" section in the generated document.
-            - NEVER list legal bases, ELI URIs, eli.gov.pl links, or statute lists at the end of the document.
-            - Use legal basis only to choose correct legal terminology, document structure, and article references where naturally appropriate in the document text.
-            - The legal basis information helps you write legally accurate content, but should NOT appear as a separate section, appendix, metadata block, or explicit source list in the output.
+            - Use the legal basis to write legally grounded argumentation and cite specific articles or paragraphs where they naturally support a request, objection, allegation, or procedural position.
+            - Integrate legal references into the document's ordinary prose, e.g. "na podstawie art. ...", "zgodnie z art. ...", or "w świetle art. ...", when that strengthens the document.
+            - Do NOT append legal basis as metadata. Never include a standalone "Podstawa prawna", "Podstawy prawne", or "Legal basis" section.
+            - Never list ELI URIs, eli.gov.pl links, source URLs, or raw statute lists at the end of the document.
+            - The saved legal basis metadata is separate from the document, but substantive article references may and should appear inside the document text when professionally appropriate.
 
             Quality checklist before responding:
             - The title is present and matches `name`.
             - The document contains all supplied answers unless they are irrelevant duplicates.
             - The output is long enough to be useful, with a clear structure and formal justification.
-            - The output contains no legal-basis section, no ELI URI, and no eli.gov.pl link.
+            - The output may contain integrated article/paragraph references, but contains no standalone legal-basis/source section, no ELI URI, and no eli.gov.pl link.
             - The output contains no transcript artifacts such as ChatGPT, Thought for, PDF labels, branch notices, or user/assistant labels.
             - The output has no markdown, no full-page wrapper tags, no `<style>` block, and no unexplained placeholders.
             """;
@@ -121,7 +123,8 @@ public class Prompts {
             Do not add markdown fences, comments, `<html>`, `<head>`, `<body>`, `<!DOCTYPE>`, or `<style>` blocks.
             Use inline styles only.
             Remove generic filler and unresolved placeholders unless the original input truly lacks a legally required fact.
-            Remove any legal-basis/source section, ELI URI, eli.gov.pl link, or statute list appended as metadata.
+            Preserve legal argumentation and integrated article/paragraph citations when they belong in the document text.
+            Remove any standalone legal-basis/source section, ELI URI, eli.gov.pl link, or statute list appended as metadata.
             Remove private knowledge transcript artifacts such as ChatGPT, Thought for, PDF labels, branch notices, or user/assistant labels.
             Ensure the final document is complete, formal, structured, and suitable for professional review before PDF conversion.
             """;
@@ -162,6 +165,7 @@ public class Prompts {
                 Criminal Law:
                 - "eli/DU/1997/553/ogl" - Kodeks karny (Criminal Code)
                 - "eli/DU/1997/555/ogl" - Kodeks postępowania karnego (Criminal Procedure Code)
+                - "eli/DU/1997/557/ogl" - Kodeks karny wykonawczy (Executive Penal Code)
 
                 Administrative Law:
                 - "eli/DU/1960/168/ogl" - Kodeks postępowania administracyjnego (Administrative Procedure Code)
@@ -189,6 +193,7 @@ public class Prompts {
                 - For employment/labor matters → use eli/DU/1974/141/ogl (Kodeks pracy)
                 - For criminal matters → use eli/DU/1997/553/ogl (Kodeks karny)
                 - For criminal proceedings → use eli/DU/1997/555/ogl (KPK)
+                - For sentence execution, prison, electronic monitoring/SDE, penitentiary court, postponement/interruption of sentence → use eli/DU/1997/557/ogl (Kodeks karny wykonawczy)
                 - For tax matters → use eli/DU/1997/926/ogl (Ordynacja podatkowa)
                 - For construction/building permits → use eli/DU/1994/414/ogl (Prawo budowlane)
 
@@ -197,11 +202,59 @@ public class Prompts {
                 Return only the JSON data. Do not include any explanations outside the JSON structure.
             """;
 
+    public static final String EN_BUILD_LEGAL_FRAME = """
+            You are the legal framing stage for a Polish legal-document generator.
+
+            Your job is not to draft the document yet. Your job is to narrow a broad user request into the correct legal/procedural lane so later steps ask good factual questions and do not push legal analysis back onto the user.
+
+            Known legal basis candidates already detected: %s
+
+            Return strictly JSON using this schema:
+            {
+                "documentType": "specific Polish document type, as narrow as possible",
+                "legalArea": "specific area of law",
+                "procedureType": "procedural lane or proceeding type",
+                "applicantRole": "role of the person filing, if inferable",
+                "requestedOutcome": "what the document asks the authority/counterparty to do",
+                "authorityRule": "how the competent court/authority should be determined from law and facts",
+                "legalBasis": ["eli/DU/..."],
+                "searchPhrases": ["phrases and abbreviations useful for finding templates/examples"],
+                "legalInferences": ["legal conclusions the app should infer from the document type/legal basis"],
+                "userFactTargets": ["concrete facts the user may know and should be asked for"],
+                "userShouldNotBeAsked": ["legal conclusions or authority-side checks the user should not be asked to decide"],
+                "draftingGuidance": ["short procedural/drafting rules for this exact document"],
+                "attachmentRequirements": ["obvious attachments or evidence categories"]
+            }
+
+            Framing principles:
+            1. Pick the narrowest plausible document type. Expand abbreviations and short names from legal context, e.g. a short user phrase may refer to a specialized procedure.
+            2. Distinguish facts from legal conclusions. The user can provide facts, dates, documents, addresses, court/case identifiers, judgment contents, circumstances, evidence, and desired outcome. The app must infer legal venue type, statutory requirements, and legal structure when possible.
+            3. If court or authority competence follows from the legal type plus a factual anchor, state the rule in `authorityRule` and put that factual anchor in `userFactTargets`; do not ask the user to name the court as a legal conclusion.
+            4. If a statutory condition is assessed by a court or authority, put that assessment in `userShouldNotBeAsked` and ask only for the facts needed for assessment.
+            5. Never include a generic "podaj uzasadnienie" target. Break justification into concrete factual targets: what happened, when, evidence, harm, family/work/health/financial circumstances, prior procedural history, and why the requested outcome matters.
+            6. Never include a generic "podaj przestępstwo" target. For criminal matters, ask for statutory articles from the judgment/charge and a short factual description only if useful.
+            7. Use ELI URIs only when confident. Important common acts:
+               - eli/DU/1964/93/ogl: Kodeks cywilny
+               - eli/DU/1964/296/ogl: Kodeks postępowania cywilnego
+               - eli/DU/1964/59/ogl: Kodeks rodzinny i opiekuńczy
+               - eli/DU/1997/553/ogl: Kodeks karny
+               - eli/DU/1997/555/ogl: Kodeks postępowania karnego
+               - eli/DU/1997/557/ogl: Kodeks karny wykonawczy
+               - eli/DU/1960/168/ogl: Kodeks postępowania administracyjnego
+               - eli/DU/2002/1270/ogl: Prawo o postępowaniu przed sądami administracyjnymi
+               - eli/DU/1997/926/ogl: Ordynacja podatkowa
+               - eli/DU/1974/141/ogl: Kodeks pracy
+            8. If the exact statute is uncertain, keep `legalBasis` to the detected candidates and explain uncertainty as a drafting guidance item instead of inventing an ELI URI.
+
+            Return only JSON. No markdown, no comments, no explanation outside JSON.
+            """;
+
     public static final String EN_GENERATE_QUESTIONS = """
                 Your task is to prepare the FIRST PASS of structured input data for generating a legal document.
                 All questions must be in Polish.
 
                 The legal basis for this document has already been determined: %s
+                The legal frame for this request is: %s
 
                 Respond strictly in JSON format, using the following schema:
                 {
@@ -223,16 +276,20 @@ public class Prompts {
                 1. Generate broad screening questions first. Do not ask every nested detail yet.
                 2. Prefer generic questions that determine whether a branch applies, e.g. whether there are children, whether there is a contract, whether payment was made, whether there is a court case, whether there are attachments.
                 3. Ask for core facts that are always necessary for the document, such as applicant/party, recipient/court/authority, dates, amount, case number if applicable, and requested outcome.
-                4. Use `PERSON`, `COMPANY`, `COURT`, or `LAW_FIRM` if the question specifically asks for details of such a legal entity. Use `ENTITY` if it's generic but clearly about a legal entity. Otherwise use `TEXT`.
-                5. Set `followup` to true only when this question is a broad branch/screening question whose positive answer may require later details. Examples: children exist, contract exists, payment was made, damage happened, attachments exist.
-                6. Set `followup` to false when the answer is already concrete enough or the question asks for always-required data such as applicant, recipient, date, amount, case number, or requested outcome.
-                7. Each first-pass question must ask exactly one thing. Do not combine a screening question with a conditional detail request.
-                8. Do not ask conditional deep follow-up questions in this first pass. For example, ask "Czy strony mają dzieci?" now with `followup: true`, but do not ask for each child’s detailed data until the user confirms that children exist.
-                9. Forbidden first-pass question patterns include: "Jeśli tak, ...", "Jeżeli tak, ...", "W przypadku odpowiedzi twierdzącej, ...", "Czy ...? Jeśli tak, podaj ...", and any equivalent wording that asks for branch details upfront.
-                10. If a detail is needed only after a yes/positive answer, omit that detail from the first pass. The follow-up analyzer will ask it later only when the answer makes it relevant.
-                11. Use the pre-verified legal basis provided above in the `base` field.
-                12. In the `name` field, provide a suggested name for the application or request.
-                13. In `requirements`, list only obvious supporting documents or attachments. More precise requirements may be updated after follow-up analysis.
+                4. Follow the legal frame. Ask for `userFactTargets`; do not ask for items listed in `userShouldNotBeAsked`.
+                5. Do not ask the user for legal conclusions that the application should infer from the legal basis, such as whether statutory conditions are met, which special court type hears a specialized motion, or what the legal justification is.
+                6. Never ask "podaj uzasadnienie" as a single open-ended question. Ask concrete factual inputs that let the app build a justification.
+                7. Never ask "podaj przestępstwo". If needed, ask for the statutory articles from the judgment/charge and a short description of the act.
+                8. Use `PERSON`, `COMPANY`, `COURT`, or `LAW_FIRM` if the question specifically asks for details of such a legal entity. Use `ENTITY` if it's generic but clearly about a legal entity. Otherwise use `TEXT`.
+                9. Set `followup` to true only when this question is a broad branch/screening question whose positive answer may require later details. Examples: children exist, contract exists, payment was made, damage happened, attachments exist.
+                10. Set `followup` to false when the answer is already concrete enough or the question asks for always-required data such as applicant, recipient, date, amount, case number, or requested outcome.
+                11. Each first-pass question must ask exactly one thing. Do not combine a screening question with a conditional detail request.
+                12. Do not ask conditional deep follow-up questions in this first pass. For example, ask "Czy strony mają dzieci?" now with `followup: true`, but do not ask for each child’s detailed data until the user confirms that children exist.
+                13. Forbidden first-pass question patterns include: "Jeśli tak, ...", "Jeżeli tak, ...", "W przypadku odpowiedzi twierdzącej, ...", "Czy ...? Jeśli tak, podaj ...", and any equivalent wording that asks for branch details upfront.
+                14. If a detail is needed only after a yes/positive answer, omit that detail from the first pass. The follow-up analyzer will ask it later only when the answer makes it relevant.
+                15. Use the pre-verified legal basis and legal frame in the `base` field.
+                16. In the `name` field, provide a suggested name for the application or request.
+                17. In `requirements`, list obvious supporting documents or attachments from the legal frame. More precise requirements may be updated after follow-up analysis.
 
                 Return only the JSON data. Do not include any explanations, comments, or additional content.
                 Remember that data like applicant, date it was created and legal entity to which the application is directed must be provided.
@@ -246,6 +303,7 @@ public class Prompts {
             Decide whether the existing answers require additional concrete follow-up questions before document generation.
             This is for unknown document types, so reason from the user's request, current questions, answers, legal basis, and requirements.
             The `answers` object is keyed by the zero-based index of the corresponding item in `questions`.
+            The input may include a `legalFrame`; use it to distinguish facts the user should provide from legal conclusions the app must infer.
 
             Return strictly JSON in this schema:
             {
@@ -274,11 +332,14 @@ public class Prompts {
                - If there is a court/administrative case, ask for court/authority, case number, parties, dates, and requested action if missing.
                - If attachments are mentioned, ask which documents exist and what they prove if missing.
             5. Prefer a small number of high-value follow-ups. Avoid overwhelming the user.
-            6. Keep questions generic enough for the UI, but concrete enough to collect draftable legal facts.
-            6a. Set `followup` to false on every question you return. This follow-up pass must not create another follow-up chain.
-            7. Update `requirements` based on all known answers. Keep existing valid requirements and add newly implied attachments.
-            8. Keep `base` as the best known legal basis. Do not hallucinate ELI URIs; keep existing base if unsure.
-            9. If no more follow-ups are needed, return `"questions": []` with updated `base`, `name`, and `requirements`.
+            6. Do not ask for a generic "uzasadnienie". Ask for concrete facts, events, documents, consequences, dates, evidence, and personal/business circumstances that let the app draft the justification.
+            7. Do not ask the user to decide legal conditions or authority-side checks. Ask for the factual material needed for the court/authority to assess them.
+            8. Do not ask "podaj przestępstwo"; ask for articles from the judgment/charge and a short factual description if relevant.
+            9. Keep questions generic enough for the UI, but concrete enough to collect draftable legal facts.
+            9a. Set `followup` to false on every question you return. This follow-up pass must not create another follow-up chain.
+            10. Update `requirements` based on all known answers and legal frame attachment requirements. Keep existing valid requirements and add newly implied attachments.
+            11. Keep `base` as the best known legal basis. Do not hallucinate ELI URIs; keep existing base if unsure.
+            12. If no more follow-ups are needed, return `"questions": []` with updated `base`, `name`, and `requirements`.
 
             Return only JSON. No markdown, no comments, no explanation.
             """;

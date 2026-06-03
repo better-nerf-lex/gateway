@@ -106,23 +106,20 @@ CREATE TABLE IF NOT EXISTS documents
 
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS generation_metadata JSONB;
 
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_name = 'documents'
-          AND column_name = 'legal_basis'
-    ) THEN
-        UPDATE documents
-        SET generation_metadata = jsonb_build_object(
-            'legalBasis', legal_basis,
-            'requiredAttachments', '[]'::jsonb
-        )
-        WHERE generation_metadata IS NULL
-          AND legal_basis IS NOT NULL;
-    END IF;
-END $$;
+UPDATE documents
+SET generation_metadata = jsonb_build_object(
+    'legalBasis',
+    CASE
+        WHEN jsonb_typeof(to_jsonb(documents) -> 'legal_basis') = 'array'
+            THEN to_jsonb(documents) -> 'legal_basis'
+        ELSE jsonb_build_array(to_jsonb(documents) ->> 'legal_basis')
+    END,
+    'requiredAttachments', '[]'::jsonb
+)
+WHERE generation_metadata IS NULL
+  AND to_jsonb(documents) ? 'legal_basis'
+  AND to_jsonb(documents) ->> 'legal_basis' IS NOT NULL
+  AND to_jsonb(documents) ->> 'legal_basis' <> '';
 
 CREATE TABLE IF NOT EXISTS document_history
 (
@@ -392,7 +389,7 @@ VALUES
        {"id":"fault","text":"Czy rozwód z orzekaniem o winie?","type":"TEXT"},
        {"id":"separation_date","text":"Kiedy nastąpił zupełny i trwały rozkład pożycia?","type":"TEXT"}
      ]'::jsonb,
-     '["eli/MP/1964/155/ogl", "eli/MP/1964/155/ogl"]'::jsonb,
+     '["eli/DU/1964/59/ogl", "eli/DU/1964/296/ogl"]'::jsonb,
      '["Odpis aktu małżeństwa", "Odpisy aktów urodzenia dzieci", "Zaświadczenie o zarobkach"]'::jsonb,
      '[]'::jsonb),
 
@@ -411,7 +408,7 @@ VALUES
        {"id":"reasons","text":"Główne przyczyny rozkładu pożycia","type":"TEXT"},
        {"id":"witnesses","text":"Dane świadków (jeśli dotyczy)","type":"TEXT"}
      ]'::jsonb,
-     '["eli/MP/1964/155/ogl", "eli/MP/1964/155/ogl"]'::jsonb,
+     '["eli/DU/1964/59/ogl", "eli/DU/1964/296/ogl"]'::jsonb,
      '["Skrócony odpis aktu małżeństwa"]'::jsonb,
      '[]'::jsonb),
 
@@ -430,7 +427,7 @@ VALUES
        {"id":"payment_method","text":"Preferowany sposób dokonania płatności","type":"TEXT"},
        {"id":"deadline","text":"Ostateczny termin zapłaty","type":"TEXT"}
      ]'::jsonb,
-     '["eli/MP/1964/155/ogl"]'::jsonb,
+     '["eli/DU/1964/93/ogl"]'::jsonb,
      '["Kopia faktury", "Kopia umowy"]'::jsonb,
      '[
        {"id":"t3333333-3333-3333-3333-333333333331","name":"payment_reminder_template_1.pdf","s3Key":"templates/document-examples/33333333-3333-3333-3333-333333333333/t3333333-3333-3333-3333-333333333331.pdf"},
@@ -452,7 +449,7 @@ VALUES
        {"id":"deadline","text":"Termin zapłaty pozwalający uniknąć dalszych kroków prawnych","type":"TEXT"},
        {"id":"consequences","text":"Skutki braku zapłaty w wyznaczonym terminie","type":"TEXT"}
      ]'::jsonb,
-     '["eli/MP/1964/155/ogl"]'::jsonb,
+     '["eli/DU/1964/93/ogl"]'::jsonb,
      '["Faktury", "Dowody doręczenia"]'::jsonb,
      '[
        {"id":"t4444444-4444-4444-4444-444444444441","name":"final_payment_reminder_template_1.pdf","s3Key":"templates/document-examples/44444444-4444-4444-4444-444444444444/t4444444-4444-4444-4444-444444444441.pdf"},
@@ -474,7 +471,7 @@ VALUES
        {"id":"court","text":"Właściwy sąd do rozpoznania sprawy","type":"ENTITY"},
        {"id":"evidence","text":"Dowody na poparcie żądania","type":"TEXT"}
      ]'::jsonb,
-     '["eli/MP/1964/155/ogl"]'::jsonb,
+     '["eli/DU/1964/59/ogl", "eli/DU/1964/296/ogl"]'::jsonb,
      '["Odpis aktu urodzenia", "Zaświadczenia o dochodach"]'::jsonb,
      '[
        {"id":"t5555555-5555-5555-5555-555555555551","name":"alimony_template_1.pdf","s3Key":"templates/document-examples/55555555-5555-5555-5555-555555555555/t5555555-5555-5555-5555-555555555551.pdf"},
@@ -496,10 +493,35 @@ VALUES
        {"id":"evidence","text":"Dowody potwierdzające wskazane okoliczności","type":"TEXT"},
        {"id":"signature","text":"Dane podpisu wnioskodawcy","type":"TEXT"}
      ]'::jsonb,
-     '["eli/MP/1964/155/ogl"]'::jsonb,
+     '["eli/DU/1997/557/ogl"]'::jsonb,
      '["Zaświadczenia lekarskie", "Dokumenty rodzinne"]'::jsonb,
      '[
        {"id":"t6666666-6666-6666-6666-666666666661","name":"sentence_delay_template_1.pdf","s3Key":"templates/document-examples/66666666-6666-6666-6666-666666666666/t6666666-6666-6666-6666-666666666661.pdf"},
        {"id":"t6666666-6666-6666-6666-666666666662","name":"sentence_delay_template_2.pdf","s3Key":"templates/document-examples/66666666-6666-6666-6666-666666666666/t6666666-6666-6666-6666-666666666662.pdf"}
-     ]'::jsonb)
-ON CONFLICT (id) DO NOTHING;
+     ]'::jsonb),
+
+    ('77777777-7777-7777-7777-777777777777',
+     'Wniosek o odbycie kary w systemie dozoru elektronicznego (SDE)',
+     'Wniosek o zezwolenie na odbycie kary pozbawienia wolności w systemie dozoru elektronicznego; właściwość ustala się według zasad postępowania wykonawczego, w szczególności miejsca pobytu skazanego i etapu odbywania kary.',
+     '[
+       {"id":"convict","text":"Kto jest osobą skazaną składającą wniosek?","type":"ENTITY"},
+       {"id":"judgment_details","text":"Jaki sąd wydał wyrok, jaka jest sygnatura sprawy, data wyroku i data jego uprawomocnienia, jeżeli jest znana?","type":"TEXT"},
+       {"id":"sentence_details","text":"Jaki jest rodzaj i wymiar kary oraz ile kary pozostało do odbycia?","type":"TEXT"},
+       {"id":"judgment_articles","text":"Z jakich artykułów został wydany wyrok i czego dotyczył czyn wskazany w orzeczeniu?","type":"TEXT"},
+       {"id":"enforcement_stage","text":"Czy skazany rozpoczął już odbywanie kary albo otrzymał wezwanie do stawienia się do zakładu karnego?","type":"TEXT","followup":true},
+       {"id":"stay_address","text":"Pod jakim adresem kara miałaby być wykonywana w systemie dozoru elektronicznego?","type":"TEXT"},
+       {"id":"household_members","text":"Kto pełnoletni mieszka pod tym adresem i czy wyraża zgodę na wykonywanie dozoru?","type":"TEXT"},
+       {"id":"personal_circumstances","text":"Jakie konkretne okoliczności rodzinne, zawodowe, zdrowotne lub edukacyjne przemawiają za odbywaniem kary w SDE?","type":"TEXT"},
+       {"id":"proposed_schedule","text":"Jaki dzienny lub tygodniowy harmonogram opuszczania miejsca dozoru jest potrzebny i z jakiego powodu?","type":"TEXT"},
+       {"id":"evidence","text":"Jakie dokumenty potwierdzają wskazane okoliczności?","type":"TEXT"}
+     ]'::jsonb,
+     '["eli/DU/1997/557/ogl"]'::jsonb,
+     '["Odpis wyroku lub informacja o wyroku", "Wezwanie do stawienia się do zakładu karnego, jeżeli zostało doręczone", "Zgody pełnoletnich domowników", "Dokumenty potwierdzające pracę, naukę, leczenie lub obowiązki rodzinne", "Proponowany harmonogram wykonywania dozoru"]'::jsonb,
+     '[]'::jsonb)
+ON CONFLICT (id) DO UPDATE SET
+    title = EXCLUDED.title,
+    description = EXCLUDED.description,
+    questions = EXCLUDED.questions,
+    base = EXCLUDED.base,
+    requirements = EXCLUDED.requirements,
+    template_files = EXCLUDED.template_files;

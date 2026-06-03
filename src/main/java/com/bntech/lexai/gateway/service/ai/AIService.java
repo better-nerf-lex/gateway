@@ -103,7 +103,11 @@ public class AIService {
     }
 
     public Mono<SubmitPromptResponse> analyzePrompt(String prompt, List<String> fileIds) {
-        log.info("Analyzing prompt: {} with {} files", prompt, fileIds != null ? fileIds.size() : 0);
+        return analyzePrompt(prompt, fileIds, null);
+    }
+
+    public Mono<SubmitPromptResponse> analyzePrompt(String prompt, List<String> fileIds, LegalFrame providedFrame) {
+        log.info("Analyzing prompt with {} files", fileIds != null ? fileIds.size() : 0);
 
         return fetchContextFiles(fileIds)
                 .flatMap(files -> {
@@ -116,12 +120,14 @@ public class AIService {
 
                     return extractLegalBasis(finalPrompt)
                             .flatMap(legalBasisResponse -> verifyLegalBasis(legalBasisResponse.getBase())
-                                    .flatMap(verifiedBasis -> generateQuestionsWithBasis(finalPrompt, verifiedBasis)));
+                                    .flatMap(verifiedBasis -> resolveLegalFrame(finalPrompt, verifiedBasis, providedFrame)
+                                            .flatMap(legalFrame -> generateQuestionsWithBasis(finalPrompt,
+                                                    legalFrame.getLegalBasis(), legalFrame))));
                 });
     }
 
     public Mono<LegalBasisResponse> extractLegalBasis(String prompt) {
-        log.info("Extracting legal basis for prompt: {}", prompt);
+        log.info("Extracting legal basis for prompt length: {}", prompt != null ? prompt.length() : 0);
         return Mono.fromCallable(() -> {
             MessageCreateParams params = MessageCreateParams.builder()
                     .maxTokens(2048L)
@@ -158,17 +164,26 @@ public class AIService {
         return Mono.just(bases);
     }
 
-    private Mono<SubmitPromptResponse> generateQuestionsWithBasis(String prompt, List<String> verifiedBasis) {
+    public Mono<LegalFrame> buildLegalFrame(String prompt) {
+        return extractLegalBasis(prompt)
+                .flatMap(legalBasisResponse -> verifyLegalBasis(legalBasisResponse.getBase()))
+                .flatMap(verifiedBasis -> buildLegalFrame(prompt, verifiedBasis))
+                .onErrorResume(error -> {
+                    log.warn("Failed to pre-build legal frame, continuing with empty frame: {}", error.getMessage());
+                    return Mono.just(LegalFrame.empty());
+                });
+    }
+
+    private Mono<SubmitPromptResponse> generateQuestionsWithBasis(
+            String prompt,
+            List<String> verifiedBasis,
+            LegalFrame legalFrame) {
         log.info("Generating questions with verified legal basis: {}", verifiedBasis);
         return Mono.fromCallable(() -> {
-            String basisJson;
-            try {
-                basisJson = objectMapper.writeValueAsString(verifiedBasis);
-            } catch (Exception e) {
-                basisJson = "[]";
-            }
+            String basisJson = writeJson(verifiedBasis != null ? verifiedBasis : List.of());
+            String legalFrameJson = writeJson(legalFrame != null ? legalFrame : LegalFrame.empty());
 
-            String systemPrompt = String.format(Prompts.EN_GENERATE_QUESTIONS, basisJson, basisJson);
+            String systemPrompt = String.format(Prompts.EN_GENERATE_QUESTIONS, basisJson, legalFrameJson, basisJson);
 
             MessageCreateParams params = MessageCreateParams.builder()
                     .maxTokens(4096L)
@@ -187,7 +202,8 @@ public class AIService {
 
             SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
                     SubmitPromptResponse.class);
-            SubmitPromptResponse cleanedResponse = questionQualityService.cleanFirstPassQuestions(response);
+            SubmitPromptResponse cleanedResponse = questionQualityService.cleanFirstPassQuestions(response, legalFrame);
+            applyLegalFrameToResponse(cleanedResponse, legalFrame);
             int questionCount = cleanedResponse.getQuestions() != null ? cleanedResponse.getQuestions().size() : 0;
             log.info("✅ Parsed response with {} questions", questionCount);
             return cleanedResponse;
@@ -200,14 +216,16 @@ public class AIService {
 
     public Mono<SubmitPromptResponse> analyzeFollowUpQuestions(AnalyzeFollowUpQuestionsRequest request) {
         log.info("Analyzing whether follow-up questions are required for: {}", request.getName());
-        return Mono.fromCallable(() -> {
+        return buildLegalFrame(buildFollowUpFramePrompt(request), request.getBase())
+                .flatMap(legalFrame -> Mono.fromCallable(() -> {
             String inputJson = objectMapper.writeValueAsString(Map.of(
                     "prompt", request.getPrompt() != null ? request.getPrompt() : "",
                     "name", request.getName() != null ? request.getName() : "",
                     "questions", request.getQuestions() != null ? request.getQuestions() : List.of(),
                     "answers", request.getAnswers() != null ? request.getAnswers() : Map.of(),
                     "base", request.getBase() != null ? request.getBase() : List.of(),
-                    "requirements", request.getRequirements() != null ? request.getRequirements() : List.of()));
+                    "requirements", request.getRequirements() != null ? request.getRequirements() : List.of(),
+                    "legalFrame", legalFrame));
 
             MessageCreateParams params = MessageCreateParams.builder()
                     .maxTokens(4096L)
@@ -240,9 +258,12 @@ public class AIService {
             if (response.getRequirements() == null) {
                 response.setRequirements(request.getRequirements());
             }
+            response.setBase(mergeDistinct(legalFrame.getLegalBasis(), response.getBase()));
+            response.setRequirements(mergeDistinct(response.getRequirements(), legalFrame.getAttachmentRequirements()));
+            response = questionQualityService.cleanFirstPassQuestions(response, legalFrame);
             log.info("✅ Follow-up analysis returned {} questions", response.getQuestions().size());
             return response;
-        })
+        }))
                 .subscribeOn(Schedulers.boundedElastic())
                 .timeout(Duration.ofMinutes(2))
                 .retryWhen(buildRetrySpec("follow-up question analysis"))
@@ -297,12 +318,20 @@ public class AIService {
         log.info("Generating document: {} with {} template files, {} context files",
                 request.getTitle(), templateCount, contextCount);
 
-        Mono<String> legalContextMono = fetchEliDocumentsContext(request.getBase());
-        Mono<List<FileContent>> templateContentsMono = fetchTemplateFiles(templateFiles);
-        Mono<List<FileContent>> contextFilesMono = fetchContextFiles(contextFileIds);
-        Mono<List<KnowledgeConversation>> knowledgeConversationsMono = fetchKnowledgeConversations(request);
+        Mono<LegalFrame> legalFrameMono = buildLegalFrame(buildGenerationFramePrompt(request), request.getBase())
+                .doOnNext(legalFrame -> {
+                    request.setBase(mergeDistinct(legalFrame.getLegalBasis(), request.getBase()));
+                    request.setRequirements(mergeDistinct(request.getRequirements(), legalFrame.getAttachmentRequirements()));
+                })
+                .cache();
 
-        return Mono.zip(legalContextMono, templateContentsMono, contextFilesMono, knowledgeConversationsMono)
+        return legalFrameMono.flatMap(legalFrame -> {
+            Mono<String> legalContextMono = fetchEliDocumentsContext(request.getBase());
+            Mono<List<FileContent>> templateContentsMono = fetchTemplateFiles(templateFiles);
+            Mono<List<FileContent>> contextFilesMono = fetchContextFiles(contextFileIds);
+            Mono<List<KnowledgeConversation>> knowledgeConversationsMono = fetchKnowledgeConversations(request);
+
+            return Mono.zip(legalContextMono, templateContentsMono, contextFilesMono, knowledgeConversationsMono)
                 .flatMap(tuple -> {
                     String legalContext = tuple.getT1();
                     List<FileContent> templates = tuple.getT2();
@@ -311,10 +340,11 @@ public class AIService {
 
                     return Mono.fromCallable(() -> {
                         String userMessage = buildUserMessage(request, legalContext, templates, contextFiles,
-                                knowledgeConversations);
+                                knowledgeConversations, legalFrame);
                         return generateQualityCheckedDocument(request, userMessage, templates, contextFiles);
                     }).subscribeOn(Schedulers.boundedElastic());
-                })
+                });
+        })
                 .timeout(Duration.ofMinutes(5))
                 .retryWhen(buildRetrySpec(request.getTitle()))
                 .doOnSuccess(result -> log.info("✅ Document generated for: {}", request.getTitle()))
@@ -323,7 +353,8 @@ public class AIService {
 
     private String buildUserMessage(GenerateDocumentRequest request, String legalContext,
             List<FileContent> templates, List<FileContent> contextFiles,
-            List<KnowledgeConversation> knowledgeConversations) {
+            List<KnowledgeConversation> knowledgeConversations,
+            LegalFrame legalFrame) {
         StringBuilder message = new StringBuilder();
 
         String jsonData = buildJsonForGeneration(request);
@@ -340,6 +371,7 @@ public class AIService {
         appendContextFiles(message, contextFiles);
         appendTemplateFiles(message, templates);
         appendKnowledgeConversations(message, knowledgeConversations);
+        appendLegalFrame(message, legalFrame);
 
         return message.toString();
     }
@@ -399,6 +431,17 @@ public class AIService {
                     i + 1, conversation.title(), conversation.path()));
             message.append(conversation.content()).append("\n\n");
         }
+    }
+
+    private void appendLegalFrame(StringBuilder message, LegalFrame legalFrame) {
+        if (legalFrame == null || legalFrame.isEmptyFrame()) {
+            return;
+        }
+
+        message.append("\n\n--- LEGAL FRAME ---\n");
+        message.append("Use this as the procedural and legal map for the document. ");
+        message.append("It is not output content and must not be copied as a metadata section.\n");
+        message.append(writeJson(legalFrame)).append("\n");
     }
 
     private String generateQualityCheckedDocument(
@@ -631,6 +674,10 @@ public class AIService {
     }
 
     private int scoreKnowledgeEntry(KnowledgeConversationEntry entry, String requestText, String requestSlug) {
+        if (hasConflictingProceduralTerm(requestText, knowledgeEntryTerms(entry))) {
+            return 0;
+        }
+
         int score = 0;
 
         String idSlug = slugify(entry.id());
@@ -659,6 +706,27 @@ public class AIService {
         }
 
         return score;
+    }
+
+    private boolean hasConflictingProceduralTerm(String requestText, Set<String> entryTerms) {
+        String requestTerm = proceduralTerm(requestText);
+        if (requestTerm.isBlank()) {
+            return false;
+        }
+
+        String entryText = normalizeForSearch(String.join(" ", entryTerms));
+        String entryTerm = proceduralTerm(entryText);
+        return !entryTerm.isBlank() && !requestTerm.equals(entryTerm);
+    }
+
+    private String proceduralTerm(String text) {
+        String normalized = normalizeForSearch(text);
+        for (String term : List.of("odpowiedz", "pozew", "wniosek", "zazalenie", "apelacja", "skarga")) {
+            if (normalized.matches(".*(^|\\s)" + term + "($|\\s).*")) {
+                return term;
+            }
+        }
+        return "";
     }
 
     private Set<String> knowledgeEntryTerms(KnowledgeConversationEntry entry) {
@@ -737,6 +805,120 @@ public class AIService {
                 + "\n\n[conversation truncated for prompt size]";
     }
 
+    private Mono<LegalFrame> resolveLegalFrame(String prompt, List<String> verifiedBasis, LegalFrame providedFrame) {
+        if (providedFrame != null && !providedFrame.isEmptyFrame()) {
+            return Mono.just(normalizeLegalFrame(providedFrame, verifiedBasis));
+        }
+        return buildLegalFrame(prompt, verifiedBasis);
+    }
+
+    private Mono<LegalFrame> buildLegalFrame(String prompt, List<String> verifiedBasis) {
+        return Mono.fromCallable(() -> {
+            String systemPrompt = String.format(Prompts.EN_BUILD_LEGAL_FRAME,
+                    writeJson(verifiedBasis != null ? verifiedBasis : List.of()));
+
+            MessageCreateParams params = MessageCreateParams.builder()
+                    .maxTokens(4096L)
+                    .system(systemPrompt)
+                    .addUserMessage(Prompts.EN_USER_MESSAGE + (prompt != null ? prompt : ""))
+                    .model(genModel)
+                    .temperature(reasoningTemperature)
+                    .build();
+
+            log.debug("Sending legal frame request to Anthropic API");
+            Message message = client.messages().create(params);
+            String jsonResponse = message.content().getFirst()
+                    .text()
+                    .map(TextBlock::text)
+                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+
+            LegalFrame legalFrame = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse), LegalFrame.class);
+            return normalizeLegalFrame(legalFrame, verifiedBasis);
+        })
+                .subscribeOn(Schedulers.boundedElastic())
+                .timeout(Duration.ofMinutes(1))
+                .retryWhen(buildRetrySpec("legal frame"))
+                .doOnSuccess(frame -> log.info("✅ Legal frame resolved: {} / {}",
+                        frame.getLegalArea(), frame.getDocumentType()))
+                .onErrorResume(error -> {
+                    log.warn("Failed to build legal frame, falling back to detected basis only: {}", error.getMessage());
+                    return Mono.just(normalizeLegalFrame(LegalFrame.empty(), verifiedBasis));
+                });
+    }
+
+    private LegalFrame normalizeLegalFrame(LegalFrame legalFrame, List<String> fallbackBasis) {
+        LegalFrame safe = legalFrame != null ? legalFrame : LegalFrame.empty();
+        safe.setLegalBasis(mergeDistinct(safe.getLegalBasis(), fallbackBasis));
+        safe.setSearchPhrases(nonNullList(safe.getSearchPhrases()));
+        safe.setLegalInferences(nonNullList(safe.getLegalInferences()));
+        safe.setUserFactTargets(nonNullList(safe.getUserFactTargets()));
+        safe.setUserShouldNotBeAsked(nonNullList(safe.getUserShouldNotBeAsked()));
+        safe.setDraftingGuidance(nonNullList(safe.getDraftingGuidance()));
+        safe.setAttachmentRequirements(nonNullList(safe.getAttachmentRequirements()));
+        return safe;
+    }
+
+    private void applyLegalFrameToResponse(SubmitPromptResponse response, LegalFrame legalFrame) {
+        if (response == null || legalFrame == null) {
+            return;
+        }
+        response.setBase(mergeDistinct(legalFrame.getLegalBasis(), response.getBase()));
+        response.setRequirements(mergeDistinct(response.getRequirements(), legalFrame.getAttachmentRequirements()));
+        if ((response.getName() == null || response.getName().isBlank())
+                && legalFrame.getDocumentType() != null && !legalFrame.getDocumentType().isBlank()) {
+            response.setName(legalFrame.getDocumentType());
+        }
+    }
+
+    private List<String> mergeDistinct(List<String> first, List<String> second) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        if (first != null) {
+            first.stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .forEach(values::add);
+        }
+        if (second != null) {
+            second.stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .forEach(values::add);
+        }
+        return new ArrayList<>(values);
+    }
+
+    private List<String> nonNullList(List<String> values) {
+        return values != null ? values : List.of();
+    }
+
+    private String buildFollowUpFramePrompt(AnalyzeFollowUpQuestionsRequest request) {
+        return """
+                Document request: %s
+                Current document name: %s
+                Existing questions: %s
+                User answers: %s
+                Existing requirements: %s
+                """.formatted(
+                request.getPrompt() != null ? request.getPrompt() : "",
+                request.getName() != null ? request.getName() : "",
+                writeJson(request.getQuestions() != null ? request.getQuestions() : List.of()),
+                writeJson(request.getAnswers() != null ? request.getAnswers() : Map.of()),
+                writeJson(request.getRequirements() != null ? request.getRequirements() : List.of()));
+    }
+
+    private String buildGenerationFramePrompt(GenerateDocumentRequest request) {
+        return """
+                Document title: %s
+                Original prompt: %s
+                Answers: %s
+                Requirements: %s
+                Case context available: %s
+                """.formatted(
+                request.getTitle() != null ? request.getTitle() : "",
+                request.getPrompt() != null ? request.getPrompt() : "",
+                writeJson(request.getAnswers() != null ? request.getAnswers() : Map.of()),
+                writeJson(request.getRequirements() != null ? request.getRequirements() : List.of()),
+                request.getCaseContext() != null && !request.getCaseContext().isBlank());
+    }
+
     private Mono<String> fetchEliDocumentsContext(List<String> base) {
         if (base == null || base.isEmpty()) {
             return Mono.just("");
@@ -767,6 +949,14 @@ public class AIService {
             return objectMapper.writeValueAsString(jsonData);
         } catch (Exception e) {
             log.error("Error building JSON for generation", e);
+            return "{}";
+        }
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
             return "{}";
         }
     }

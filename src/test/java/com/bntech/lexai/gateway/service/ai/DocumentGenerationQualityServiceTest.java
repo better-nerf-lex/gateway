@@ -146,6 +146,33 @@ class DocumentGenerationQualityServiceTest {
     }
 
     @Test
+    void validateAcceptsIntegratedArticleReferencesInDocumentText() {
+        GenerateDocumentRequest request = GenerateDocumentRequest.builder()
+                .title("Odpowiedź na pozew")
+                .base(List.of("eli/DU/1964/296/ogl"))
+                .answers(Map.of(
+                        "defendant", "Jan Kowalski",
+                        "claimant", "ABC Sp. z o.o.",
+                        "request", "oddalenie pozwu",
+                        "date", "12 maja 2026 r."))
+                .build();
+
+        String content = """
+                <div style="font-family: Arial; font-size: 12pt; line-height: 1.5;">
+                  <h1 style="text-align: center;">Odpowiedź na pozew</h1>
+                  <p><strong>Pozwany:</strong> Jan Kowalski wnosi o oddalenie pozwu wniesionego przez ABC Sp. z o.o. w całości.</p>
+                  <p>Na podstawie art. 210 § 2 k.p.c. pozwany przedstawia stanowisko co do twierdzeń powoda i kwestionuje zasadę oraz wysokość dochodzonego roszczenia.</p>
+                  <p>Powód nie wykazał okoliczności, z których wywodzi skutki prawne, dlatego pozwany wnosi o przeprowadzenie postępowania dowodowego z dokumentów oraz przesłuchania stron.</p>
+                  <p>W dniu 12 maja 2026 r. pozwany nie uznał roszczenia, a korespondencja między stronami nie potwierdza istnienia wymagalnego zobowiązania w wysokości wskazanej w pozwie.</p>
+                  <p>W świetle art. 232 k.p.c. ciężar wskazania dowodów spoczywa na stronie, która z określonych faktów wywodzi skutki prawne, co uzasadnia oddalenie pozwu.</p>
+                  <p>Załączniki obejmują korespondencję stron, dokumenty rozliczeniowe oraz odpis odpowiedzi na pozew dla strony przeciwnej.</p>
+                </div>
+                """;
+
+        assertThat(qualityService.validate(content, request)).isEmpty();
+    }
+
+    @Test
     void validateRejectsPrivateConversationTranscriptArtifacts() {
         GenerateDocumentRequest request = GenerateDocumentRequest.builder()
                 .title("Odpowiedź na pozew")

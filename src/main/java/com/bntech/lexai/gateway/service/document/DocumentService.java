@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.service.document;
 
 import com.bntech.lexai.gateway.service.ai.AIService;
+import com.bntech.lexai.gateway.service.ai.LegalFrame;
 import com.bntech.lexai.gateway.service.security.CognitoUserSyncService;
 import com.bntech.lexai.gateway.service.integration.billing.SubscriptionClientService;
 import com.bntech.lexai.gateway.data.entity.document.Document;
@@ -184,10 +185,12 @@ public class DocumentService {
     }
 
     public Mono<SubmitPromptResponse> submitPrompt(SubmitPromptRequest request) {
-        log.info("Processing prompt submission: {}", request.getPrompt());
-
         boolean hasFiles = request.getAttachedFileIds() != null && !request.getAttachedFileIds().isEmpty();
         boolean hasExampleId = request.getExampleId() != null && !request.getExampleId().isBlank();
+        log.info("Processing prompt submission; hasFiles={}, hasExampleId={}", hasFiles, hasExampleId);
+        Mono<LegalFrame> legalFrameMono = hasExampleId
+                ? Mono.just(LegalFrame.empty())
+                : aiService.buildLegalFrame(request.getPrompt()).cache();
 
         Mono<SubmitPromptResponse> selectedTemplate = (hasExampleId && documentExampleService != null)
                 ? documentExampleService.findById(request.getExampleId())
@@ -202,7 +205,8 @@ public class DocumentService {
 
         Mono<SubmitPromptResponse> templateSearch = (documentExampleService != null && !hasFiles
                 && !request.isSkipTemplateSearch() && !hasExampleId)
-                ? documentExampleService.searchTemplates(request.getPrompt())
+                ? legalFrameMono.flatMapMany(legalFrame -> documentExampleService
+                                .searchTemplates(request.getPrompt(), legalFrame))
                         .next()
                         .map(template -> {
                             log.info("Matched template: {} ({}) with {} template files",
@@ -214,9 +218,11 @@ public class DocumentService {
 
         return selectedTemplate
                 .switchIfEmpty(templateSearch)
-                .switchIfEmpty(aiService.analyzePrompt(request.getPrompt(), request.getAttachedFileIds()))
+                .switchIfEmpty(legalFrameMono.flatMap(legalFrame -> aiService
+                        .analyzePrompt(request.getPrompt(), request.getAttachedFileIds(), legalFrame)))
                 .doOnSuccess(response -> {
-                    log.info("✅ Prompt analysis completed {}", response);
+                    log.info("✅ Prompt analysis completed with {} questions",
+                            response != null && response.getQuestions() != null ? response.getQuestions().size() : 0);
                 })
                 .doOnError(error -> log.error("❌ Error analyzing prompt", error));
     }
@@ -233,7 +239,7 @@ public class DocumentService {
     }
 
     public Mono<DocumentDto> generateDocument(GenerateDocumentRequest request) {
-        log.info("Generating document with request: {}", request);
+        log.info("Generating document: {}", request.getTitle());
 
         return getCurrentUser()
                 .flatMap(user -> {
