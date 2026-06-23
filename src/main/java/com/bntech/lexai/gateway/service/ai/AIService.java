@@ -20,6 +20,7 @@ import com.bntech.lexai.gateway.rest.dto.document.DocumentChatRequest;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentChatResponse;
 import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.LegalBasisResponse;
+import com.bntech.lexai.gateway.rest.dto.document.QuestionDto;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import com.bntech.lexai.gateway.service.document.StorageFileService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -53,6 +54,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 @Slf4j
 public class AIService {
+    private static final int MAX_FOLLOW_UP_ROUNDS = 2;
 
     @Value("${spring.ai.anthropic.api-key}")
     private String apiKey;
@@ -118,11 +120,14 @@ public class AIService {
                     }
                     String finalPrompt = promptBuilder.toString();
 
-                    return extractLegalBasis(finalPrompt)
-                            .flatMap(legalBasisResponse -> verifyLegalBasis(legalBasisResponse.getBase())
-                                    .flatMap(verifiedBasis -> resolveLegalFrame(finalPrompt, verifiedBasis, providedFrame)
-                                            .flatMap(legalFrame -> generateQuestionsWithBasis(finalPrompt,
-                                                    legalFrame.getLegalBasis(), legalFrame))));
+                    if (providedFrame != null && !providedFrame.isEmptyFrame()) {
+                        LegalFrame legalFrame = normalizeLegalFrame(providedFrame, providedFrame.getLegalBasis());
+                        return generateQuestionsWithBasis(finalPrompt, legalFrame.getLegalBasis(), legalFrame);
+                    }
+
+                    return buildLegalFrame(finalPrompt)
+                            .flatMap(legalFrame -> generateQuestionsWithBasis(finalPrompt,
+                                    legalFrame.getLegalBasis(), legalFrame));
                 });
     }
 
@@ -165,9 +170,7 @@ public class AIService {
     }
 
     public Mono<LegalFrame> buildLegalFrame(String prompt) {
-        return extractLegalBasis(prompt)
-                .flatMap(legalBasisResponse -> verifyLegalBasis(legalBasisResponse.getBase()))
-                .flatMap(verifiedBasis -> buildLegalFrame(prompt, verifiedBasis))
+        return buildLegalFrame(prompt, List.of())
                 .onErrorResume(error -> {
                     log.warn("Failed to pre-build legal frame, continuing with empty frame: {}", error.getMessage());
                     return Mono.just(LegalFrame.empty());
@@ -225,6 +228,8 @@ public class AIService {
                     "answers", request.getAnswers() != null ? request.getAnswers() : Map.of(),
                     "base", request.getBase() != null ? request.getBase() : List.of(),
                     "requirements", request.getRequirements() != null ? request.getRequirements() : List.of(),
+                    "currentFollowUpRound", maxFollowUpRound(request.getQuestions()),
+                    "maxFollowUpRounds", MAX_FOLLOW_UP_ROUNDS,
                     "legalFrame", legalFrame));
 
             MessageCreateParams params = MessageCreateParams.builder()
@@ -261,6 +266,7 @@ public class AIService {
             response.setBase(mergeDistinct(legalFrame.getLegalBasis(), response.getBase()));
             response.setRequirements(mergeDistinct(response.getRequirements(), legalFrame.getAttachmentRequirements()));
             response = questionQualityService.cleanFirstPassQuestions(response, legalFrame);
+            limitFollowUpDepth(response, request.getQuestions());
             log.info("✅ Follow-up analysis returned {} questions", response.getQuestions().size());
             return response;
         }))
@@ -805,11 +811,25 @@ public class AIService {
                 + "\n\n[conversation truncated for prompt size]";
     }
 
-    private Mono<LegalFrame> resolveLegalFrame(String prompt, List<String> verifiedBasis, LegalFrame providedFrame) {
-        if (providedFrame != null && !providedFrame.isEmptyFrame()) {
-            return Mono.just(normalizeLegalFrame(providedFrame, verifiedBasis));
+    private void limitFollowUpDepth(SubmitPromptResponse response, List<QuestionDto> existingQuestions) {
+        if (response == null || response.getQuestions() == null) {
+            return;
         }
-        return buildLegalFrame(prompt, verifiedBasis);
+        boolean canCreateOneMoreRound = maxFollowUpRound(existingQuestions) < MAX_FOLLOW_UP_ROUNDS - 1;
+        if (!canCreateOneMoreRound) {
+            response.getQuestions().forEach(question -> question.setFollowup(false));
+        }
+    }
+
+    private int maxFollowUpRound(List<QuestionDto> questions) {
+        if (questions == null || questions.isEmpty()) {
+            return 0;
+        }
+        return questions.stream()
+                .map(QuestionDto::getFollowupRound)
+                .filter(round -> round != null && round > 0)
+                .max(Integer::compareTo)
+                .orElse(0);
     }
 
     private Mono<LegalFrame> buildLegalFrame(String prompt, List<String> verifiedBasis) {
@@ -818,7 +838,7 @@ public class AIService {
                     writeJson(verifiedBasis != null ? verifiedBasis : List.of()));
 
             MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(4096L)
+                    .maxTokens(2048L)
                     .system(systemPrompt)
                     .addUserMessage(Prompts.EN_USER_MESSAGE + (prompt != null ? prompt : ""))
                     .model(genModel)

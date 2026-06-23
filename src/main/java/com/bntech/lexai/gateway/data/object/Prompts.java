@@ -304,6 +304,7 @@ public class Prompts {
             This is for unknown document types, so reason from the user's request, current questions, answers, legal basis, and requirements.
             The `answers` object is keyed by the zero-based index of the corresponding item in `questions`.
             The input may include a `legalFrame`; use it to distinguish facts the user should provide from legal conclusions the app must infer.
+            The input also includes `currentFollowUpRound` and `maxFollowUpRounds`. These count follow-up rounds after the initial questionnaire.
 
             Return strictly JSON in this schema:
             {
@@ -312,7 +313,7 @@ public class Prompts {
                         "id": "unique_follow_up_id",
                         "text": "follow_up_question_in_polish",
                         "type": "TEXT | PERSON | COMPANY | COURT | LAW_FIRM | ENTITY",
-                        "followup": false
+                        "followup": true_or_false
                     }
                 ],
                 "base": ["eli/DU/..."],
@@ -336,7 +337,9 @@ public class Prompts {
             7. Do not ask the user to decide legal conditions or authority-side checks. Ask for the factual material needed for the court/authority to assess them.
             8. Do not ask "podaj przestępstwo"; ask for articles from the judgment/charge and a short factual description if relevant.
             9. Keep questions generic enough for the UI, but concrete enough to collect draftable legal facts.
-            9a. Set `followup` to false on every question you return. This follow-up pass must not create another follow-up chain.
+            9a. The whole questionnaire may have at most 3 phases total: initial questions plus at most 2 follow-up rounds.
+            9b. Set `followup` to true only if the returned question is still a broad branch question and `currentFollowUpRound` is less than `maxFollowUpRounds - 1`.
+            9c. Set `followup` to false when the returned question asks for concrete details or when the follow-up limit is reached.
             10. Update `requirements` based on all known answers and legal frame attachment requirements. Keep existing valid requirements and add newly implied attachments.
             11. Keep `base` as the best known legal basis. Do not hallucinate ELI URIs; keep existing base if unsure.
             12. If no more follow-ups are needed, return `"questions": []` with updated `base`, `name`, and `requirements`.

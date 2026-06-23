@@ -460,19 +460,18 @@ VALUES
      'Wniosek o alimenty',
      'Wniosek o zasądzenie świadczeń alimentacyjnych.',
      '[
-       {"id":"claimant","text":"Kto składa wniosek o alimenty?","type":"ENTITY"},
-       {"id":"obligor","text":"Kto jest zobowiązany do płacenia alimentów?","type":"ENTITY"},
-       {"id":"beneficiary","text":"Na czyją rzecz mają być zasądzone alimenty?","type":"ENTITY"},
-       {"id":"relationship","text":"Jaki jest stosunek prawny pomiędzy stronami?","type":"TEXT"},
-       {"id":"amount","text":"Żądana kwota alimentów","type":"TEXT"},
-       {"id":"frequency","text":"Częstotliwość płatności alimentów","type":"TEXT"},
-       {"id":"needs","text":"Uzasadnienie potrzeb osoby uprawnionej","type":"TEXT"},
-       {"id":"income","text":"Dochody i możliwości zarobkowe zobowiązanego","type":"TEXT"},
-       {"id":"court","text":"Właściwy sąd do rozpoznania sprawy","type":"ENTITY"},
-       {"id":"evidence","text":"Dowody na poparcie żądania","type":"TEXT"}
+       {"id":"alimony_for_whom","text":"Czy alimenty mają być na dziecko, małżonka/byłego małżonka, rodzica czy inną osobę?","type":"TEXT","followup":true},
+       {"id":"party_details","text":"Podaj dane osoby uprawnionej, osoby zobowiązanej oraz rodziców/opiekunów, jeżeli sprawa dotyczy dziecka: imiona, nazwiska, PESEL-e i adresy.","type":"TEXT","followup":true},
+       {"id":"living_and_care","text":"Czy strony mieszkają razem, z kim osoba uprawniona mieszka na stałe i kto faktycznie sprawuje codzienną opiekę?","type":"TEXT","followup":true},
+       {"id":"alimony_claim","text":"Jakiej kwoty alimentów miesięcznie żądamy, od jakiej daty, do którego dnia miesiąca i na czyje konto mają być płacone?","type":"TEXT"},
+       {"id":"interest_and_security","text":"Czy wnosimy o odsetki za opóźnienie oraz o zabezpieczenie alimentów na czas trwania sprawy?","type":"TEXT","followup":true},
+       {"id":"needs_and_costs","text":"Opisz potrzeby i miesięczne koszty utrzymania osoby uprawnionej: wiek, nauka, zdrowie, mieszkanie, wyżywienie, media, leczenie, edukacja, dojazdy, zajęcia dodatkowe, opieka i inne stałe wydatki.","type":"TEXT","followup":true},
+       {"id":"caretaker_finances","text":"Opisz dochody, koszty utrzymania i świadczenia rodzica lub opiekuna, z którym mieszka dziecko albo osoba uprawniona.","type":"TEXT","followup":true},
+       {"id":"obligor_finances","text":"Co wiadomo o pracy, dochodach, działalności, majątku, kredytach, innych osobach na utrzymaniu i możliwościach zarobkowych osoby zobowiązanej?","type":"TEXT","followup":true},
+       {"id":"payments_evidence_history","text":"Czy osoba zobowiązana płaci coś dobrowolnie oraz jakie dowody, wcześniejsze wyroki, ugody, sprawy alimentacyjne i świadków można wskazać?","type":"TEXT","followup":true}
      ]'::jsonb,
      '["eli/DU/1964/59/ogl", "eli/DU/1964/296/ogl"]'::jsonb,
-     '["Odpis aktu urodzenia", "Zaświadczenia o dochodach"]'::jsonb,
+     '["Dane dziecka lub innej osoby uprawnionej oraz dane rodziców/stron", "Żądana kwota alimentów, data początkowa, termin płatności, rachunek i odsetki", "Wniosek o zabezpieczenie alimentów na czas procesu, jeżeli jest potrzebny", "Zestawienie miesięcznych kosztów utrzymania osoby uprawnionej", "Dokumenty potwierdzające koszty: faktury, paragony, potwierdzenia przelewów, czynsz, media, leczenie, szkoła, zajęcia dodatkowe", "Dokumenty potwierdzające dochody rodzica/opiekuna i osoby zobowiązanej: zaświadczenia, PIT-y, umowy, wydruki przelewów", "Dowody dobrowolnych płatności albo ich braku, w tym przelewy, wiadomości i potwierdzenia zakupów rzeczowych", "Dowody sytuacji osoby zobowiązanej: majątek, styl życia, działalność, praca na czarno lub możliwości zarobkowe", "Informacje o wcześniejszych sprawach, wyrokach, ugodach oraz świadkach"]'::jsonb,
      '[
        {"id":"t5555555-5555-5555-5555-555555555551","name":"alimony_template_1.pdf","s3Key":"templates/document-examples/55555555-5555-5555-5555-555555555555/t5555555-5555-5555-5555-555555555551.pdf"},
        {"id":"t5555555-5555-5555-5555-555555555552","name":"alimony_template_2.pdf","s3Key":"templates/document-examples/55555555-5555-5555-5555-555555555555/t5555555-5555-5555-5555-555555555552.pdf"}

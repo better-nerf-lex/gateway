@@ -15,4 +15,5 @@ public class QuestionDto {
     private String text;
     private QuestionType type;
     private boolean followup;
+    private Integer followupRound;
 }
