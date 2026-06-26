@@ -15,7 +15,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,7 +56,6 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("user@example.invalid")).thenReturn(Mono.empty());
         when(userRepository.findByEmail("user@example.invalid")).thenReturn(Mono.just(user));
-        when(userRepository.findById(1L)).thenReturn(Mono.just(user));
         when(passwordEncoder.matches("Admin123!", "hash")).thenReturn(true);
         when(jwtService.generateToken(user)).thenReturn("access");
         when(jwtService.generateRefreshToken(user)).thenReturn("refresh");
@@ -66,6 +67,79 @@ class AuthServiceTest {
                         .build()))
                 .expectNextMatches(response -> response.getUser().getId().equals(1L))
                 .verifyComplete();
+    }
+
+    @Test
+    void authenticatesSuperadminByEmailWhenUsernameMatchIsNotSuperadmin() {
+        User shadowUser = User.builder()
+                .id(3L)
+                .username("user@example.invalid")
+                .email("other@example.com")
+                .password(null)
+                .enabled(true)
+                .superadmin(false)
+                .build();
+        shadowUser.setNotNew();
+
+        User superadmin = User.builder()
+                .id(1L)
+                .username("user")
+                .email("user@example.invalid")
+                .password("hash")
+                .enabled(true)
+                .superadmin(true)
+                .build();
+        superadmin.setNotNew();
+
+        when(userRepository.findByUsername("user@example.invalid")).thenReturn(Mono.just(shadowUser));
+        when(userRepository.findByEmail("user@example.invalid")).thenReturn(Mono.just(superadmin));
+        when(passwordEncoder.matches("Admin123!", "hash")).thenReturn(true);
+        when(jwtService.generateToken(superadmin)).thenReturn("access");
+        when(jwtService.generateRefreshToken(superadmin)).thenReturn("refresh");
+        when(userMapper.toDto(superadmin)).thenReturn(UserDto.builder()
+                .id(1L)
+                .email(superadmin.getEmail())
+                .enabled(true)
+                .build());
+
+        StepVerifier.create(authService.authenticateSuperadmin(LoginRequest.builder()
+                        .username("user@example.invalid")
+                        .password("Admin123!")
+                        .build()))
+                .expectNextMatches(response -> response.getUser().getId().equals(1L))
+                .verifyComplete();
+    }
+
+    @Test
+    void authenticatesEmailLoginByEmailBeforeUsernameShadow() {
+        User user = User.builder()
+                .id(5L)
+                .username("user")
+                .email("user@example.invalid")
+                .password("hash")
+                .enabled(true)
+                .superadmin(true)
+                .build();
+        user.setNotNew();
+
+        when(userRepository.findByEmail("user@example.invalid")).thenReturn(Mono.just(user));
+        when(passwordEncoder.matches("Admin123!", "hash")).thenReturn(true);
+        when(jwtService.generateToken(user)).thenReturn("access");
+        when(jwtService.generateRefreshToken(user)).thenReturn("refresh");
+        when(userMapper.toDto(user)).thenReturn(UserDto.builder()
+                .id(5L)
+                .email(user.getEmail())
+                .enabled(true)
+                .build());
+
+        StepVerifier.create(authService.authenticate(LoginRequest.builder()
+                        .username("user@example.invalid")
+                        .password("Admin123!")
+                        .build()))
+                .expectNextMatches(response -> response.getUser().getId().equals(5L))
+                .verifyComplete();
+
+        verify(userRepository, never()).findByUsername("user@example.invalid");
     }
 
     @Test
@@ -82,11 +156,6 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("regular@example.com")).thenReturn(Mono.just(user));
         when(userRepository.findByEmail("regular@example.com")).thenReturn(Mono.empty());
-        when(userRepository.findById(2L)).thenReturn(Mono.just(user));
-        when(passwordEncoder.matches("password", "hash")).thenReturn(true);
-        when(jwtService.generateToken(user)).thenReturn("access");
-        when(jwtService.generateRefreshToken(user)).thenReturn("refresh");
-        when(userMapper.toDto(any(User.class))).thenReturn(UserDto.builder().id(2L).enabled(true).build());
 
         StepVerifier.create(authService.authenticateSuperadmin(LoginRequest.builder()
                         .username("regular@example.com")
@@ -94,5 +163,29 @@ class AuthServiceTest {
                         .build()))
                 .expectError(UnauthorizedException.class)
                 .verify();
+    }
+
+    @Test
+    void rejectsMissingStoredPasswordWithoutCallingPasswordEncoder() {
+        User user = User.builder()
+                .id(4L)
+                .username("oauth@example.com")
+                .email("oauth@example.com")
+                .password(null)
+                .enabled(true)
+                .superadmin(false)
+                .build();
+        user.setNotNew();
+
+        when(userRepository.findByEmail("oauth@example.com")).thenReturn(Mono.just(user));
+
+        StepVerifier.create(authService.authenticate(LoginRequest.builder()
+                        .username("oauth@example.com")
+                        .password("Admin123!")
+                        .build()))
+                .expectError(UnauthorizedException.class)
+                .verify();
+
+        verify(passwordEncoder, never()).matches(anyString(), anyString());
     }
 }

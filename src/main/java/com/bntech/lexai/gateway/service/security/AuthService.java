@@ -44,35 +44,60 @@ public class AuthService {
                     String providedPassword = loginRequest.getPassword();
                     String storedHash = user.getPassword();
 
-                    return passwordEncoder.matches(providedPassword, storedHash);
+                    return passwordMatches(providedPassword, storedHash);
                 })
                 .switchIfEmpty(Mono.defer(() -> {
                     log.warn("Password mismatch for user: {}", loginRequest.getUsername());
                     return Mono.error(new UnauthorizedException("Invalid credentials"));
                 }))
-                .map(user -> {
-                    String token = jwts.generateToken(user);
-                    String refreshToken = jwts.generateRefreshToken(user);
-                    return LoginResponse.builder()
-                            .token(token)
-                            .refreshToken(refreshToken)
-                            .user(mapToUserDto(user))
-                            .build();
-                });
+                .map(this::toLoginResponse);
     }
 
     public Mono<LoginResponse> authenticateSuperadmin(LoginRequest loginRequest) {
-        return authenticate(loginRequest)
-                .filterWhen(response -> users.findById(response.getUser().getId())
-                        .map(User::isSuperadmin)
-                        .defaultIfEmpty(false))
-                .switchIfEmpty(Mono.defer(() -> Mono.error(new UnauthorizedException("Invalid credentials"))));
+        String normalizedUsername = loginRequest.getUsername() != null ? loginRequest.getUsername().toLowerCase() : null;
+        return findSuperadminByUsernameOrEmail(normalizedUsername)
+                .switchIfEmpty(Mono.defer(() -> Mono.error(new UnauthorizedException("Invalid credentials"))))
+                .filter(User::isEnabled)
+                .switchIfEmpty(Mono.defer(() -> Mono.error(new UnauthorizedException("Invalid credentials"))))
+                .filter(user -> passwordMatches(loginRequest.getPassword(), user.getPassword()))
+                .switchIfEmpty(Mono.defer(() -> Mono.error(new UnauthorizedException("Invalid credentials"))))
+                .map(this::toLoginResponse);
     }
 
     private Mono<User> findUserByUsernameOrEmail(String usernameOrEmail) {
+        if (isEmailLike(usernameOrEmail)) {
+            return users.findByEmail(usernameOrEmail)
+                    .switchIfEmpty(Mono.defer(() -> users.findByUsername(usernameOrEmail)));
+        }
         return users.findByUsername(usernameOrEmail)
-                .switchIfEmpty(
-                        users.findByEmail(usernameOrEmail));
+                .switchIfEmpty(Mono.defer(() -> users.findByEmail(usernameOrEmail)));
+    }
+
+    private Mono<User> findSuperadminByUsernameOrEmail(String usernameOrEmail) {
+        return users.findByUsername(usernameOrEmail)
+                .filter(User::isSuperadmin)
+                .switchIfEmpty(Mono.defer(() -> users.findByEmail(usernameOrEmail).filter(User::isSuperadmin)));
+    }
+
+    private boolean passwordMatches(String providedPassword, String storedHash) {
+        return providedPassword != null
+                && storedHash != null
+                && !storedHash.isBlank()
+                && passwordEncoder.matches(providedPassword, storedHash);
+    }
+
+    private boolean isEmailLike(String value) {
+        return value != null && value.contains("@");
+    }
+
+    private LoginResponse toLoginResponse(User user) {
+        String token = jwts.generateToken(user);
+        String refreshToken = jwts.generateRefreshToken(user);
+        return LoginResponse.builder()
+                .token(token)
+                .refreshToken(refreshToken)
+                .user(mapToUserDto(user))
+                .build();
     }
 
     public Mono<Void> logout(Authentication authentication) {

@@ -62,6 +62,33 @@ class DocumentGenerationQualityServiceTest {
     }
 
     @Test
+    void validateAcceptsEquivalentLegalTitleAndParaphrasedAnswers() {
+        GenerateDocumentRequest request = GenerateDocumentRequest.builder()
+                .title("Wniosek o odroczenie kary")
+                .answers(Map.of(
+                        "court", "Sąd Okręgowy w Warszawie",
+                        "sentenceDate", "12 maja 2026 r.",
+                        "article", "art. 178a § 1 k.k.",
+                        "reason", "konieczność sprawowania opieki nad chorym ojcem",
+                        "request", "odroczenie wykonania kary na okres 6 miesięcy"))
+                .build();
+
+        String content = """
+                <div style="font-family: Arial; font-size: 12pt; line-height: 1.5;">
+                  <h1 style="text-align: center;">Wniosek o odroczenie wykonania kary</h1>
+                  <p><strong>Do Sądu Okręgowego w Warszawie</strong> skazany wnosi o odroczenie wykonania kary na sześć miesięcy.</p>
+                  <p>Wyrok został wydany 12.05.2026 r. i obejmuje czyn kwalifikowany z art. 178a § 1 k.k.</p>
+                  <p>Uzasadnieniem wniosku jest osobista konieczność opieki nad ciężko chorym ojcem, której nie może obecnie przejąć inna osoba.</p>
+                  <p>Natychmiastowe wykonanie kary spowodowałoby szczególnie ciężkie skutki rodzinne i opiekuńcze, dlatego zachodzą podstawy do czasowego odroczenia.</p>
+                  <p>Wnioskodawca deklaruje stawiennictwo na każde wezwanie sądu oraz przedłożenie dokumentacji medycznej potwierdzającej sytuację rodzinną.</p>
+                  <p>Załączniki obejmują odpis wyroku, dokumentację leczenia ojca oraz dokumenty potwierdzające wspólne zamieszkiwanie i zakres sprawowanej opieki.</p>
+                </div>
+                """;
+
+        assertThat(qualityService.validate(content, request)).isEmpty();
+    }
+
+    @Test
     void validateRejectsDraftMarkersAndMissingAnswers() {
         GenerateDocumentRequest request = GenerateDocumentRequest.builder()
                 .title("Wniosek o alimenty")
@@ -97,6 +124,32 @@ class DocumentGenerationQualityServiceTest {
         assertThatThrownBy(() -> qualityService.validateOrThrow("", request))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("Generated document failed quality checks");
+    }
+
+    @Test
+    void validateOrThrowDoesNotBlockOnlySoftTitleOrAnswerIssuesAfterRepair() {
+        GenerateDocumentRequest request = GenerateDocumentRequest.builder()
+                .title("Pozew o zapłatę")
+                .answers(Map.of(
+                        "court", "Sąd Okręgowy w Warszawie",
+                        "date", "12 maja 2026 r."))
+                .build();
+
+        String content = """
+                <div style="font-family: Arial; font-size: 12pt; line-height: 1.5;">
+                  <h1 style="text-align: center;">Wniosek skazanego</h1>
+                  <p>Wnioskodawca wnosi o odroczenie wykonania kary z uwagi na szczególnie trudną sytuację rodzinną i opiekuńczą.</p>
+                  <p>Uzasadnienie opisuje przeszkody w natychmiastowym wykonaniu kary, potrzebę zabezpieczenia spraw rodzinnych oraz gotowość do przedłożenia dokumentów.</p>
+                  <p>Wnioskodawca wskazuje na konieczność czasowego uregulowania obowiązków domowych oraz zapewnienia opieki osobie najbliższej.</p>
+                  <p>Wniosek obejmuje odroczenie wykonania kary, przeprowadzenie dowodu z dokumentów oraz doręczenie korespondencji na wskazany adres.</p>
+                  <p>Załączniki obejmują odpis wyroku, dokumentację medyczną oraz dokumenty potwierdzające sytuację osobistą wnioskodawcy.</p>
+                  <p>Pismo ma charakter formalny, zawiera żądanie, uzasadnienie i wnioski dowodowe, dlatego nadaje się do dalszej profesjonalnej weryfikacji.</p>
+                </div>
+                """;
+
+        assertThat(qualityService.validate(content, request))
+                .contains("document does not contain the requested title", "document omits too many provided answers");
+        assertThat(qualityService.validateOrThrow(content, request)).isEqualTo(content);
     }
 
     @Test

@@ -8,8 +8,10 @@ import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Service
 public class DocumentGenerationQualityService {
@@ -25,6 +27,41 @@ public class DocumentGenerationQualityService {
             "thought for",
             "this is a conversation between",
             "responding will create a branch");
+    private static final Set<String> LOW_SIGNAL_ANSWER_VALUES = Set.of(
+            "tak",
+            "nie",
+            "yes",
+            "no",
+            "brak",
+            "none",
+            "n/a",
+            "nie dotyczy",
+            "unknown",
+            "nie wiem");
+    private static final Set<String> LOW_SIGNAL_WORDS = Set.of(
+            "oraz",
+            "albo",
+            "lub",
+            "dla",
+            "przez",
+            "przy",
+            "pod",
+            "nad",
+            "bez",
+            "jest",
+            "ma",
+            "czy",
+            "jak",
+            "jaki",
+            "jaka",
+            "jakie",
+            "ktory",
+            "ktora",
+            "ktore",
+            "wniosek",
+            "pozew",
+            "pismo",
+            "dokument");
 
     public String cleanHtmlFragment(String content) {
         if (content == null) {
@@ -40,11 +77,18 @@ public class DocumentGenerationQualityService {
 
     public String validateOrThrow(String content, GenerateDocumentRequest request) {
         List<String> issues = validate(content, request);
-        if (!issues.isEmpty()) {
+        if (hasBlockingIssues(issues)) {
             throw new ServiceException("AIService", "Generated document failed quality checks: "
                     + String.join("; ", issues));
         }
         return content;
+    }
+
+    public boolean hasBlockingIssues(List<String> issues) {
+        if (issues == null || issues.isEmpty()) {
+            return false;
+        }
+        return issues.stream().anyMatch(issue -> !isNonBlockingIssue(issue));
     }
 
     public List<String> validate(String content, GenerateDocumentRequest request) {
@@ -219,7 +263,22 @@ public class DocumentGenerationQualityService {
         if (request == null || request.getTitle() == null || request.getTitle().isBlank()) {
             return true;
         }
-        return normalize(visibleText).contains(normalize(request.getTitle()));
+
+        String normalizedText = normalize(visibleText);
+        String normalizedTitle = normalize(request.getTitle());
+        if (normalizedText.contains(normalizedTitle)) {
+            return true;
+        }
+
+        String documentOpening = normalizedText.substring(0, Math.min(normalizedText.length(), 700));
+        List<String> titleTerms = meaningfulTerms(normalizedTitle);
+        if (titleTerms.isEmpty()) {
+            return true;
+        }
+
+        long present = titleTerms.stream().filter(documentOpening::contains).count();
+        int required = Math.max(1, (int) Math.ceil(titleTerms.size() * 0.70));
+        return present >= required;
     }
 
     private boolean containsMostAnswers(String visibleText, GenerateDocumentRequest request) {
@@ -230,6 +289,7 @@ public class DocumentGenerationQualityService {
         List<String> meaningfulAnswers = request.getAnswers().values().stream()
                 .filter(value -> value != null && value.strip().length() >= 3)
                 .map(String::strip)
+                .filter(this::isMeaningfulAnswerForValidation)
                 .toList();
 
         if (meaningfulAnswers.isEmpty()) {
@@ -238,15 +298,68 @@ public class DocumentGenerationQualityService {
 
         String normalizedText = normalize(visibleText);
         long present = meaningfulAnswers.stream()
-                .filter(answer -> normalizedText.contains(normalize(answer)))
+                .filter(answer -> answerAppearsInText(answer, normalizedText))
                 .count();
 
-        int required = Math.max(1, (int) Math.ceil(meaningfulAnswers.size() * 0.75));
+        int required = Math.max(1, (int) Math.ceil(meaningfulAnswers.size() * 0.50));
         return present >= required;
     }
 
+    private boolean isMeaningfulAnswerForValidation(String answer) {
+        String normalized = normalize(answer);
+        if (LOW_SIGNAL_ANSWER_VALUES.contains(normalized)) {
+            return false;
+        }
+        if (normalized.length() > 120) {
+            return false;
+        }
+        return !meaningfulTerms(normalized).isEmpty() || normalized.matches(".*\\d.*");
+    }
+
+    private boolean answerAppearsInText(String answer, String normalizedText) {
+        String normalizedAnswer = normalize(answer);
+        if (normalizedText.contains(normalizedAnswer)) {
+            return true;
+        }
+
+        String answerDigits = normalizedAnswer.replaceAll("\\D+", "");
+        if (answerDigits.length() >= 4 && normalizedText.replaceAll("\\D+", "").contains(answerDigits)) {
+            return true;
+        }
+
+        List<String> terms = meaningfulTerms(normalizedAnswer);
+        if (terms.isEmpty()) {
+            return false;
+        }
+
+        long present = terms.stream().filter(normalizedText::contains).count();
+        int required = Math.max(1, (int) Math.ceil(terms.size() * 0.60));
+        return present >= required;
+    }
+
+    private List<String> meaningfulTerms(String value) {
+        return Arrays.stream(stripDiacritics(value).split("[^a-z0-9]+"))
+                .map(String::strip)
+                .filter(token -> token.length() >= 3)
+                .filter(token -> !LOW_SIGNAL_WORDS.contains(token))
+                .distinct()
+                .toList();
+    }
+
     private String normalize(String value) {
-        return value.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").strip();
+        return stripDiacritics(value).toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").strip();
+    }
+
+    private String stripDiacritics(String value) {
+        return java.text.Normalizer.normalize(value != null ? value : "", java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .replace("ł", "l")
+                .replace("Ł", "L");
+    }
+
+    private boolean isNonBlockingIssue(String issue) {
+        return "document does not contain the requested title".equals(issue)
+                || "document omits too many provided answers".equals(issue);
     }
 
     private String formatIssues(List<String> issues) {
