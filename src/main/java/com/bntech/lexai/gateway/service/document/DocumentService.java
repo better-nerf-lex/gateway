@@ -278,16 +278,23 @@ public class DocumentService {
                         }
 
                         String reservationKey = "document:" + document.getId();
-                        return requestMono.flatMap(req -> subscriptionClientService
-                                .reserveDocumentToken(teamId.toString(), reservationKey, document.getId().toString())
+                        boolean skipBillingReservation = user.isSuperadmin();
+                        Mono<Void> reserveToken = skipBillingReservation
+                                ? Mono.empty()
+                                : subscriptionClientService.reserveDocumentToken(
+                                        teamId.toString(),
+                                        reservationKey,
+                                        document.getId().toString());
+                        return requestMono.flatMap(req -> reserveToken
                                 .then(documents.save(document))
                                 .map(doc -> {
                                     doc.setNotNew();
                                     return doc;
                                 })
-                                .flatMap(savedDocument -> processAIGeneration(savedDocument, req, reservationKey))
+                                .flatMap(savedDocument -> processAIGeneration(savedDocument, req, reservationKey,
+                                        skipBillingReservation))
                                 .flatMap(dto -> assignGeneratedDocumentToCase(req, document.getId()).thenReturn(dto))
-                                .onErrorResume(error -> subscriptionClientService.refundTokenReservation(reservationKey)
+                                .onErrorResume(error -> refundBillingReservation(reservationKey, skipBillingReservation)
                                         .then(Mono.error(error))));
                     }));
                 });
@@ -303,7 +310,11 @@ public class DocumentService {
                 .then();
     }
 
-    private Mono<DocumentDto> processAIGeneration(Document document, GenerateDocumentRequest request, String reservationKey) {
+    private Mono<DocumentDto> processAIGeneration(
+            Document document,
+            GenerateDocumentRequest request,
+            String reservationKey,
+            boolean skipBillingReservation) {
         return aiService.generateDocumentWithAnswers(request)
                 .flatMap(content -> updateDocumentWithContent(document, content,
                         DocumentGenerationMetadata.from(
@@ -311,7 +322,7 @@ public class DocumentService {
                                 request.getRequirements(),
                                 document.getId(),
                                 document.getDocumentGroupId())))
-                .flatMap(result -> subscriptionClientService.commitTokenReservation(reservationKey).thenReturn(result))
+                .flatMap(result -> commitBillingReservation(reservationKey, skipBillingReservation).thenReturn(result))
                 .doOnSuccess(result -> {
                     log.info("✅ AI generation completed for: {}", document.getTitle());
                     activityService.logActivity(
@@ -323,8 +334,20 @@ public class DocumentService {
                             "Generated document: " + document.getTitle());
                 })
                 .doOnError(error -> log.error("❌ AI generation failed for: {}", document.getTitle(), error))
-                .onErrorResume(error -> subscriptionClientService.refundTokenReservation(reservationKey)
+                .onErrorResume(error -> refundBillingReservation(reservationKey, skipBillingReservation)
                         .then(failDocument(document)));
+    }
+
+    private Mono<Void> commitBillingReservation(String reservationKey, boolean skipBillingReservation) {
+        return skipBillingReservation
+                ? Mono.empty()
+                : subscriptionClientService.commitTokenReservation(reservationKey);
+    }
+
+    private Mono<Void> refundBillingReservation(String reservationKey, boolean skipBillingReservation) {
+        return skipBillingReservation
+                ? Mono.empty()
+                : subscriptionClientService.refundTokenReservation(reservationKey);
     }
 
     private Mono<DocumentDto> updateDocumentWithContent(
