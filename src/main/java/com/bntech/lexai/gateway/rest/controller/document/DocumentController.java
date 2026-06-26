@@ -10,6 +10,11 @@ import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptRequest;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import com.bntech.lexai.gateway.rest.dto.document.UpdateDocumentRequest;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import com.bntech.lexai.gateway.service.document.DocumentService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/documents")
@@ -42,6 +49,20 @@ public class DocumentController {
     @PreAuthorize("@access.documentRead(authentication, #id)")
     public Mono<DocumentDto> getDocument(@PathVariable String id) {
         return documentService.getDocument(id);
+    }
+
+    @GetMapping(value = "/{id}/download", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("@access.documentRead(authentication, #id)")
+    public Mono<ResponseEntity<byte[]>> downloadDocument(@PathVariable String id) {
+        return documentService.downloadDocumentPdf(id)
+                .map(download -> ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_PDF)
+                        .cacheControl(CacheControl.noStore())
+                        .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                                .filename(download.filename(), StandardCharsets.UTF_8)
+                                .build()
+                                .toString())
+                        .body(download.content()));
     }
 
     @GetMapping("/stats")

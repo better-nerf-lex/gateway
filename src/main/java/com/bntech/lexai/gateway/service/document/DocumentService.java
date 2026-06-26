@@ -66,6 +66,7 @@ public class DocumentService {
     private final SubscriptionClientService subscriptionClientService;
     private final DocumentGenerationContextService generationContextService;
     private final CaseDocumentRepository caseDocumentRepository;
+    private final DocumentPdfService documentPdfService;
 
     public DocumentService(
             DocumentRepository documents,
@@ -83,7 +84,8 @@ public class DocumentService {
             @Autowired(required = false) CognitoUserSyncService cognitoUserSyncService,
             SubscriptionClientService subscriptionClientService,
             DocumentGenerationContextService generationContextService,
-            CaseDocumentRepository caseDocumentRepository) {
+            CaseDocumentRepository caseDocumentRepository,
+            DocumentPdfService documentPdfService) {
         this.documents = documents;
         this.aggregates = aggregates;
         this.documentsHistory = documentsHistory;
@@ -100,6 +102,7 @@ public class DocumentService {
         this.subscriptionClientService = subscriptionClientService;
         this.generationContextService = generationContextService;
         this.caseDocumentRepository = caseDocumentRepository;
+        this.documentPdfService = documentPdfService;
     }
 
     private Mono<com.bntech.lexai.gateway.data.entity.security.User> getCurrentUser() {
@@ -152,6 +155,30 @@ public class DocumentService {
                 .flatMap(this::enrichWithCases)
                 .doOnSuccess(doc -> log.info("Document enriched with cases: {}", doc.getId()))
                 .doOnError(error -> log.error("Error retrieving document: {}", id, error));
+    }
+
+    public Mono<DocumentPdfDownload> downloadDocumentPdf(String id) {
+        log.info("Generating PDF download for document: {}", id);
+        return documents.findActiveById(UUID.fromString(id))
+                .switchIfEmpty(Mono.error(new ResourceNotFoundException("Document", id)))
+                .flatMap(document -> documentPdfService.generate(document)
+                        .map(content -> new DocumentPdfDownload(pdfFilename(document.getTitle()), content)))
+                .doOnSuccess(download -> log.info("✅ PDF generated for document: {}", id))
+                .doOnError(error -> log.error("❌ Error generating PDF for document: {}", id, error));
+    }
+
+    private String pdfFilename(String title) {
+        String filename = title == null || title.isBlank() ? "document" : title.strip();
+        filename = filename.replaceAll("[\\\\/:*?\"<>|]", "-")
+                .replaceAll("\\p{Cntrl}", "")
+                .replaceAll("\\s+", " ")
+                .strip();
+
+        if (filename.isBlank()) {
+            filename = "document";
+        }
+
+        return filename.toLowerCase().endsWith(".pdf") ? filename : filename + ".pdf";
     }
 
     private Mono<DocumentDto> enrichWithCases(DocumentDto dto) {
