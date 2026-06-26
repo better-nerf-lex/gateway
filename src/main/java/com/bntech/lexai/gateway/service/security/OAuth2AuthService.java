@@ -46,6 +46,7 @@ public class OAuth2AuthService {
                 .flatMap(user -> teamService.ensureDefaultTeam(user).thenReturn(user))
                 .flatMap(user -> {
                     String accessToken = jwts.generateTokenFromOAuth2User(oauth2User, user.getUsername());
+                    String refreshToken = jwts.generateRefreshTokenFromOAuth2User(oauth2User, user.getUsername());
 
                     UserDto userDto = UserDto.builder()
                             .id(user.getId())
@@ -56,6 +57,7 @@ public class OAuth2AuthService {
 
                     return Mono.just(LoginResponse.builder()
                             .token(accessToken)
+                            .refreshToken(refreshToken)
                             .user(userDto)
                             .build());
                 });
@@ -63,7 +65,7 @@ public class OAuth2AuthService {
 
     private Mono<User> findOrCreateUserFromOAuth2(OAuth2User oauth2User, String email, String name) {
         return users.findByEmail(email)
-                .switchIfEmpty(createUserFromOAuth2(oauth2User, email, name));
+                .switchIfEmpty(Mono.defer(() -> createUserFromOAuth2(oauth2User, email, name)));
     }
 
     private Mono<User> createUserFromOAuth2(OAuth2User oauth2User, String email, String name) {

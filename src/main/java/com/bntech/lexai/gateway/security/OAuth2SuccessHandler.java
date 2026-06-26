@@ -53,7 +53,7 @@ public class OAuth2SuccessHandler implements ServerAuthenticationSuccessHandler 
                                 }));
                     })
                     .onErrorResume(error -> {
-                        log.error("OAuth2 authentication failed: {}", error.getMessage());
+                        log.error("OAuth2 authentication failed", error);
                         String errorUrl = frontendUrl + "/login?error=oauth_failed";
                         webFilterExchange.getExchange().getResponse()
                                 .getHeaders()
