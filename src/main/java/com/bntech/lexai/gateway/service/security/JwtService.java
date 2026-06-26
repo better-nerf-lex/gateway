@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
@@ -30,8 +33,27 @@ public class JwtService {
     private Long refreshExpiration;
 
     private SecretKey getSigningKey() {
-        byte[] keyBytes = Base64.getDecoder().decode(secret);
+        byte[] keyBytes = decodeSecret();
+        if (keyBytes.length < 64) {
+            keyBytes = sha512(keyBytes);
+        }
         return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    private byte[] decodeSecret() {
+        try {
+            return Base64.getDecoder().decode(secret);
+        } catch (IllegalArgumentException ignored) {
+            return secret.getBytes(StandardCharsets.UTF_8);
+        }
+    }
+
+    private byte[] sha512(byte[] value) {
+        try {
+            return MessageDigest.getInstance("SHA-512").digest(value);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-512 is not available", e);
+        }
     }
 
     public String generateToken(User user) {
