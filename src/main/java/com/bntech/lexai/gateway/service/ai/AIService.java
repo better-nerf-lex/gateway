@@ -120,14 +120,10 @@ public class AIService {
                     }
                     String finalPrompt = promptBuilder.toString();
 
-                    if (providedFrame != null && !providedFrame.isEmptyFrame()) {
-                        LegalFrame legalFrame = normalizeLegalFrame(providedFrame, providedFrame.getLegalBasis());
-                        return generateQuestionsWithBasis(finalPrompt, legalFrame.getLegalBasis(), legalFrame);
-                    }
-
-                    return buildLegalFrame(finalPrompt)
-                            .flatMap(legalFrame -> generateQuestionsWithBasis(finalPrompt,
-                                    legalFrame.getLegalBasis(), legalFrame));
+                    LegalFrame legalFrame = normalizeLegalFrame(
+                            providedFrame != null ? providedFrame : LegalFrame.empty(),
+                            providedFrame != null ? providedFrame.getLegalBasis() : List.of());
+                    return generateQuestionsWithBasis(finalPrompt, legalFrame.getLegalBasis(), legalFrame);
                 });
     }
 
@@ -189,7 +185,7 @@ public class AIService {
             String systemPrompt = String.format(Prompts.EN_GENERATE_QUESTIONS, basisJson, legalFrameJson, basisJson);
 
             MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(4096L)
+                    .maxTokens(2500L)
                     .system(systemPrompt)
                     .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
                     .model(genModel)
@@ -212,15 +208,18 @@ public class AIService {
             return cleanedResponse;
         })
                 .subscribeOn(Schedulers.boundedElastic())
-                .timeout(Duration.ofMinutes(2))
-                .retryWhen(buildRetrySpec("prompt analysis"))
+                .timeout(Duration.ofSeconds(45))
                 .doOnError(error -> log.error("❌ Error analyzing prompt", error));
     }
 
     public Mono<SubmitPromptResponse> analyzeFollowUpQuestions(AnalyzeFollowUpQuestionsRequest request) {
         log.info("Analyzing whether follow-up questions are required for: {}", request.getName());
-        return buildLegalFrame(buildFollowUpFramePrompt(request), request.getBase())
-                .flatMap(legalFrame -> Mono.fromCallable(() -> {
+        LegalFrame legalFrame = normalizeLegalFrame(LegalFrame.empty(), request.getBase());
+        legalFrame.setAttachmentRequirements(mergeDistinct(
+                request.getRequirements(),
+                legalFrame.getAttachmentRequirements()));
+
+        return Mono.fromCallable(() -> {
             String inputJson = objectMapper.writeValueAsString(Map.of(
                     "prompt", request.getPrompt() != null ? request.getPrompt() : "",
                     "name", request.getName() != null ? request.getName() : "",
@@ -269,10 +268,9 @@ public class AIService {
             limitFollowUpDepth(response, request.getQuestions());
             log.info("✅ Follow-up analysis returned {} questions", response.getQuestions().size());
             return response;
-        }))
+        })
                 .subscribeOn(Schedulers.boundedElastic())
-                .timeout(Duration.ofMinutes(2))
-                .retryWhen(buildRetrySpec("follow-up question analysis"))
+                .timeout(Duration.ofSeconds(45))
                 .doOnError(error -> log.error("❌ Error analyzing follow-up questions", error));
     }
 
@@ -324,20 +322,19 @@ public class AIService {
         log.info("Generating document: {} with {} template files, {} context files",
                 request.getTitle(), templateCount, contextCount);
 
-        Mono<LegalFrame> legalFrameMono = buildLegalFrame(buildGenerationFramePrompt(request), request.getBase())
-                .doOnNext(legalFrame -> {
-                    request.setBase(mergeDistinct(legalFrame.getLegalBasis(), request.getBase()));
-                    request.setRequirements(mergeDistinct(request.getRequirements(), legalFrame.getAttachmentRequirements()));
-                })
-                .cache();
+        LegalFrame legalFrame = normalizeLegalFrame(LegalFrame.empty(), request.getBase());
+        legalFrame.setAttachmentRequirements(mergeDistinct(
+                request.getRequirements(),
+                legalFrame.getAttachmentRequirements()));
+        request.setBase(legalFrame.getLegalBasis());
+        request.setRequirements(legalFrame.getAttachmentRequirements());
 
-        return legalFrameMono.flatMap(legalFrame -> {
-            Mono<String> legalContextMono = fetchEliDocumentsContext(request.getBase());
-            Mono<List<FileContent>> templateContentsMono = fetchTemplateFiles(templateFiles);
-            Mono<List<FileContent>> contextFilesMono = fetchContextFiles(contextFileIds);
-            Mono<List<KnowledgeConversation>> knowledgeConversationsMono = fetchKnowledgeConversations(request);
+        Mono<String> legalContextMono = fetchEliDocumentsContext(request.getBase());
+        Mono<List<FileContent>> templateContentsMono = fetchTemplateFiles(templateFiles);
+        Mono<List<FileContent>> contextFilesMono = fetchContextFiles(contextFileIds);
+        Mono<List<KnowledgeConversation>> knowledgeConversationsMono = fetchKnowledgeConversations(request);
 
-            return Mono.zip(legalContextMono, templateContentsMono, contextFilesMono, knowledgeConversationsMono)
+        return Mono.zip(legalContextMono, templateContentsMono, contextFilesMono, knowledgeConversationsMono)
                 .flatMap(tuple -> {
                     String legalContext = tuple.getT1();
                     List<FileContent> templates = tuple.getT2();
@@ -349,10 +346,8 @@ public class AIService {
                                 knowledgeConversations, legalFrame);
                         return generateQualityCheckedDocument(request, userMessage, templates, contextFiles);
                     }).subscribeOn(Schedulers.boundedElastic());
-                });
-        })
+                })
                 .timeout(Duration.ofMinutes(5))
-                .retryWhen(buildRetrySpec(request.getTitle()))
                 .doOnSuccess(result -> log.info("✅ Document generated for: {}", request.getTitle()))
                 .doOnError(error -> log.error("❌ Error generating document for: {}", request.getTitle(), error));
     }
@@ -460,7 +455,11 @@ public class AIService {
                         contextFiles)), request.getBase());
 
         List<String> issues = qualityService.validate(generated, request);
-        if (issues.isEmpty()) {
+        if (issues.isEmpty() || !qualityService.hasBlockingIssues(issues)) {
+            if (!issues.isEmpty()) {
+                log.warn("Generated document for {} has non-blocking quality warnings: {}",
+                        request.getTitle(), issues);
+            }
             return generated;
         }
 

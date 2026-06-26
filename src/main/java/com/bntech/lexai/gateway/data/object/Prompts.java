@@ -95,8 +95,9 @@ public class Prompts {
             9. If private knowledge conversation examples are provided, use them only to infer professional drafting patterns, argument structure, tone, and quality expectations.
             10. Never copy facts, parties, addresses, PESEL numbers, case numbers, uploaded-file names, or transcript wording from private knowledge examples.
             11. If a legal frame is provided, treat it as the document's procedural map: competent authority logic, legal area, legal basis, facts the user can know, and legal conclusions the app must draw.
-            12. Do not make the user responsible for legal conclusions that follow from the document type. Use the frame and legal basis to infer the proper court/authority type, procedural posture, and statutory structure.
-            13. End with only sections that are appropriate for this document type, such as requests, justification, attachments, or closing/signature area when expected.
+            12. If no legal frame is provided, infer the procedural map from the document title, prompt, supplied answers, legal basis context, templates, and private knowledge examples inside this same generation pass.
+            13. Do not make the user responsible for legal conclusions that follow from the document type. Use the frame, legal basis, and professional legal reasoning to infer the proper court/authority type, procedural posture, and statutory structure.
+            14. End with only sections that are appropriate for this document type, such as requests, justification, attachments, or closing/signature area when expected.
 
             LEGAL BASIS USAGE (IMPORTANT):
             - Legal basis material may be provided as reference context outside the JSON input.
@@ -253,8 +254,8 @@ public class Prompts {
                 Your task is to prepare the FIRST PASS of structured input data for generating a legal document.
                 All questions must be in Polish.
 
-                The legal basis for this document has already been determined: %s
-                The legal frame for this request is: %s
+                The legal basis candidates already known for this document are: %s
+                The legal frame already known for this request is: %s
 
                 Respond strictly in JSON format, using the following schema:
                 {
@@ -276,7 +277,7 @@ public class Prompts {
                 1. Generate broad screening questions first. Do not ask every nested detail yet.
                 2. Prefer generic questions that determine whether a branch applies, e.g. whether there are children, whether there is a contract, whether payment was made, whether there is a court case, whether there are attachments.
                 3. Ask for core facts that are always necessary for the document, such as applicant/party, recipient/court/authority, dates, amount, case number if applicable, and requested outcome.
-                4. Follow the legal frame. Ask for `userFactTargets`; do not ask for items listed in `userShouldNotBeAsked`.
+                4. Follow the legal frame when it is populated. If it is empty, infer the document type, legal area, competent authority type, likely legal basis, and facts the user can actually know inside this same pass.
                 5. Do not ask the user for legal conclusions that the application should infer from the legal basis, such as whether statutory conditions are met, which special court type hears a specialized motion, or what the legal justification is.
                 6. Never ask "podaj uzasadnienie" as a single open-ended question. Ask concrete factual inputs that let the app build a justification.
                 7. Never ask "podaj przestępstwo". If needed, ask for the statutory articles from the judgment/charge and a short description of the act.
@@ -287,7 +288,7 @@ public class Prompts {
                 12. Do not ask conditional deep follow-up questions in this first pass. For example, ask "Czy strony mają dzieci?" now with `followup: true`, but do not ask for each child’s detailed data until the user confirms that children exist.
                 13. Forbidden first-pass question patterns include: "Jeśli tak, ...", "Jeżeli tak, ...", "W przypadku odpowiedzi twierdzącej, ...", "Czy ...? Jeśli tak, podaj ...", and any equivalent wording that asks for branch details upfront.
                 14. If a detail is needed only after a yes/positive answer, omit that detail from the first pass. The follow-up analyzer will ask it later only when the answer makes it relevant.
-                15. Use the pre-verified legal basis and legal frame in the `base` field.
+                15. Use known legal basis candidates in the `base` field. If none were provided, return only high-confidence ELI candidates that clearly fit the requested document type; otherwise keep `base` empty instead of guessing.
                 16. In the `name` field, provide a suggested name for the application or request.
                 17. In `requirements`, list obvious supporting documents or attachments from the legal frame. More precise requirements may be updated after follow-up analysis.
 
