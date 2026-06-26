@@ -212,6 +212,10 @@ public class GlobalExceptionHandler {
         @ExceptionHandler(Exception.class)
         public Mono<ResponseEntity<ErrorResponse>> handleGenericException(
                         Exception ex, ServerWebExchange exchange) {
+                if (isCommittedResponseSignal(ex, exchange)) {
+                        log.debug("Ignoring already-committed response signal: {}", ex.getMessage());
+                        return Mono.empty();
+                }
                 log.error("Unexpected error: {}", ex.getMessage(), ex);
                 String path = exchange.getRequest().getPath().value();
                 ErrorResponse response = ErrorResponse.of(
@@ -220,5 +224,11 @@ public class GlobalExceptionHandler {
                                 "An unexpected error occurred",
                                 path);
                 return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response));
+        }
+
+        private boolean isCommittedResponseSignal(Exception ex, ServerWebExchange exchange) {
+                return exchange.getResponse().isCommitted()
+                                && ex instanceof IllegalStateException
+                                && "COMPLETED".equals(ex.getMessage());
         }
 }
