@@ -100,9 +100,12 @@ public class Prompts {
             14. End with only sections that are appropriate for this document type, such as requests, justification, attachments, or closing/signature area when expected.
 
             LEGAL BASIS USAGE (IMPORTANT):
-            - Legal basis material may be provided as reference context outside the JSON input.
+            - Legal basis material may be provided as resolved ELI research context outside the JSON input.
+            - Treat ELI identifiers in `base` as act identifiers only. Do not infer that `/ogl` means the old original text should be used.
+            - If ELI research context includes current text links, status, last metadata update, consolidated-text notices, amendments, or source snippets, treat that context as the freshness authority.
             - Use the legal basis to write legally grounded argumentation and cite specific articles or paragraphs where they naturally support a request, objection, allegation, or procedural position.
             - Integrate legal references into the document's ordinary prose, e.g. "na podstawie art. ...", "zgodnie z art. ...", or "w świetle art. ...", when that strengthens the document.
+            - Prefer current statutory terminology and article references from the resolved current ELI text/snippets over memory of old versions.
             - Do NOT append legal basis as metadata. Never include a standalone "Podstawa prawna", "Podstawy prawne", or "Legal basis" section.
             - Never list ELI URIs, eli.gov.pl links, source URLs, or raw statute lists at the end of the document.
             - The saved legal basis metadata is separate from the document, but substantive article references may and should appear inside the document text when professionally appropriate.
@@ -198,7 +201,8 @@ public class Prompts {
                 - For tax matters → use eli/DU/1997/926/ogl (Ordynacja podatkowa)
                 - For construction/building permits → use eli/DU/1994/414/ogl (Prawo budowlane)
 
-                These URIs will be verified against https://eli.gov.pl/ API. Only return URIs you are confident are correct.
+                These URIs identify acts that will later be resolved against https://eli.gov.pl/ for current text,
+                consolidated-text notices, amendments, and snippets. Only return URIs you are confident are correct.
 
                 Return only the JSON data. Do not include any explanations outside the JSON structure.
             """;
@@ -234,7 +238,9 @@ public class Prompts {
             4. If a statutory condition is assessed by a court or authority, put that assessment in `userShouldNotBeAsked` and ask only for the facts needed for assessment.
             5. Never include a generic "podaj uzasadnienie" target. Break justification into concrete factual targets: what happened, when, evidence, harm, family/work/health/financial circumstances, prior procedural history, and why the requested outcome matters.
             6. Never include a generic "podaj przestępstwo" target. For criminal matters, ask for statutory articles from the judgment/charge and a short factual description only if useful.
-            7. Use ELI URIs only when confident. Important common acts:
+            7. Use ELI URIs only when confident. Include every clearly relevant act, not just one broad code, when the document naturally spans substantive law, procedural law, and a special statute.
+               The application will resolve these identifiers against current ELI metadata and current text before drafting, so `/ogl` is only an identifier for the act, not an instruction to use stale original wording.
+               Important common acts:
                - eli/DU/1964/93/ogl: Kodeks cywilny
                - eli/DU/1964/296/ogl: Kodeks postępowania cywilnego
                - eli/DU/1964/59/ogl: Kodeks rodzinny i opiekuńczy
@@ -246,6 +252,7 @@ public class Prompts {
                - eli/DU/1997/926/ogl: Ordynacja podatkowa
                - eli/DU/1974/141/ogl: Kodeks pracy
             8. If the exact statute is uncertain, keep `legalBasis` to the detected candidates and explain uncertainty as a drafting guidance item instead of inventing an ELI URI.
+            9. Fill `searchPhrases` with statutory terminology, expanded abbreviations, common names, and article-topic phrases useful for selecting relevant snippets from the current ELI text.
 
             Return only JSON. No markdown, no comments, no explanation outside JSON.
             """;

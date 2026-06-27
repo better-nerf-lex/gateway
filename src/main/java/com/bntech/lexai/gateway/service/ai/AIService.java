@@ -329,7 +329,7 @@ public class AIService {
         request.setBase(legalFrame.getLegalBasis());
         request.setRequirements(legalFrame.getAttachmentRequirements());
 
-        Mono<String> legalContextMono = fetchEliDocumentsContext(request.getBase());
+        Mono<String> legalContextMono = fetchEliDocumentsContext(request, legalFrame);
         Mono<List<FileContent>> templateContentsMono = fetchTemplateFiles(templateFiles);
         Mono<List<FileContent>> contextFilesMono = fetchContextFiles(contextFileIds);
         Mono<List<KnowledgeConversation>> knowledgeConversationsMono = fetchKnowledgeConversations(request);
@@ -938,24 +938,66 @@ public class AIService {
                 request.getCaseContext() != null && !request.getCaseContext().isBlank());
     }
 
-    private Mono<String> fetchEliDocumentsContext(List<String> base) {
+    private Mono<String> fetchEliDocumentsContext(GenerateDocumentRequest request, LegalFrame legalFrame) {
+        List<String> base = request.getBase();
         if (base == null || base.isEmpty()) {
             return Mono.just("");
         }
 
         log.info("Generating URLs for {} legal bases", base.size());
 
-        return eliService.fetchLegalDocuments(base)
+        return eliService.fetchLegalDocuments(base, buildEliResearchTerms(request, legalFrame))
                 .collectList()
                 .map(documents -> {
-                    log.info("✅ Generated {} legal document URLs", documents.size());
+                    log.info("✅ Resolved {} legal document source(s)", documents.size());
                     return eliService.buildLegalDocumentsContext(documents);
                 })
                 .onErrorResume(e -> {
-                    log.warn("Failed to generate ELI document URLs, proceeding without legal context: {}",
+                    log.warn("Failed to resolve ELI legal context, proceeding without legal context: {}",
                             e.getMessage());
                     return Mono.just("");
                 });
+    }
+
+    private List<String> buildEliResearchTerms(GenerateDocumentRequest request, LegalFrame legalFrame) {
+        LinkedHashSet<String> terms = new LinkedHashSet<>();
+        addTerm(terms, request.getTitle());
+        addTerm(terms, request.getPrompt());
+        addTerms(terms, request.getRequirements());
+
+        if (request.getAnswers() != null) {
+            request.getAnswers().values().forEach(value -> addTerm(terms, value));
+        }
+
+        if (legalFrame != null) {
+            addTerm(terms, legalFrame.getDocumentType());
+            addTerm(terms, legalFrame.getLegalArea());
+            addTerm(terms, legalFrame.getProcedureType());
+            addTerm(terms, legalFrame.getRequestedOutcome());
+            addTerm(terms, legalFrame.getAuthorityRule());
+            addTerms(terms, legalFrame.getSearchPhrases());
+            addTerms(terms, legalFrame.getLegalInferences());
+            addTerms(terms, legalFrame.getDraftingGuidance());
+            addTerms(terms, legalFrame.getUserFactTargets());
+        }
+
+        return terms.stream()
+                .filter(term -> term != null && !term.isBlank())
+                .limit(24)
+                .toList();
+    }
+
+    private void addTerms(Set<String> terms, List<String> values) {
+        if (values == null) {
+            return;
+        }
+        values.forEach(value -> addTerm(terms, value));
+    }
+
+    private void addTerm(Set<String> terms, String value) {
+        if (value != null && !value.isBlank()) {
+            terms.add(value.trim());
+        }
     }
 
     private String buildJsonForGeneration(GenerateDocumentRequest request) {

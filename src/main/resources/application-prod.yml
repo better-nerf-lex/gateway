@@ -56,6 +56,8 @@ jwt:
 
 app:
   frontend-url: ${FRONTEND_URL}
+  cors:
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:${FRONTEND_URL}}
   auth:
     cookie:
       secure: ${AUTH_COOKIE_SECURE:true}
