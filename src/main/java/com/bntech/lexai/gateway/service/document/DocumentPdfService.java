@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.service.document;
 
 import com.bntech.lexai.gateway.data.entity.document.Document;
+import com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
@@ -15,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -22,7 +24,34 @@ import java.util.Locale;
 @Slf4j
 public class DocumentPdfService {
 
-    private static final List<Path> FONT_CANDIDATES = List.of(
+    private static final String PDF_FONT_FAMILY = "LexaiPdfFont";
+
+    private static final List<FontFace> FONT_FACES = List.of(
+            new FontFace(400, BaseRendererBuilder.FontStyle.NORMAL, List.of(
+                    Path.of("/usr/share/fonts/dejavu/DejaVuSans.ttf"),
+                    Path.of("/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf"),
+                    Path.of("/usr/share/fonts/liberation/LiberationSans-Regular.ttf"),
+                    Path.of("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),
+                    Path.of("/System/Library/Fonts/Supplemental/Arial.ttf"),
+                    Path.of("/Library/Fonts/Arial Unicode.ttf"),
+                    Path.of("/Library/Fonts/Arial.ttf"))),
+            new FontFace(700, BaseRendererBuilder.FontStyle.NORMAL, List.of(
+                    Path.of("/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"),
+                    Path.of("/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf"),
+                    Path.of("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
+                    Path.of("/Library/Fonts/Arial Bold.ttf"))),
+            new FontFace(400, BaseRendererBuilder.FontStyle.ITALIC, List.of(
+                    Path.of("/usr/share/fonts/dejavu/DejaVuSans-Oblique.ttf"),
+                    Path.of("/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Oblique.ttf"),
+                    Path.of("/System/Library/Fonts/Supplemental/Arial Italic.ttf"),
+                    Path.of("/Library/Fonts/Arial Italic.ttf"))),
+            new FontFace(700, BaseRendererBuilder.FontStyle.ITALIC, List.of(
+                    Path.of("/usr/share/fonts/dejavu/DejaVuSans-BoldOblique.ttf"),
+                    Path.of("/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-BoldOblique.ttf"),
+                    Path.of("/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf"),
+                    Path.of("/Library/Fonts/Arial Bold Italic.ttf"))));
+
+    private static final List<Path> REGULAR_FONT_CANDIDATES = List.of(
             Path.of("/usr/share/fonts/dejavu/DejaVuSans.ttf"),
             Path.of("/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf"),
             Path.of("/usr/share/fonts/liberation/LiberationSans-Regular.ttf"),
@@ -51,13 +80,28 @@ public class DocumentPdfService {
     }
 
     private void registerFont(PdfRendererBuilder builder) {
-        FONT_CANDIDATES.stream()
-                .filter(Files::isRegularFile)
-                .findFirst()
-                .map(Path::toFile)
-                .ifPresentOrElse(
-                        font -> builder.useFont(font, "LexaiPdfFont"),
-                        () -> log.warn("No PDF font candidate found; generated PDFs may miss non-ASCII glyphs"));
+        List<Path> registeredFonts = new ArrayList<>();
+
+        FONT_FACES.forEach(face -> face.findExistingFont().ifPresent(font -> {
+            builder.useFont(font.toFile(), PDF_FONT_FAMILY, face.weight(), face.style(), true);
+            registeredFonts.add(font);
+        }));
+
+        if (registeredFonts.isEmpty()) {
+            REGULAR_FONT_CANDIDATES.stream()
+                    .filter(Files::isRegularFile)
+                    .findFirst()
+                    .ifPresent(font -> {
+                        builder.useFont(font.toFile(), PDF_FONT_FAMILY);
+                        registeredFonts.add(font);
+                    });
+        }
+
+        if (registeredFonts.isEmpty()) {
+            log.warn("No PDF font candidate found; generated PDFs may miss non-ASCII glyphs");
+        } else {
+            log.debug("Registered PDF fonts: {}", registeredFonts);
+        }
     }
 
     private String toPrintableHtml(Document document) {
@@ -77,11 +121,12 @@ public class DocumentPdfService {
                         }
                         * {
                             box-sizing: border-box;
+                            font-family: "LexaiPdfFont", "DejaVu Sans", Arial, sans-serif !important;
                         }
                         body {
                             margin: 0;
                             color: #111827;
-                            font-family: "LexaiPdfFont", "DejaVu Sans", Arial, sans-serif;
+                            font-family: "LexaiPdfFont", "DejaVu Sans", Arial, sans-serif !important;
                             font-size: 12pt;
                             line-height: 1.5;
                         }
@@ -200,10 +245,19 @@ public class DocumentPdfService {
     private String normalizeStyle(String style) {
         return style
                 .replaceAll("(?i)\\b(?:oklch|oklab|lch|lab|color)\\([^)]*\\)", "#111827")
+                .replaceAll("(?i)font-family\\s*:[^;]+;?", "")
                 .replaceAll("(?i)(position|behavior|-moz-binding)\\s*:[^;]+;?", "");
     }
 
     private String escape(String value) {
         return Entities.escape(value);
+    }
+
+    private record FontFace(int weight, BaseRendererBuilder.FontStyle style, List<Path> candidates) {
+        private java.util.Optional<Path> findExistingFont() {
+            return candidates.stream()
+                    .filter(Files::isRegularFile)
+                    .findFirst();
+        }
     }
 }
