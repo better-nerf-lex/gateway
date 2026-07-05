@@ -16,11 +16,21 @@ spring:
       mode: never
   ai:
     anthropic:
-      api-key: dummy-key
+      api-key: ${SPRING_AI_ANTHROPIC_API_KEY:dummy-key}
 server:
   port: 8081
 
 app:
+  ai:
+    primary-provider: ${AI_PRIMARY_PROVIDER:anthropic}
+    fallback-provider: ${AI_FALLBACK_PROVIDER:anthropic}
+    openai-rollout-ratio: ${AI_OPENAI_ROLLOUT_RATIO:0.0}
+    openai:
+      api-key: ${OPENAI_API_KEY:dummy-key}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      model: ${OPENAI_MODEL:gpt-5.5}
+      chat-model: ${OPENAI_CHAT_MODEL:gpt-5.5}
+      reasoning-effort: ${OPENAI_REASONING_EFFORT:medium}
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:8080,http://localhost:5173,http://127.0.0.1:5173,http://0.0.0.0:5173,null}
 

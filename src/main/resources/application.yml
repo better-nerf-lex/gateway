@@ -52,6 +52,16 @@ jwt:
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:8080}
+  ai:
+    primary-provider: ${AI_PRIMARY_PROVIDER:anthropic}
+    fallback-provider: ${AI_FALLBACK_PROVIDER:anthropic}
+    openai-rollout-ratio: ${AI_OPENAI_ROLLOUT_RATIO:0.0}
+    openai:
+      api-key: ${OPENAI_API_KEY:dummy-key}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      model: ${OPENAI_MODEL:gpt-5.5}
+      chat-model: ${OPENAI_CHAT_MODEL:gpt-5.5}
+      reasoning-effort: ${OPENAI_REASONING_EFFORT:medium}
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:${app.frontend-url}}
   email:

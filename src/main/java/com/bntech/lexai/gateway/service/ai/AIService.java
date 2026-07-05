@@ -1,15 +1,5 @@
 package com.bntech.lexai.gateway.service.ai;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.Base64ImageSource;
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.DocumentBlockParam;
-import com.anthropic.models.messages.ImageBlockParam;
-import com.anthropic.models.messages.Message;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.TextBlock;
-import com.anthropic.models.messages.TextBlockParam;
 import com.bntech.lexai.gateway.data.object.Prompts;
 import com.bntech.lexai.gateway.data.object.StorageFileType;
 import com.bntech.lexai.gateway.data.object.TemplateFile;
@@ -22,6 +12,9 @@ import com.bntech.lexai.gateway.rest.dto.document.GenerateDocumentRequest;
 import com.bntech.lexai.gateway.rest.dto.document.LegalBasisResponse;
 import com.bntech.lexai.gateway.rest.dto.document.QuestionDto;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
+import com.bntech.lexai.gateway.service.ai.client.AiCallKind;
+import com.bntech.lexai.gateway.service.ai.client.AiModelRouter;
+import com.bntech.lexai.gateway.service.ai.client.AiPromptRequest;
 import com.bntech.lexai.gateway.service.document.StorageFileService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,15 +27,12 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
-import jakarta.annotation.PostConstruct;
-
 import com.bntech.lexai.gateway.util.RetryUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -55,15 +45,6 @@ import java.util.Set;
 @Slf4j
 public class AIService {
     private static final int MAX_FOLLOW_UP_ROUNDS = 2;
-
-    @Value("${spring.ai.anthropic.api-key}")
-    private String apiKey;
-
-    @Value("${spring.ai.anthropic.chat.options.model}")
-    private String genModel;
-
-    @Value("${spring.ai.anthropic.chat.options.chat-model}")
-    private String chatModel;
 
     @Value("${spring.ai.anthropic.chat.options.creativity-temperature}")
     private double creativityTemperature;
@@ -83,22 +64,12 @@ public class AIService {
     @Value("${app.knowledge.max-chars-per-conversation:8000}")
     private int knowledgeMaxCharsPerConversation;
 
-    private AnthropicClient client;
     private final ObjectMapper objectMapper;
+    private final AiModelRouter aiModelRouter;
     private final EliService eliService;
     private final StorageFileService storageFileService;
     private final DocumentGenerationQualityService qualityService;
     private final QuestionQualityService questionQualityService;
-
-    @PostConstruct
-    private void initializeClient() {
-        log.debug("Initializing Anthropic client with API key: {}...",
-                apiKey != null ? apiKey.substring(0, Math.min(10, apiKey.length())) + "..." : "null");
-
-        this.client = AnthropicOkHttpClient.builder()
-                .apiKey(apiKey)
-                .build();
-    }
 
     public Mono<SubmitPromptResponse> analyzePrompt(String prompt) {
         return analyzePrompt(prompt, null);
@@ -130,20 +101,13 @@ public class AIService {
     public Mono<LegalBasisResponse> extractLegalBasis(String prompt) {
         log.info("Extracting legal basis for prompt length: {}", prompt != null ? prompt.length() : 0);
         return Mono.fromCallable(() -> {
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(2048L)
-                    .system(Prompts.EN_EXTRACT_LEGAL_BASIS)
-                    .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
-                    .model(genModel)
-                    .temperature(reasoningTemperature)
-                    .build();
-
-            log.debug("Sending legal basis extraction request to Anthropic API");
-            Message message = client.messages().create(params);
-            String jsonResponse = message.content().getFirst()
-                    .text()
-                    .map(TextBlock::text)
-                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+            String jsonResponse = completeAi(
+                    AiCallKind.LEGAL_BASIS,
+                    "legal basis extraction",
+                    Prompts.EN_EXTRACT_LEGAL_BASIS,
+                    Prompts.EN_USER_MESSAGE + prompt,
+                    reasoningTemperature,
+                    2048L);
 
             LegalBasisResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
                     LegalBasisResponse.class);
@@ -184,20 +148,13 @@ public class AIService {
 
             String systemPrompt = String.format(Prompts.EN_GENERATE_QUESTIONS, basisJson, legalFrameJson, basisJson);
 
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(2500L)
-                    .system(systemPrompt)
-                    .addUserMessage(Prompts.EN_USER_MESSAGE + prompt)
-                    .model(genModel)
-                    .temperature(creativityTemperature)
-                    .build();
-
-            log.debug("Sending prompt analysis request to Anthropic API");
-            Message message = client.messages().create(params);
-            String jsonResponse = message.content().getFirst()
-                    .text()
-                    .map(TextBlock::text)
-                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+            String jsonResponse = completeAi(
+                    AiCallKind.QUESTIONS,
+                    "question generation",
+                    systemPrompt,
+                    Prompts.EN_USER_MESSAGE + prompt,
+                    creativityTemperature,
+                    2500L);
 
             SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
                     SubmitPromptResponse.class);
@@ -231,20 +188,13 @@ public class AIService {
                     "maxFollowUpRounds", MAX_FOLLOW_UP_ROUNDS,
                     "legalFrame", legalFrame));
 
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(4096L)
-                    .system(Prompts.EN_ANALYZE_FOLLOW_UP_QUESTIONS)
-                    .addUserMessage(inputJson)
-                    .model(genModel)
-                    .temperature(reasoningTemperature)
-                    .build();
-
-            log.debug("Sending follow-up question analysis request to Anthropic API");
-            Message message = client.messages().create(params);
-            String jsonResponse = message.content().getFirst()
-                    .text()
-                    .map(TextBlock::text)
-                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+            String jsonResponse = completeAi(
+                    AiCallKind.FOLLOW_UP_QUESTIONS,
+                    "follow-up question analysis",
+                    Prompts.EN_ANALYZE_FOLLOW_UP_QUESTIONS,
+                    inputJson,
+                    reasoningTemperature,
+                    4096L);
 
             SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
                     SubmitPromptResponse.class);
@@ -286,21 +236,13 @@ public class AIService {
                 throw new RuntimeException("Error serializing chat request", e);
             }
 
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(8192L)
-                    .system(Prompts.EN_CHAT_WITH_DOCUMENT)
-                    .addUserMessage(inputJson)
-                    .model(chatModel)
-                    .temperature(creativityTemperature)
-                    .build();
-
-            log.debug("Sending chat request to Anthropic API for document: {}", request.getDocumentId());
-            Message message = client.messages().create(params);
-
-            String rawContent = message.content().getFirst()
-                    .text()
-                    .map(TextBlock::text)
-                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+            String rawContent = completeAi(
+                    AiCallKind.DOCUMENT_CHAT,
+                    request.getDocumentId(),
+                    Prompts.EN_CHAT_WITH_DOCUMENT,
+                    inputJson,
+                    creativityTemperature,
+                    8192L);
 
             String jsonContent = stripMarkdownCodeBlocks(rawContent);
             return objectMapper.readValue(jsonContent, DocumentChatResponse.class);
@@ -451,7 +393,7 @@ public class AIService {
             List<FileContent> templates,
             List<FileContent> contextFiles) {
         String generated = qualityService.removeLegalBasisSection(qualityService.cleanHtmlFragment(
-                generateViaAnthropic(request.getTitle(), Prompts.EN_GENERATE_DOCUMENT, userMessage, templates,
+                generateWithAi(request.getTitle(), Prompts.EN_GENERATE_DOCUMENT, userMessage, templates,
                         contextFiles)), request.getBase());
 
         List<String> issues = qualityService.validate(generated, request);
@@ -468,106 +410,77 @@ public class AIService {
 
         String revisionMessage = qualityService.buildRevisionUserMessage(userMessage, generated, issues);
         String revised = qualityService.removeLegalBasisSection(qualityService.cleanHtmlFragment(
-                generateViaAnthropic(request.getTitle(), Prompts.EN_REPAIR_GENERATED_DOCUMENT, revisionMessage,
+                repairWithAi(request.getTitle(), Prompts.EN_REPAIR_GENERATED_DOCUMENT, revisionMessage,
                         templates, contextFiles)), request.getBase());
 
         return qualityService.validateOrThrow(revised, request);
     }
 
-    private String generateViaAnthropic(
+    private String generateWithAi(
             String title,
             String systemPrompt,
             String userMessage,
             List<FileContent> templates,
             List<FileContent> contextFiles) {
-        MessageCreateParams params = MessageCreateParams.builder()
-                .maxTokens(12000L)
-                .system(systemPrompt)
-                .addUserMessageOfBlockParams(buildGenerationContentBlocks(userMessage, templates, contextFiles))
-                .model(genModel)
-                .temperature(reasoningTemperature)
-                .build();
-
-        log.debug("Sending document generation request to Anthropic API for: {}", title);
-        Message response = client.messages().create(params);
-        log.debug("Received document generation response from Anthropic API for: {}", title);
-
-        String rawContent = response.content().getFirst()
-                .text()
-                .map(TextBlock::text)
-                .orElseThrow(() -> new IllegalStateException("No text content found in message"));
-
-        return stripMarkdownCodeBlocks(rawContent);
+        return completeAi(
+                AiCallKind.DOCUMENT_GENERATION,
+                title,
+                systemPrompt,
+                userMessage,
+                reasoningTemperature,
+                12000L,
+                templates,
+                contextFiles);
     }
 
-    private List<ContentBlockParam> buildGenerationContentBlocks(
+    private String repairWithAi(
+            String title,
+            String systemPrompt,
             String userMessage,
             List<FileContent> templates,
             List<FileContent> contextFiles) {
-        List<ContentBlockParam> blocks = new ArrayList<>();
-        blocks.add(ContentBlockParam.ofText(TextBlockParam.builder().text(userMessage).build()));
-        appendFileBlocks(blocks, templates, "Template document");
-        appendFileBlocks(blocks, contextFiles, "Context document");
-        return blocks;
+        return completeAi(
+                AiCallKind.DOCUMENT_REPAIR,
+                title,
+                systemPrompt,
+                userMessage,
+                reasoningTemperature,
+                12000L,
+                templates,
+                contextFiles);
     }
 
-    private void appendFileBlocks(List<ContentBlockParam> blocks, List<FileContent> files, String contextLabel) {
-        if (files == null || files.isEmpty()) {
-            return;
-        }
-
-        files.forEach(file -> buildFileBlock(file, contextLabel).forEach(blocks::add));
+    private String completeAi(
+            AiCallKind kind,
+            String title,
+            String systemPrompt,
+            String userMessage,
+            double temperature,
+            long maxTokens) {
+        return completeAi(kind, title, systemPrompt, userMessage, temperature, maxTokens, List.of(), List.of());
     }
 
-    private List<ContentBlockParam> buildFileBlock(FileContent file, String contextLabel) {
-        String base64 = Base64.getEncoder().encodeToString(file.content());
-        String context = contextLabel + ": " + file.name();
-
-        if (file.fileType() == StorageFileType.PDF) {
-            return List.of(ContentBlockParam.ofDocument(DocumentBlockParam.builder()
-                    .base64Source(base64)
-                    .title(file.name())
-                    .context(context)
-                    .build()));
-        }
-
-        if (file.fileType() == StorageFileType.TXT) {
-            return List.of(ContentBlockParam.ofDocument(DocumentBlockParam.builder()
-                    .textSource(new String(file.content(), StandardCharsets.UTF_8))
-                    .title(file.name())
-                    .context(context)
-                    .build()));
-        }
-
-        Base64ImageSource.MediaType mediaType = toImageMediaType(file.fileType());
-        if (mediaType != null) {
-            return List.of(
-                    ContentBlockParam.ofText(TextBlockParam.builder().text(context).build()),
-                    ContentBlockParam.ofImage(ImageBlockParam.builder()
-                            .source(Base64ImageSource.builder()
-                                    .data(base64)
-                                    .mediaType(mediaType)
-                                    .build())
-                            .build()));
-        }
-
-        return List.of(ContentBlockParam.ofText(TextBlockParam.builder()
-                .text(context + " was available in storage but cannot be attached directly because its type is "
-                        + file.fileType() + ".")
-                .build()));
-    }
-
-    private Base64ImageSource.MediaType toImageMediaType(StorageFileType fileType) {
-        if (fileType == StorageFileType.JPG || fileType == StorageFileType.JPEG) {
-            return Base64ImageSource.MediaType.IMAGE_JPEG;
-        }
-        if (fileType == StorageFileType.PNG) {
-            return Base64ImageSource.MediaType.IMAGE_PNG;
-        }
-        if (fileType == StorageFileType.GIF) {
-            return Base64ImageSource.MediaType.IMAGE_GIF;
-        }
-        return null;
+    private String completeAi(
+            AiCallKind kind,
+            String title,
+            String systemPrompt,
+            String userMessage,
+            double temperature,
+            long maxTokens,
+            List<FileContent> templates,
+            List<FileContent> contextFiles) {
+        String response = aiModelRouter.complete(new AiPromptRequest(
+                kind,
+                title,
+                systemPrompt,
+                userMessage,
+                null,
+                temperature,
+                maxTokens,
+                null,
+                templates,
+                contextFiles));
+        return stripMarkdownCodeBlocks(response);
     }
 
     private Mono<List<FileContent>> fetchTemplateFiles(List<TemplateFile> templateFiles) {
@@ -836,20 +749,13 @@ public class AIService {
             String systemPrompt = String.format(Prompts.EN_BUILD_LEGAL_FRAME,
                     writeJson(verifiedBasis != null ? verifiedBasis : List.of()));
 
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(2048L)
-                    .system(systemPrompt)
-                    .addUserMessage(Prompts.EN_USER_MESSAGE + (prompt != null ? prompt : ""))
-                    .model(genModel)
-                    .temperature(reasoningTemperature)
-                    .build();
-
-            log.debug("Sending legal frame request to Anthropic API");
-            Message message = client.messages().create(params);
-            String jsonResponse = message.content().getFirst()
-                    .text()
-                    .map(TextBlock::text)
-                    .orElseThrow(() -> new IllegalStateException("No text content found in message"));
+            String jsonResponse = completeAi(
+                    AiCallKind.LEGAL_FRAME,
+                    "legal frame",
+                    systemPrompt,
+                    Prompts.EN_USER_MESSAGE + (prompt != null ? prompt : ""),
+                    reasoningTemperature,
+                    2048L);
 
             LegalFrame legalFrame = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse), LegalFrame.class);
             return normalizeLegalFrame(legalFrame, verifiedBasis);
