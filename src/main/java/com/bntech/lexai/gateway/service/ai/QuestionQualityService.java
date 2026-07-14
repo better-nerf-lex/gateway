@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.service.ai;
 
+import com.bntech.lexai.gateway.data.object.LegalFrame;
 import com.bntech.lexai.gateway.rest.dto.document.QuestionDto;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import org.springframework.stereotype.Service;
@@ -40,7 +41,9 @@ public class QuestionQualityService {
             }
             rewriteVagueLegalQuestion(question, legalFrame);
         });
-        response.setQuestions(removeDuplicateQuestions(response.getQuestions()));
+        response.setQuestions(removeDuplicateQuestions(response.getQuestions()).stream()
+                .filter(question -> !isApplicationOwnedQuestion(question))
+                .toList());
         return response;
     }
 
@@ -86,19 +89,19 @@ public class QuestionQualityService {
     private String buildJustificationFactsQuestion(LegalFrame legalFrame) {
         if (legalFrame != null && legalFrame.getUserFactTargets() != null
                 && !legalFrame.getUserFactTargets().isEmpty()) {
-            return "Jakie konkretne okoliczności faktyczne mają znaczenie dla wniosku: "
-                    + String.join(", ", legalFrame.getUserFactTargets()) + "?";
+            return "Napisz krótko, co wiesz o tych kwestiach: "
+                    + String.join(", ", legalFrame.getUserFactTargets()) + ".";
         }
-        return "Jakie konkretne okoliczności faktyczne mają uzasadniać pismo (co się wydarzyło, kiedy, jakie są skutki, dowody i sytuacja osoby składającej pismo)?";
+        return "Co się wydarzyło i dlaczego potrzebujesz tego pisma? Opisz krótko najważniejsze fakty, daty, skutki i dokumenty, które je potwierdzają.";
     }
 
     private String buildLegalConditionsFactsQuestion(LegalFrame legalFrame) {
         if (legalFrame != null && legalFrame.getUserFactTargets() != null
                 && !legalFrame.getUserFactTargets().isEmpty()) {
-            return "Jakie znane fakty i dokumenty mogą mieć znaczenie dla oceny warunków przez sąd lub organ: "
-                    + String.join(", ", legalFrame.getUserFactTargets()) + "?";
+            return "Napisz, co wiesz o tych kwestiach i jakie masz dokumenty: "
+                    + String.join(", ", legalFrame.getUserFactTargets()) + ".";
         }
-        return "Jakie znane fakty i dokumenty mogą mieć znaczenie dla oceny warunków przez sąd lub organ?";
+        return "Jakie fakty i dokumenty mogą pomóc sądowi lub urzędowi ocenić sprawę?";
     }
 
     private List<QuestionDto> removeDuplicateQuestions(List<QuestionDto> questions) {
@@ -114,6 +117,15 @@ public class QuestionQualityService {
             }
         }
         return unique;
+    }
+
+    private boolean isApplicationOwnedQuestion(QuestionDto question) {
+        String text = normalize(question != null ? question.getText() : null);
+        return text.matches(".*\\b(data|date|dzien)\\s+(sporzadzenia|utworzenia|przygotowania)\\s+(pisma|dokumentu|wniosku)\\b.*")
+                || text.matches(".*\\b(miejsce|dane)\\s+(na|do)?\\s*podpis(u)?\\b.*")
+                || text.matches(".*\\b(jaki|ktory|do jakiego)\\s+(sad|organ)\\s+(jest|bedzie)?\\s*wlasciw.*")
+                || text.matches(".*\\b(jakie|ktore)\\s+przepisy\\s+(maja|powinny|beda)?\\s*(zastosowanie|wskazane)?.*")
+                || text.matches(".*\\bwska(z|zcie|zac)\\s+podstawe\\s+prawna\\b.*");
     }
 
     private String normalize(String text) {

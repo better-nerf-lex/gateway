@@ -42,7 +42,7 @@ class OpenAiResponsesClientTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> input = (List<Map<String, Object>>) payload.get("input");
         assertThat(input).hasSize(2);
-        assertThat(input.get(0)).containsEntry("role", "system");
+        assertThat(input.get(0)).containsEntry("role", "developer");
         assertThat(input.get(1)).containsEntry("role", "user");
 
         @SuppressWarnings("unchecked")
@@ -54,6 +54,26 @@ class OpenAiResponsesClientTest {
                 .anySatisfy(part -> assertThat(part).containsEntry("filename", "template.pdf"));
         assertThat(userContent)
                 .anySatisfy(part -> assertThat(part).containsEntry("text", "facts"));
+    }
+
+    @Test
+    void requestsJsonModeForQuestionnaireCalls() {
+        AiPromptRequest request = new AiPromptRequest(
+                AiCallKind.QUESTIONS,
+                "questions",
+                "Return JSON",
+                "Create the questionnaire as JSON",
+                null,
+                0.2,
+                4096L,
+                "low",
+                List.of(),
+                List.of());
+
+        Map<String, Object> payload = client.buildPayload(request);
+
+        assertThat(payload.get("text"))
+                .isEqualTo(Map.of("format", Map.of("type", "json_object")));
     }
 
     @Test

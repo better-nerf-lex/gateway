@@ -1,5 +1,6 @@
 package com.bntech.lexai.gateway.service.ai;
 
+import com.bntech.lexai.gateway.data.object.LegalFrame;
 import com.bntech.lexai.gateway.data.object.QuestionType;
 import com.bntech.lexai.gateway.rest.dto.document.QuestionDto;
 import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
@@ -56,7 +57,7 @@ class QuestionQualityServiceTest {
         SubmitPromptResponse cleaned = service.cleanFirstPassQuestions(response, legalFrame);
 
         assertThat(cleaned.getQuestions().getFirst().getText())
-                .contains("konkretne okoliczności faktyczne")
+                .contains("Napisz krótko")
                 .contains("sytuacja zdrowotna");
     }
 
@@ -91,6 +92,34 @@ class QuestionQualityServiceTest {
 
         assertThat(cleaned.getQuestions().getFirst().getText())
                 .contains("fakty")
-                .contains("sąd lub organ");
+                .contains("sądowi lub urzędowi");
+    }
+
+    @Test
+    void removesQuestionsTheApplicationMustResolveItself() {
+        SubmitPromptResponse response = SubmitPromptResponse.builder()
+                .questions(List.of(
+                        QuestionDto.builder()
+                                .id("created")
+                                .text("Podaj datę sporządzenia dokumentu")
+                                .type(QuestionType.TEXT)
+                                .build(),
+                        QuestionDto.builder()
+                                .id("court")
+                                .text("Jaki sąd jest właściwy do rozpoznania wniosku?")
+                                .type(QuestionType.TEXT)
+                                .build(),
+                        QuestionDto.builder()
+                                .id("facts")
+                                .text("Co wydarzyło się po doręczeniu wezwania?")
+                                .type(QuestionType.TEXT)
+                                .build()))
+                .build();
+
+        SubmitPromptResponse cleaned = service.cleanFirstPassQuestions(response);
+
+        assertThat(cleaned.getQuestions())
+                .extracting(QuestionDto::getId)
+                .containsExactly("facts");
     }
 }

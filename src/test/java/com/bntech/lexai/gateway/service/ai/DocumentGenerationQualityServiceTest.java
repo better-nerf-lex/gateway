@@ -251,6 +251,28 @@ class DocumentGenerationQualityServiceTest {
     }
 
     @Test
+    void validateRejectsInternalQuestionnaireMetadata() {
+        GenerateDocumentRequest request = GenerateDocumentRequest.builder()
+                .title("Odpowiedź na pozew")
+                .answers(Map.of("participant", "Jan Kowalski"))
+                .build();
+
+        String content = """
+                <div style="font-family: Arial; font-size: 12pt; line-height: 1.5;">
+                  <h1 style="text-align: center;">Odpowiedź na pozew</h1>
+                  <p><strong>Pozwany:</strong> Jan Kowalski wnosi o oddalenie pozwu w całości oraz o zasądzenie kosztów postępowania według norm przepisanych.</p>
+                  <p>Strona pozwana kwestionuje roszczenie co do zasady i wysokości, ponieważ powód nie wykazał okoliczności uzasadniających dochodzone żądanie.</p>
+                  <p>Uzasadnienie przedstawia przebieg zdarzeń, stanowisko strony pozwanej oraz wnioski dowodowe konieczne do rozpoznania sprawy.</p>
+                  <p>intakeAnswers: questionId=participant, followUpRound=0.</p>
+                  <p>W konsekwencji pozew powinien zostać oddalony po przeprowadzeniu wskazanych dowodów z dokumentów oraz przesłuchania stron.</p>
+                </div>
+                """;
+
+        assertThat(qualityService.validate(content, request))
+                .contains("document exposes internal questionnaire or prompt metadata");
+    }
+
+    @Test
     void buildRevisionUserMessageIncludesIssuesAndFailedDraft() {
         String revision = qualityService.buildRevisionUserMessage(
                 "{\"name\":\"Pozew o zapłatę\"}",

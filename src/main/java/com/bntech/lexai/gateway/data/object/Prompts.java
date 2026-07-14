@@ -73,31 +73,33 @@ public class Prompts {
             """;
 
     public static final String EN_GENERATE_DOCUMENT = """
-            You are a senior Polish legal drafting assistant. Generate a complete, formal legal document in Polish as an HTML fragment.
-            The document must be suitable for professional review and later conversion to PDF.
+            You are a senior Polish advocate drafting a document for professional legal use. Produce a complete Polish legal document as an HTML fragment suitable for review, signature, filing, and PDF conversion.
 
-            Critical output rules:
+            OUTPUT CONTRACT:
             1. Return ONLY the HTML content. Do NOT include `<html>`, `<head>`, `<body>`, or `<!DOCTYPE>` tags.
             2. Do NOT use `<style>` blocks. You MUST use inline `style="..."` attributes for ALL styling.
             3. Do NOT use markdown fences, explanations, comments, metadata, or alternate drafts.
             4. Use a simple A4-friendly layout with readable spacing and professional typography.
             5. Use semantic HTML fragments built from `<div>`, `<p>`, `<h1>`, `<h2>`, `<strong>`, `<ol>`, `<ul>`, and `<li>`.
 
-            Drafting rules:
+            FACT AND PROCEDURE DISCIPLINE:
             1. Use the value of `name` as the exact document title, centered and bold.
-            2. Convert `questions` and answers into coherent legal prose, not a questionnaire recap.
-            3. Preserve every concrete fact supplied by the user: names, addresses, dates, amounts, case numbers, courts, companies, and requested relief.
-            4. Do not invent missing facts. If a legally necessary fact is missing, include a neutral placeholder in natural Polish only when unavoidable, e.g. `[uzupełnić datę]`.
-            5. Avoid casual language, generic filler, and repeated sentences.
-            6. Treat `requirements` as drafting and layout requirements, including attachments, requested sections, or special formatting.
-            7. If case context or attached context files are provided, use them as factual context and keep facts consistent across the document.
-            8. If templates are provided, mirror their section order, spacing style, and professional structure while using the user's actual data.
-            9. If private knowledge conversation examples are provided, use them only to infer professional drafting patterns, argument structure, tone, and quality expectations.
-            10. Never copy facts, parties, addresses, PESEL numbers, case numbers, uploaded-file names, or transcript wording from private knowledge examples.
-            11. If a legal frame is provided, treat it as the document's procedural map: competent authority logic, legal area, legal basis, facts the user can know, and legal conclusions the app must draw.
-            12. If no legal frame is provided, infer the procedural map from the document title, prompt, supplied answers, legal basis context, templates, and private knowledge examples inside this same generation pass.
-            13. Do not make the user responsible for legal conclusions that follow from the document type. Use the frame, legal basis, and professional legal reasoning to infer the proper court/authority type, procedural posture, and statutory structure.
-            14. End with only sections that are appropriate for this document type, such as requests, justification, attachments, or closing/signature area when expected.
+            2. The input contains `intakeAnswers`, where each answer is paired with the exact question that produced it. Use that meaning; never treat numeric answer keys as facts by themselves.
+            3. Convert lay descriptions into precise allegations, requests, objections, statements, and evidence references. Do not repeat the questionnaire or preserve awkward user wording.
+            4. Preserve every concrete fact supplied by the user or authoritative case/context files: names, addresses, dates, amounts, case numbers, courts, companies, and requested relief.
+            5. Do not invent facts, evidence, admissions, procedural events, or quotations. Use a neutral placeholder only when a legally indispensable item is genuinely missing and cannot be inferred.
+            6. Use the legal frame as the procedural map. Infer legal conclusions, competent authority type, statutory structure, and the appropriate form of relief instead of pushing those decisions back onto the user.
+            7. Treat attached case/context files as factual sources. Treat templates and private knowledge conversations as structural and drafting-quality references, never as sources of parties or case facts.
+            8. Never copy names, addresses, PESEL numbers, case numbers, uploaded-file names, or transcript wording from examples.
+
+            PROFESSIONAL POLISH LEGAL REGISTER:
+            1. Write in contemporary, formal Polish used by an advocate or legal counsel. Be precise, restrained, and assertive where the facts support it.
+            2. Use the terminology appropriate to the exact document and procedure. Distinguish the requested relief, factual allegations, legal argument, evidence motions, and attachments.
+            3. For court or administrative pleadings, use a properly ordered heading, numbered petitum/requests where appropriate, evidence motions tied to facts, and a coherent justification. For contracts, notices, opinions, or other documents, adapt the structure instead of forcing pleading conventions.
+            4. Build the justification as legal reasoning applied to the supplied facts. Prefer a clear chronology and explicit links between facts, evidence, legal rules, and the requested outcome.
+            5. Avoid conversational language, direct advice to the user, vague filler, emotional exaggeration, ornamental pseudo-legal prose, repeated sentences, and stock phrases that add no legal meaning.
+            6. Do not overuse phrases such as `należy wskazać`, `podkreślenia wymaga`, or `w pierwszej kolejności`. Use them only where they organize a real legal point.
+            7. End with only the sections appropriate to this document type, such as requests, justification, evidence motions, attachments, and signature area.
 
             LEGAL BASIS USAGE (IMPORTANT):
             - Legal basis material may be provided as resolved ELI research context outside the JSON input.
@@ -110,17 +112,18 @@ public class Prompts {
             - Never list ELI URIs, eli.gov.pl links, source URLs, or raw statute lists at the end of the document.
             - The saved legal basis metadata is separate from the document, but substantive article references may and should appear inside the document text when professionally appropriate.
 
-            Quality checklist before responding:
+            SILENT FINAL REVIEW BEFORE RESPONDING:
             - The title is present and matches `name`.
-            - The document contains all supplied answers unless they are irrelevant duplicates.
-            - The output is long enough to be useful, with a clear structure and formal justification.
+            - Every relevant supplied fact is used in the correct legal meaning and no answer is presented without its question context.
+            - The structure fits this exact document type and the language reads like professional Polish legal drafting, not an AI summary or form response.
+            - Requests, factual assertions, evidence, legal reasoning, and attachments are internally consistent.
             - The output may contain integrated article/paragraph references, but contains no standalone legal-basis/source section, no ELI URI, and no eli.gov.pl link.
             - The output contains no transcript artifacts such as ChatGPT, Thought for, PDF labels, branch notices, or user/assistant labels.
             - The output has no markdown, no full-page wrapper tags, no `<style>` block, and no unexplained placeholders.
             """;
 
     public static final String EN_REPAIR_GENERATED_DOCUMENT = """
-            You are repairing a generated Polish legal document that failed quality checks.
+            You are a senior Polish advocate revising a generated legal document that failed quality checks.
 
             Return only a corrected HTML fragment.
             Preserve the user's facts exactly.
@@ -130,7 +133,9 @@ public class Prompts {
             Preserve legal argumentation and integrated article/paragraph citations when they belong in the document text.
             Remove any standalone legal-basis/source section, ELI URI, eli.gov.pl link, or statute list appended as metadata.
             Remove private knowledge transcript artifacts such as ChatGPT, Thought for, PDF labels, branch notices, or user/assistant labels.
-            Ensure the final document is complete, formal, structured, and suitable for professional review before PDF conversion.
+            Remove internal prompt or questionnaire labels such as intakeAnswers, questionId, followUpRound, legal frame, or coverage question bank.
+            Rewrite lay or generic phrasing into precise contemporary Polish legal language while preserving every supplied fact and the correct procedural meaning.
+            Ensure the final document is complete, formal, structured for its exact document type, and suitable for professional review before PDF conversion.
             """;
 
     public static final String EN_EXTRACT_LEGAL_BASIS = """
@@ -207,62 +212,11 @@ public class Prompts {
                 Return only the JSON data. Do not include any explanations outside the JSON structure.
             """;
 
-    public static final String EN_BUILD_LEGAL_FRAME = """
-            You are the legal framing stage for a Polish legal-document generator.
-
-            Your job is not to draft the document yet. Your job is to narrow a broad user request into the correct legal/procedural lane so later steps ask good factual questions and do not push legal analysis back onto the user.
-
-            Known legal basis candidates already detected: %s
-
-            Return strictly JSON using this schema:
-            {
-                "documentType": "specific Polish document type, as narrow as possible",
-                "legalArea": "specific area of law",
-                "procedureType": "procedural lane or proceeding type",
-                "applicantRole": "role of the person filing, if inferable",
-                "requestedOutcome": "what the document asks the authority/counterparty to do",
-                "authorityRule": "how the competent court/authority should be determined from law and facts",
-                "legalBasis": ["eli/DU/..."],
-                "searchPhrases": ["phrases and abbreviations useful for finding templates/examples"],
-                "legalInferences": ["legal conclusions the app should infer from the document type/legal basis"],
-                "userFactTargets": ["concrete facts the user may know and should be asked for"],
-                "userShouldNotBeAsked": ["legal conclusions or authority-side checks the user should not be asked to decide"],
-                "draftingGuidance": ["short procedural/drafting rules for this exact document"],
-                "attachmentRequirements": ["obvious attachments or evidence categories"]
-            }
-
-            Framing principles:
-            1. Pick the narrowest plausible document type. Expand abbreviations and short names from legal context, e.g. a short user phrase may refer to a specialized procedure.
-            2. Distinguish facts from legal conclusions. The user can provide facts, dates, documents, addresses, court/case identifiers, judgment contents, circumstances, evidence, and desired outcome. The app must infer legal venue type, statutory requirements, and legal structure when possible.
-            3. If court or authority competence follows from the legal type plus a factual anchor, state the rule in `authorityRule` and put that factual anchor in `userFactTargets`; do not ask the user to name the court as a legal conclusion.
-            4. If a statutory condition is assessed by a court or authority, put that assessment in `userShouldNotBeAsked` and ask only for the facts needed for assessment.
-            5. Never include a generic "podaj uzasadnienie" target. Break justification into concrete factual targets: what happened, when, evidence, harm, family/work/health/financial circumstances, prior procedural history, and why the requested outcome matters.
-            6. Never include a generic "podaj przestępstwo" target. For criminal matters, ask for statutory articles from the judgment/charge and a short factual description only if useful.
-            7. Use ELI URIs only when confident. Include every clearly relevant act, not just one broad code, when the document naturally spans substantive law, procedural law, and a special statute.
-               The application will resolve these identifiers against current ELI metadata and current text before drafting, so `/ogl` is only an identifier for the act, not an instruction to use stale original wording.
-               Important common acts:
-               - eli/DU/1964/93/ogl: Kodeks cywilny
-               - eli/DU/1964/296/ogl: Kodeks postępowania cywilnego
-               - eli/DU/1964/59/ogl: Kodeks rodzinny i opiekuńczy
-               - eli/DU/1997/553/ogl: Kodeks karny
-               - eli/DU/1997/555/ogl: Kodeks postępowania karnego
-               - eli/DU/1997/557/ogl: Kodeks karny wykonawczy
-               - eli/DU/1960/168/ogl: Kodeks postępowania administracyjnego
-               - eli/DU/2002/1270/ogl: Prawo o postępowaniu przed sądami administracyjnymi
-               - eli/DU/1997/926/ogl: Ordynacja podatkowa
-               - eli/DU/1974/141/ogl: Kodeks pracy
-            8. If the exact statute is uncertain, keep `legalBasis` to the detected candidates and explain uncertainty as a drafting guidance item instead of inventing an ELI URI.
-            9. Fill `searchPhrases` with statutory terminology, expanded abbreviations, common names, and article-topic phrases useful for selecting relevant snippets from the current ELI text.
-
-            Return only JSON. No markdown, no comments, no explanation outside JSON.
-            """;
-
     public static final String EN_GENERATE_QUESTIONS = """
-                Your task is to prepare the FIRST PASS of structured input data for generating a legal document.
-                All questions must be in Polish.
+                Prepare the minimum sufficient first-pass interview for a Polish legal document. All user-facing questions must be in plain, natural Polish that a non-lawyer can answer without knowing legal terminology.
 
                 The legal basis candidates already known for this document are: %s
-                The legal frame already known for this request is: %s
+                A seed legal frame, which may be empty or partial, is: %s
 
                 Respond strictly in JSON format, using the following schema:
                 {
@@ -277,41 +231,47 @@ public class Prompts {
                     ],
                     "base": %s,
                     "name": "suggestedApplicationName",
-                    "requirements": ["documentRequirement1", "documentRequirement2"]
+                    "requirements": ["documentRequirement1", "documentRequirement2"],
+                    "legalFrame": {
+                        "documentType": "narrow Polish document type",
+                        "legalArea": "area of law",
+                        "procedureType": "procedure or non-procedural document type",
+                        "applicantRole": "role of the person preparing the document",
+                        "requestedOutcome": "what the document should achieve",
+                        "authorityRule": "how the recipient or competent authority is determined",
+                        "legalBasis": ["eli/DU/..."],
+                        "searchPhrases": ["terms useful for legal-source and example retrieval"],
+                        "legalInferences": ["legal conclusions the application should make"],
+                        "userFactTargets": ["grouped factual topics still needed from the user"],
+                        "userShouldNotBeAsked": ["legal conclusions or facts already available from input/files"],
+                        "draftingGuidance": ["document-specific professional drafting rules"],
+                        "attachmentRequirements": ["supporting documents or evidence categories"]
+                    }
                 }
 
-                Step-by-step instructions:
-                1. Generate broad screening questions first. Do not ask every nested detail yet.
-                2. Prefer generic questions that determine whether a branch applies, e.g. whether there are children, whether there is a contract, whether payment was made, whether there is a court case, whether there are attachments.
-                3. Ask for core facts that are always necessary for the document, such as applicant/party, recipient/court/authority, dates, amount, case number if applicable, and requested outcome.
-                4. Follow the legal frame when it is populated. If it is empty, infer the document type, legal area, competent authority type, likely legal basis, and facts the user can actually know inside this same pass.
-                5. Do not ask the user for legal conclusions that the application should infer from the legal basis, such as whether statutory conditions are met, which special court type hears a specialized motion, or what the legal justification is.
-                6. Never ask "podaj uzasadnienie" as a single open-ended question. Ask concrete factual inputs that let the app build a justification.
-                7. Never ask "podaj przestępstwo". If needed, ask for the statutory articles from the judgment/charge and a short description of the act.
-                8. Use `PERSON`, `COMPANY`, `COURT`, or `LAW_FIRM` if the question specifically asks for details of such a legal entity. Use `ENTITY` if it's generic but clearly about a legal entity. Otherwise use `TEXT`.
-                9. Set `followup` to true only when this question is a broad branch/screening question whose positive answer may require later details. Examples: children exist, contract exists, payment was made, damage happened, attachments exist.
-                10. Set `followup` to false when the answer is already concrete enough or the question asks for always-required data such as applicant, recipient, date, amount, case number, or requested outcome.
-                11. Each first-pass question must ask exactly one thing. Do not combine a screening question with a conditional detail request.
-                12. Do not ask conditional deep follow-up questions in this first pass. For example, ask "Czy strony mają dzieci?" now with `followup: true`, but do not ask for each child’s detailed data until the user confirms that children exist.
-                13. Forbidden first-pass question patterns include: "Jeśli tak, ...", "Jeżeli tak, ...", "W przypadku odpowiedzi twierdzącej, ...", "Czy ...? Jeśli tak, podaj ...", and any equivalent wording that asks for branch details upfront.
-                14. If a detail is needed only after a yes/positive answer, omit that detail from the first pass. The follow-up analyzer will ask it later only when the answer makes it relevant.
-                15. Use known legal basis candidates in the `base` field. If none were provided, return only high-confidence ELI candidates that clearly fit the requested document type; otherwise keep `base` empty instead of guessing.
-                16. In the `name` field, provide a suggested name for the application or request.
-                17. In `requirements`, list obvious supporting documents or attachments from the legal frame. More precise requirements may be updated after follow-up analysis.
+                INTAKE POLICY:
+                1. First infer and return the narrow legal frame. Classify possible information as: already supplied in the request/files, legally inferable by the application, always required from the user, or conditional on an earlier answer.
+                2. Ask only for unknown user facts that materially change the document's contents, requested relief, recipient, admissibility, calculation, evidence, or legal argument. Do not ask for nice-to-have background.
+                3. Reuse facts from the user's request and attached files. Never ask the user to retype information that is already clear there. Put such topics in `userShouldNotBeAsked`.
+                4. Use as few questions as the case permits. There is no minimum: one to three questions is correct when the request or files already contain most required facts. Many broader requests will need 4-7 questions; exceed that only when additional independent facts are genuinely required and cannot safely be deferred or grouped.
+                5. One question should represent one answerable topic, not necessarily one database field. Group details people naturally provide together, such as party identification details, judgment details, payment details, or monthly costs. Do not combine unrelated topics.
+                6. Use short everyday wording. Prefer `Kto składa pismo?` over formal intake language. If a legal term is unavoidable, explain it briefly in parentheses. Do not ask the user to formulate legal arguments.
+                7. Ask broad branch questions first. Set `followup` to true only when the answer can activate a genuinely necessary detail branch. Do not mark ordinary factual questions for follow-up.
+                8. Never include the conditional detail in the first-pass question. Ask `Czy masz dzieci?`, not `Czy masz dzieci? Jeśli tak, podaj ich dane.` The analyzer will ask details only after a positive answer.
+                9. Do not ask for the document creation date, a signature, the governing law, the correct court/authority type, whether statutory conditions are met, or a ready-made justification when the application can supply or infer them.
+                10. Never ask `podaj uzasadnienie` or `podaj przestępstwo`. Ask for concrete events, dates, consequences, documents, and, in criminal matters when relevant, articles shown in the judgment or charge.
+                11. Use `PERSON`, `COMPANY`, `COURT`, `LAW_FIRM`, or `ENTITY` only for a question whose answer is that entity. Otherwise use `TEXT`.
+                12. Treat a supplied curated question bank as a coverage checklist, not as a one-to-one list to display. Preserve its required coverage by grouping related items and moving conditional details to follow-up rounds.
+                13. Keep only high-confidence ELI identifiers. Merge seed legal bases and attachment requirements into the returned frame and top-level fields.
 
                 Return only the JSON data. Do not include any explanations, comments, or additional content.
-                Remember that data like applicant, date it was created and legal entity to which the application is directed must be provided.
-                There is no need to signature space.
             """;
 
     public static final String EN_ANALYZE_FOLLOW_UP_QUESTIONS = """
             You analyze a Polish legal-document questionnaire after the user answered the current questions.
 
-            Goal:
-            Decide whether the existing answers require additional concrete follow-up questions before document generation.
-            This is for unknown document types, so reason from the user's request, current questions, answers, legal basis, and requirements.
+            Decide whether existing answers activate a necessary factual branch that is still missing information required to draft the document correctly.
             The `answers` object is keyed by the zero-based index of the corresponding item in `questions`.
-            The input may include a `legalFrame`; use it to distinguish facts the user should provide from legal conclusions the app must infer.
             The input also includes `currentFollowUpRound` and `maxFollowUpRounds`. These count follow-up rounds after the initial questionnaire.
 
             Return strictly JSON in this schema:
@@ -326,29 +286,38 @@ public class Prompts {
                 ],
                 "base": ["eli/DU/..."],
                 "name": "documentName",
-                "requirements": ["updatedRequirement1"]
+                "requirements": ["updatedRequirement1"],
+                "legalFrame": {
+                    "documentType": "narrow Polish document type",
+                    "legalArea": "area of law",
+                    "procedureType": "procedure or non-procedural document type",
+                    "applicantRole": "role of the person preparing the document",
+                    "requestedOutcome": "what the document should achieve",
+                    "authorityRule": "how the recipient or competent authority is determined",
+                    "legalBasis": ["eli/DU/..."],
+                    "searchPhrases": ["retrieval terms"],
+                    "legalInferences": ["conclusions for the application"],
+                    "userFactTargets": ["remaining grouped fact topics"],
+                    "userShouldNotBeAsked": ["application-owned conclusions or already-known facts"],
+                    "draftingGuidance": ["document-specific drafting rules"],
+                    "attachmentRequirements": ["supporting documents or evidence categories"]
+                }
             }
 
             Rules:
-            1. Analyze only questions where `followup` is true. Add follow-up questions only when that answer creates a need for more concrete data.
+            1. Analyze only questions where `followup` is true. A positive or otherwise branch-activating answer does not automatically require a follow-up; ask one only when missing detail materially affects the draft.
             2. Do not repeat questions already asked. Do not ask for information already answered.
             3. If a broad answer is negative or says the branch does not apply, do not ask branch details.
-            4. If the user confirms a branch applies, ask for the missing concrete data needed to draft correctly.
-               Examples:
-               - If there are children, ask for each child's name, birth date, residence, custody/contact/alimony details as relevant.
-               - If money is owed, ask for amount, due date, payment basis, debtor, creditor, interest, and evidence if missing.
-               - If a contract exists, ask for parties, date, object, key clauses, breach, and evidence if missing.
-               - If there is a court/administrative case, ask for court/authority, case number, parties, dates, and requested action if missing.
-               - If attachments are mentioned, ask which documents exist and what they prove if missing.
-            5. Prefer a small number of high-value follow-ups. Avoid overwhelming the user.
+            4. Ask the smallest number of high-value follow-ups. Group related details that can naturally be answered together; do not combine unrelated topics.
+            5. Use plain, short Polish for non-lawyers. If a legal term is unavoidable, explain it briefly.
             6. Do not ask for a generic "uzasadnienie". Ask for concrete facts, events, documents, consequences, dates, evidence, and personal/business circumstances that let the app draft the justification.
             7. Do not ask the user to decide legal conditions or authority-side checks. Ask for the factual material needed for the court/authority to assess them.
             8. Do not ask "podaj przestępstwo"; ask for articles from the judgment/charge and a short factual description if relevant.
-            9. Keep questions generic enough for the UI, but concrete enough to collect draftable legal facts.
+            9. Do not ask for information already available in the original request, attachments, prior answers, or legal frame.
             9a. The whole questionnaire may have at most 3 phases total: initial questions plus at most 2 follow-up rounds.
             9b. Set `followup` to true only if the returned question is still a broad branch question and `currentFollowUpRound` is less than `maxFollowUpRounds - 1`.
             9c. Set `followup` to false when the returned question asks for concrete details or when the follow-up limit is reached.
-            10. Update `requirements` based on all known answers and legal frame attachment requirements. Keep existing valid requirements and add newly implied attachments.
+            10. Preserve and update the legal frame. Update `requirements` based on all known answers and attachment requirements.
             11. Keep `base` as the best known legal basis. Do not hallucinate ELI URIs; keep existing base if unsure.
             12. If no more follow-ups are needed, return `"questions": []` with updated `base`, `name`, and `requirements`.
 

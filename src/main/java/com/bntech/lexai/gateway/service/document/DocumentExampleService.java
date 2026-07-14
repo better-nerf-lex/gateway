@@ -7,7 +7,7 @@ import com.bntech.lexai.gateway.data.repository.document.DocumentExampleReposito
 import com.bntech.lexai.gateway.mapper.document.DocumentExampleMapper;
 import com.bntech.lexai.gateway.rest.dto.document.DocumentExampleDto;
 import com.bntech.lexai.gateway.rest.dto.document.QuestionDto;
-import com.bntech.lexai.gateway.service.ai.LegalFrame;
+import com.bntech.lexai.gateway.data.object.LegalFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

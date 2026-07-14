@@ -63,9 +63,12 @@ public class OpenAiResponsesClient implements AiModelClient {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", modelFor(request.kind()));
         payload.put("input", List.of(
-                message("system", List.of(textPart(request.systemPrompt()))),
+                message("developer", List.of(textPart(request.systemPrompt()))),
                 message("user", buildUserContent(request))));
         payload.put("max_output_tokens", request.maxTokens());
+        if (requiresJsonOutput(request.kind())) {
+            payload.put("text", Map.of("format", Map.of("type", "json_object")));
+        }
 
         String reasoningEffort = request.reasoningEffort() != null && !request.reasoningEffort().isBlank()
                 ? request.reasoningEffort()
@@ -75,6 +78,13 @@ public class OpenAiResponsesClient implements AiModelClient {
         }
 
         return payload;
+    }
+
+    private boolean requiresJsonOutput(AiCallKind kind) {
+        return kind == AiCallKind.LEGAL_BASIS
+                || kind == AiCallKind.QUESTIONS
+                || kind == AiCallKind.FOLLOW_UP_QUESTIONS
+                || kind == AiCallKind.DOCUMENT_CHAT;
     }
 
     private String modelFor(AiCallKind kind) {

@@ -227,6 +227,15 @@ public class DocumentService {
                 : Mono.empty();
 
         return selectedTemplate
+                .flatMap(template -> aiService.prepareTemplateQuestionnaire(
+                                request.getPrompt(),
+                                request.getAttachedFileIds(),
+                                template)
+                        .onErrorResume(error -> {
+                            log.warn("Could not optimize selected template questionnaire; using curated questions: {}",
+                                    error.getMessage());
+                            return Mono.just(template);
+                        }))
                 .switchIfEmpty(Mono.defer(() -> aiService.analyzePrompt(
                         request.getPrompt(),
                         request.getAttachedFileIds())))

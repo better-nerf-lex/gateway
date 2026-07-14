@@ -27,6 +27,12 @@ public class DocumentGenerationQualityService {
             "thought for",
             "this is a conversation between",
             "responding will create a branch");
+    private static final List<String> INTERNAL_PROMPT_ARTIFACTS = List.of(
+            "intakeanswers",
+            "questionid",
+            "followupround",
+            "curated coverage question bank",
+            "--- legal frame ---");
     private static final Set<String> LOW_SIGNAL_ANSWER_VALUES = Set.of(
             "tak",
             "nie",
@@ -123,6 +129,9 @@ public class DocumentGenerationQualityService {
 
         Document parsed = Jsoup.parseBodyFragment(cleaned);
         String visibleText = parsed.text().strip();
+        if (containsInternalPromptArtifact(visibleText)) {
+            issues.add("document exposes internal questionnaire or prompt metadata");
+        }
         if (visibleText.length() < MIN_VISIBLE_TEXT_LENGTH) {
             issues.add("document is too short for a usable legal document");
         }
@@ -224,6 +233,11 @@ public class DocumentGenerationQualityService {
     private boolean containsTranscriptArtifact(String content) {
         String text = normalize(Jsoup.parseBodyFragment(content).text());
         return TRANSCRIPT_ARTIFACTS.stream().anyMatch(text::contains);
+    }
+
+    private boolean containsInternalPromptArtifact(String content) {
+        String text = normalize(content);
+        return INTERNAL_PROMPT_ARTIFACTS.stream().anyMatch(text::contains);
     }
 
     private boolean isLegalBasisElement(Element element, List<String> legalBasis) {

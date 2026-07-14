@@ -1,7 +1,7 @@
 package com.bntech.lexai.gateway.service.document;
 
 import com.bntech.lexai.gateway.rest.dto.document.DocumentExampleDto;
-import com.bntech.lexai.gateway.service.ai.LegalFrame;
+import com.bntech.lexai.gateway.data.object.LegalFrame;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

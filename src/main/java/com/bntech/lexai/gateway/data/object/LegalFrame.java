@@ -1,4 +1,4 @@
-package com.bntech.lexai.gateway.service.ai;
+package com.bntech.lexai.gateway.data.object;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -42,6 +42,8 @@ public class LegalFrame {
         return isBlank(documentType)
                 && isBlank(legalArea)
                 && isBlank(procedureType)
+                && isBlank(applicantRole)
+                && isBlank(requestedOutcome)
                 && isBlank(authorityRule)
                 && isEmpty(legalBasis)
                 && isEmpty(searchPhrases)

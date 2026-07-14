@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.rest.dto.document;
 
 import com.bntech.lexai.gateway.data.entity.document.DocumentExample;
+import com.bntech.lexai.gateway.data.object.LegalFrame;
 import com.bntech.lexai.gateway.data.object.TemplateFile;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,6 +19,7 @@ public class GenerateDocumentRequest {
     private String title;
     private String prompt;
     private Map<String, String> answers;
+    private List<QuestionDto> questions;
     private List<String> requirements;
     private List<String> base;
     private String teamId;
@@ -27,4 +29,5 @@ public class GenerateDocumentRequest {
     private List<TemplateFile> templateFiles;
     private List<String> contextFileIds;
     private String caseContext;
+    private LegalFrame legalFrame;
 }

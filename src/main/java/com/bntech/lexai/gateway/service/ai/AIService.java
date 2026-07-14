@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.service.ai;
 
 import com.bntech.lexai.gateway.data.object.Prompts;
+import com.bntech.lexai.gateway.data.object.LegalFrame;
 import com.bntech.lexai.gateway.data.object.StorageFileType;
 import com.bntech.lexai.gateway.data.object.TemplateFile;
 import com.bntech.lexai.gateway.exception.ServiceException;
@@ -34,6 +35,7 @@ import java.text.Normalizer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -94,7 +96,38 @@ public class AIService {
                     LegalFrame legalFrame = normalizeLegalFrame(
                             providedFrame != null ? providedFrame : LegalFrame.empty(),
                             providedFrame != null ? providedFrame.getLegalBasis() : List.of());
-                    return generateQuestionsWithBasis(finalPrompt, legalFrame.getLegalBasis(), legalFrame);
+                    return generateQuestionsWithBasis(
+                            finalPrompt,
+                            legalFrame.getLegalBasis(),
+                            legalFrame,
+                            List.of(),
+                            files);
+                });
+    }
+
+    public Mono<SubmitPromptResponse> prepareTemplateQuestionnaire(
+            String prompt,
+            List<String> fileIds,
+            SubmitPromptResponse template) {
+        LegalFrame initialSeedFrame = legalFrameFromTemplate(template);
+        questionQualityService.cleanFirstPassQuestions(template, initialSeedFrame);
+        LegalFrame seedFrame = legalFrameFromTemplate(template);
+        template.setLegalFrame(seedFrame);
+        String intakePrompt = buildTemplateIntakePrompt(prompt, template);
+
+        return Mono.zip(
+                fetchTemplateFiles(template.getTemplateFiles()),
+                fetchContextFiles(fileIds))
+                .flatMap(files -> generateQuestionsWithBasis(
+                        intakePrompt,
+                        seedFrame.getLegalBasis(),
+                        seedFrame,
+                        files.getT1(),
+                        files.getT2()))
+                .map(response -> {
+                    response.setTemplateFiles(template.getTemplateFiles());
+                    response.setExampleId(template.getExampleId());
+                    return response;
                 });
     }
 
@@ -129,18 +162,12 @@ public class AIService {
         return Mono.just(bases);
     }
 
-    public Mono<LegalFrame> buildLegalFrame(String prompt) {
-        return buildLegalFrame(prompt, List.of())
-                .onErrorResume(error -> {
-                    log.warn("Failed to pre-build legal frame, continuing with empty frame: {}", error.getMessage());
-                    return Mono.just(LegalFrame.empty());
-                });
-    }
-
     private Mono<SubmitPromptResponse> generateQuestionsWithBasis(
             String prompt,
             List<String> verifiedBasis,
-            LegalFrame legalFrame) {
+            LegalFrame legalFrame,
+            List<FileContent> templates,
+            List<FileContent> contextFiles) {
         log.info("Generating questions with verified legal basis: {}", verifiedBasis);
         return Mono.fromCallable(() -> {
             String basisJson = writeJson(verifiedBasis != null ? verifiedBasis : List.of());
@@ -154,12 +181,16 @@ public class AIService {
                     systemPrompt,
                     Prompts.EN_USER_MESSAGE + prompt,
                     creativityTemperature,
-                    2500L);
+                    3500L,
+                    templates,
+                    contextFiles);
 
             SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
                     SubmitPromptResponse.class);
-            SubmitPromptResponse cleanedResponse = questionQualityService.cleanFirstPassQuestions(response, legalFrame);
-            applyLegalFrameToResponse(cleanedResponse, legalFrame);
+            LegalFrame resolvedFrame = mergeLegalFrames(response.getLegalFrame(), legalFrame);
+            response.setLegalFrame(resolvedFrame);
+            SubmitPromptResponse cleanedResponse = questionQualityService.cleanFirstPassQuestions(response, resolvedFrame);
+            applyLegalFrameToResponse(cleanedResponse, resolvedFrame);
             int questionCount = cleanedResponse.getQuestions() != null ? cleanedResponse.getQuestions().size() : 0;
             log.info("✅ Parsed response with {} questions", questionCount);
             return cleanedResponse;
@@ -171,7 +202,7 @@ public class AIService {
 
     public Mono<SubmitPromptResponse> analyzeFollowUpQuestions(AnalyzeFollowUpQuestionsRequest request) {
         log.info("Analyzing whether follow-up questions are required for: {}", request.getName());
-        LegalFrame legalFrame = normalizeLegalFrame(LegalFrame.empty(), request.getBase());
+        LegalFrame legalFrame = normalizeLegalFrame(request.getLegalFrame(), request.getBase());
         legalFrame.setAttachmentRequirements(mergeDistinct(
                 request.getRequirements(),
                 legalFrame.getAttachmentRequirements()));
@@ -212,9 +243,13 @@ public class AIService {
             if (response.getRequirements() == null) {
                 response.setRequirements(request.getRequirements());
             }
-            response.setBase(mergeDistinct(legalFrame.getLegalBasis(), response.getBase()));
-            response.setRequirements(mergeDistinct(response.getRequirements(), legalFrame.getAttachmentRequirements()));
-            response = questionQualityService.cleanFirstPassQuestions(response, legalFrame);
+            LegalFrame resolvedFrame = mergeLegalFrames(response.getLegalFrame(), legalFrame);
+            response.setLegalFrame(resolvedFrame);
+            response.setBase(mergeDistinct(resolvedFrame.getLegalBasis(), response.getBase()));
+            response.setRequirements(mergeDistinct(
+                    response.getRequirements(),
+                    resolvedFrame.getAttachmentRequirements()));
+            response = questionQualityService.cleanFirstPassQuestions(response, resolvedFrame);
             limitFollowUpDepth(response, request.getQuestions());
             log.info("✅ Follow-up analysis returned {} questions", response.getQuestions().size());
             return response;
@@ -264,7 +299,7 @@ public class AIService {
         log.info("Generating document: {} with {} template files, {} context files",
                 request.getTitle(), templateCount, contextCount);
 
-        LegalFrame legalFrame = normalizeLegalFrame(LegalFrame.empty(), request.getBase());
+        LegalFrame legalFrame = normalizeLegalFrame(request.getLegalFrame(), request.getBase());
         legalFrame.setAttachmentRequirements(mergeDistinct(
                 request.getRequirements(),
                 legalFrame.getAttachmentRequirements()));
@@ -744,33 +779,6 @@ public class AIService {
                 .orElse(0);
     }
 
-    private Mono<LegalFrame> buildLegalFrame(String prompt, List<String> verifiedBasis) {
-        return Mono.fromCallable(() -> {
-            String systemPrompt = String.format(Prompts.EN_BUILD_LEGAL_FRAME,
-                    writeJson(verifiedBasis != null ? verifiedBasis : List.of()));
-
-            String jsonResponse = completeAi(
-                    AiCallKind.LEGAL_FRAME,
-                    "legal frame",
-                    systemPrompt,
-                    Prompts.EN_USER_MESSAGE + (prompt != null ? prompt : ""),
-                    reasoningTemperature,
-                    2048L);
-
-            LegalFrame legalFrame = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse), LegalFrame.class);
-            return normalizeLegalFrame(legalFrame, verifiedBasis);
-        })
-                .subscribeOn(Schedulers.boundedElastic())
-                .timeout(Duration.ofMinutes(1))
-                .retryWhen(buildRetrySpec("legal frame"))
-                .doOnSuccess(frame -> log.info("✅ Legal frame resolved: {} / {}",
-                        frame.getLegalArea(), frame.getDocumentType()))
-                .onErrorResume(error -> {
-                    log.warn("Failed to build legal frame, falling back to detected basis only: {}", error.getMessage());
-                    return Mono.just(normalizeLegalFrame(LegalFrame.empty(), verifiedBasis));
-                });
-    }
-
     private LegalFrame normalizeLegalFrame(LegalFrame legalFrame, List<String> fallbackBasis) {
         LegalFrame safe = legalFrame != null ? legalFrame : LegalFrame.empty();
         safe.setLegalBasis(mergeDistinct(safe.getLegalBasis(), fallbackBasis));
@@ -781,6 +789,73 @@ public class AIService {
         safe.setDraftingGuidance(nonNullList(safe.getDraftingGuidance()));
         safe.setAttachmentRequirements(nonNullList(safe.getAttachmentRequirements()));
         return safe;
+    }
+
+    private LegalFrame mergeLegalFrames(LegalFrame generated, LegalFrame seed) {
+        LegalFrame generatedFrame = normalizeLegalFrame(generated, List.of());
+        LegalFrame seedFrame = normalizeLegalFrame(seed, List.of());
+
+        return LegalFrame.builder()
+                .documentType(firstNonBlank(generatedFrame.getDocumentType(), seedFrame.getDocumentType()))
+                .legalArea(firstNonBlank(generatedFrame.getLegalArea(), seedFrame.getLegalArea()))
+                .procedureType(firstNonBlank(generatedFrame.getProcedureType(), seedFrame.getProcedureType()))
+                .applicantRole(firstNonBlank(generatedFrame.getApplicantRole(), seedFrame.getApplicantRole()))
+                .requestedOutcome(firstNonBlank(generatedFrame.getRequestedOutcome(), seedFrame.getRequestedOutcome()))
+                .authorityRule(firstNonBlank(generatedFrame.getAuthorityRule(), seedFrame.getAuthorityRule()))
+                .legalBasis(mergeDistinct(generatedFrame.getLegalBasis(), seedFrame.getLegalBasis()))
+                .searchPhrases(mergeDistinct(generatedFrame.getSearchPhrases(), seedFrame.getSearchPhrases()))
+                .legalInferences(mergeDistinct(generatedFrame.getLegalInferences(), seedFrame.getLegalInferences()))
+                .userFactTargets(mergeDistinct(generatedFrame.getUserFactTargets(), seedFrame.getUserFactTargets()))
+                .userShouldNotBeAsked(mergeDistinct(
+                        generatedFrame.getUserShouldNotBeAsked(),
+                        seedFrame.getUserShouldNotBeAsked()))
+                .draftingGuidance(mergeDistinct(
+                        generatedFrame.getDraftingGuidance(),
+                        seedFrame.getDraftingGuidance()))
+                .attachmentRequirements(mergeDistinct(
+                        generatedFrame.getAttachmentRequirements(),
+                        seedFrame.getAttachmentRequirements()))
+                .build();
+    }
+
+    private LegalFrame legalFrameFromTemplate(SubmitPromptResponse template) {
+        List<String> factTargets = template.getQuestions() == null
+                ? List.of()
+                : template.getQuestions().stream()
+                        .map(QuestionDto::getText)
+                        .filter(text -> text != null && !text.isBlank())
+                        .toList();
+
+        return normalizeLegalFrame(LegalFrame.builder()
+                .documentType(template.getName())
+                .legalBasis(template.getBase())
+                .userFactTargets(factTargets)
+                .attachmentRequirements(template.getRequirements())
+                .draftingGuidance(List.of(
+                        "Use the selected document template as the authoritative structural reference."))
+                .build(), template.getBase());
+    }
+
+    private String buildTemplateIntakePrompt(String prompt, SubmitPromptResponse template) {
+        return """
+                User request: %s
+
+                Selected document template: %s
+                Curated coverage question bank: %s
+                Known legal bases: %s
+                Known attachment requirements: %s
+
+                The curated question bank defines information that may be relevant to this document type. It is not a list that must be displayed one-for-one. Produce a minimum-sufficient first pass: reuse facts already supplied, group related required details, and defer conditional detail to follow-up rounds without losing required coverage.
+                """.formatted(
+                prompt != null ? prompt : "",
+                template.getName() != null ? template.getName() : "",
+                writeJson(template.getQuestions() != null ? template.getQuestions() : List.of()),
+                writeJson(template.getBase() != null ? template.getBase() : List.of()),
+                writeJson(template.getRequirements() != null ? template.getRequirements() : List.of()));
+    }
+
+    private String firstNonBlank(String preferred, String fallback) {
+        return preferred != null && !preferred.isBlank() ? preferred : fallback;
     }
 
     private void applyLegalFrameToResponse(SubmitPromptResponse response, LegalFrame legalFrame) {
@@ -812,36 +887,6 @@ public class AIService {
 
     private List<String> nonNullList(List<String> values) {
         return values != null ? values : List.of();
-    }
-
-    private String buildFollowUpFramePrompt(AnalyzeFollowUpQuestionsRequest request) {
-        return """
-                Document request: %s
-                Current document name: %s
-                Existing questions: %s
-                User answers: %s
-                Existing requirements: %s
-                """.formatted(
-                request.getPrompt() != null ? request.getPrompt() : "",
-                request.getName() != null ? request.getName() : "",
-                writeJson(request.getQuestions() != null ? request.getQuestions() : List.of()),
-                writeJson(request.getAnswers() != null ? request.getAnswers() : Map.of()),
-                writeJson(request.getRequirements() != null ? request.getRequirements() : List.of()));
-    }
-
-    private String buildGenerationFramePrompt(GenerateDocumentRequest request) {
-        return """
-                Document title: %s
-                Original prompt: %s
-                Answers: %s
-                Requirements: %s
-                Case context available: %s
-                """.formatted(
-                request.getTitle() != null ? request.getTitle() : "",
-                request.getPrompt() != null ? request.getPrompt() : "",
-                writeJson(request.getAnswers() != null ? request.getAnswers() : Map.of()),
-                writeJson(request.getRequirements() != null ? request.getRequirements() : List.of()),
-                request.getCaseContext() != null && !request.getCaseContext().isBlank());
     }
 
     private Mono<String> fetchEliDocumentsContext(GenerateDocumentRequest request, LegalFrame legalFrame) {
@@ -906,18 +951,62 @@ public class AIService {
         }
     }
 
-    private String buildJsonForGeneration(GenerateDocumentRequest request) {
+    String buildJsonForGeneration(GenerateDocumentRequest request) {
         try {
-            Map<String, Object> jsonData = Map.of(
-                    "name", request.getTitle() != null ? request.getTitle() : "",
-                    "questions", request.getAnswers() != null ? request.getAnswers() : Map.of(),
-                    "requirements", request.getRequirements() != null ? request.getRequirements() : List.of());
+            Map<String, Object> jsonData = new LinkedHashMap<>();
+            jsonData.put("name", request.getTitle() != null ? request.getTitle() : "");
+            jsonData.put("originalRequest", request.getPrompt() != null ? request.getPrompt() : "");
+            jsonData.put("intakeAnswers", buildIntakeAnswers(request));
+            jsonData.put("requirements", request.getRequirements() != null ? request.getRequirements() : List.of());
 
             return objectMapper.writeValueAsString(jsonData);
         } catch (Exception e) {
             log.error("Error building JSON for generation", e);
             return "{}";
         }
+    }
+
+    private List<Map<String, Object>> buildIntakeAnswers(GenerateDocumentRequest request) {
+        Map<String, String> answers = request.getAnswers() != null ? request.getAnswers() : Map.of();
+        List<QuestionDto> questions = request.getQuestions() != null ? request.getQuestions() : List.of();
+        List<Map<String, Object>> intakeAnswers = new ArrayList<>();
+        Set<String> consumedKeys = new LinkedHashSet<>();
+
+        for (int index = 0; index < questions.size(); index++) {
+            QuestionDto question = questions.get(index);
+            String indexKey = Integer.toString(index);
+            String answer = answers.get(indexKey);
+            String questionId = question.getId();
+
+            if (answer == null && questionId != null) {
+                answer = answers.get(questionId);
+            }
+            if (answer == null || answer.isBlank()) {
+                continue;
+            }
+
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("questionId", questionId != null ? questionId : indexKey);
+            item.put("question", question.getText() != null ? question.getText() : "");
+            item.put("answer", answer);
+            item.put("followUpRound", question.getFollowupRound() != null ? question.getFollowupRound() : 0);
+            intakeAnswers.add(item);
+            consumedKeys.add(indexKey);
+            if (questionId != null) {
+                consumedKeys.add(questionId);
+            }
+        }
+
+        answers.forEach((key, answer) -> {
+            if (!consumedKeys.contains(key) && answer != null && !answer.isBlank()) {
+                intakeAnswers.add(Map.of(
+                        "questionId", key,
+                        "question", "Legacy answer without question metadata",
+                        "answer", answer,
+                        "followUpRound", 0));
+            }
+        });
+        return intakeAnswers;
     }
 
     private String writeJson(Object value) {

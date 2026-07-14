@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.rest.dto.document;
 
 import com.bntech.lexai.gateway.data.object.TemplateFile;
+import com.bntech.lexai.gateway.data.object.LegalFrame;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,4 +23,5 @@ public class AnalyzeFollowUpQuestionsRequest {
     private List<String> requirements;
     private List<TemplateFile> templateFiles;
     private String exampleId;
+    private LegalFrame legalFrame;
 }
