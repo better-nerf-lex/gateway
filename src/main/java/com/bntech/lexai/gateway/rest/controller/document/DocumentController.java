@@ -71,16 +71,19 @@ public class DocumentController {
     }
 
     @PostMapping()
+    @PreAuthorize("@access.storageFilesRead(authentication, #request.attachedFileIds)")
     public Mono<SubmitPromptResponse> submitPrompt(@RequestBody SubmitPromptRequest request) {
         return documentService.submitPrompt(request);
     }
 
     @PostMapping("/follow-ups")
+    @PreAuthorize("@access.storageFilesRead(authentication, #request.contextFileIds)")
     public Mono<SubmitPromptResponse> analyzeFollowUpQuestions(@RequestBody AnalyzeFollowUpQuestionsRequest request) {
         return documentService.analyzeFollowUpQuestions(request);
     }
 
     @PostMapping("/generate")
+    @PreAuthorize("@access.storageFilesRead(authentication, #request.contextFileIds)")
     public Mono<DocumentDto> generateDocument(@RequestBody GenerateDocumentRequest request) {
         return documentService.generateDocument(request);
     }

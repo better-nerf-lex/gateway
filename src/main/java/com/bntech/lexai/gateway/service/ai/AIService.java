@@ -190,6 +190,7 @@ public class AIService {
             LegalFrame resolvedFrame = mergeLegalFrames(response.getLegalFrame(), legalFrame);
             response.setLegalFrame(resolvedFrame);
             SubmitPromptResponse cleanedResponse = questionQualityService.cleanFirstPassQuestions(response, resolvedFrame);
+            questionQualityService.retainVerifiedSuggestions(cleanedResponse, contextFileNames(contextFiles));
             applyLegalFrameToResponse(cleanedResponse, resolvedFrame);
             int questionCount = cleanedResponse.getQuestions() != null ? cleanedResponse.getQuestions().size() : 0;
             log.info("✅ Parsed response with {} questions", questionCount);
@@ -207,56 +208,73 @@ public class AIService {
                 request.getRequirements(),
                 legalFrame.getAttachmentRequirements()));
 
-        return Mono.fromCallable(() -> {
-            String inputJson = objectMapper.writeValueAsString(Map.of(
-                    "prompt", request.getPrompt() != null ? request.getPrompt() : "",
-                    "name", request.getName() != null ? request.getName() : "",
-                    "questions", request.getQuestions() != null ? request.getQuestions() : List.of(),
-                    "answers", request.getAnswers() != null ? request.getAnswers() : Map.of(),
-                    "base", request.getBase() != null ? request.getBase() : List.of(),
-                    "requirements", request.getRequirements() != null ? request.getRequirements() : List.of(),
-                    "currentFollowUpRound", maxFollowUpRound(request.getQuestions()),
-                    "maxFollowUpRounds", MAX_FOLLOW_UP_ROUNDS,
-                    "legalFrame", legalFrame));
-
-            String jsonResponse = completeAi(
-                    AiCallKind.FOLLOW_UP_QUESTIONS,
-                    "follow-up question analysis",
-                    Prompts.EN_ANALYZE_FOLLOW_UP_QUESTIONS,
-                    inputJson,
-                    reasoningTemperature,
-                    4096L);
-
-            SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
-                    SubmitPromptResponse.class);
-            response.setTemplateFiles(request.getTemplateFiles());
-            response.setExampleId(request.getExampleId());
-            if (response.getName() == null || response.getName().isBlank()) {
-                response.setName(request.getName());
-            }
-            if (response.getQuestions() == null) {
-                response.setQuestions(List.of());
-            }
-            if (response.getBase() == null) {
-                response.setBase(request.getBase());
-            }
-            if (response.getRequirements() == null) {
-                response.setRequirements(request.getRequirements());
-            }
-            LegalFrame resolvedFrame = mergeLegalFrames(response.getLegalFrame(), legalFrame);
-            response.setLegalFrame(resolvedFrame);
-            response.setBase(mergeDistinct(resolvedFrame.getLegalBasis(), response.getBase()));
-            response.setRequirements(mergeDistinct(
-                    response.getRequirements(),
-                    resolvedFrame.getAttachmentRequirements()));
-            response = questionQualityService.cleanFirstPassQuestions(response, resolvedFrame);
-            limitFollowUpDepth(response, request.getQuestions());
-            log.info("✅ Follow-up analysis returned {} questions", response.getQuestions().size());
-            return response;
-        })
-                .subscribeOn(Schedulers.boundedElastic())
+        return fetchContextFiles(request.getContextFileIds())
+                .flatMap(contextFiles -> Mono.fromCallable(
+                                () -> generateFollowUpQuestions(request, legalFrame, contextFiles))
+                        .subscribeOn(Schedulers.boundedElastic()))
                 .timeout(Duration.ofSeconds(45))
                 .doOnError(error -> log.error("❌ Error analyzing follow-up questions", error));
+    }
+
+    private SubmitPromptResponse generateFollowUpQuestions(
+            AnalyzeFollowUpQuestionsRequest request,
+            LegalFrame legalFrame,
+            List<FileContent> contextFiles) throws JsonProcessingException {
+        String inputJson = objectMapper.writeValueAsString(Map.of(
+                "prompt", request.getPrompt() != null ? request.getPrompt() : "",
+                "name", request.getName() != null ? request.getName() : "",
+                "questions", request.getQuestions() != null ? request.getQuestions() : List.of(),
+                "answers", request.getAnswers() != null ? request.getAnswers() : Map.of(),
+                "base", request.getBase() != null ? request.getBase() : List.of(),
+                "requirements", request.getRequirements() != null ? request.getRequirements() : List.of(),
+                "currentFollowUpRound", maxFollowUpRound(request.getQuestions()),
+                "maxFollowUpRounds", MAX_FOLLOW_UP_ROUNDS,
+                "legalFrame", legalFrame));
+
+        String jsonResponse = completeAi(
+                AiCallKind.FOLLOW_UP_QUESTIONS,
+                "follow-up question analysis",
+                Prompts.EN_ANALYZE_FOLLOW_UP_QUESTIONS,
+                inputJson,
+                reasoningTemperature,
+                4096L,
+                List.of(),
+                contextFiles);
+
+        SubmitPromptResponse response = objectMapper.readValue(stripMarkdownCodeBlocks(jsonResponse),
+                SubmitPromptResponse.class);
+        response.setTemplateFiles(request.getTemplateFiles());
+        response.setExampleId(request.getExampleId());
+        if (response.getName() == null || response.getName().isBlank()) {
+            response.setName(request.getName());
+        }
+        if (response.getQuestions() == null) {
+            response.setQuestions(List.of());
+        }
+        if (response.getBase() == null) {
+            response.setBase(request.getBase());
+        }
+        if (response.getRequirements() == null) {
+            response.setRequirements(request.getRequirements());
+        }
+        LegalFrame resolvedFrame = mergeLegalFrames(response.getLegalFrame(), legalFrame);
+        response.setLegalFrame(resolvedFrame);
+        response.setBase(mergeDistinct(resolvedFrame.getLegalBasis(), response.getBase()));
+        response.setRequirements(mergeDistinct(
+                response.getRequirements(),
+                resolvedFrame.getAttachmentRequirements()));
+        response = questionQualityService.cleanFirstPassQuestions(response, resolvedFrame);
+        questionQualityService.retainVerifiedSuggestions(response, contextFileNames(contextFiles));
+        limitFollowUpDepth(response, request.getQuestions());
+        log.info("✅ Follow-up analysis returned {} questions", response.getQuestions().size());
+        return response;
+    }
+
+    private List<String> contextFileNames(List<FileContent> contextFiles) {
+        if (contextFiles == null) {
+            return List.of();
+        }
+        return contextFiles.stream().map(FileContent::name).toList();
     }
 
     public Mono<DocumentChatResponse> chatWithDocument(DocumentChatRequest request) {

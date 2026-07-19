@@ -6,8 +6,11 @@ import com.bntech.lexai.gateway.rest.dto.document.SubmitPromptResponse;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 @Service
@@ -53,6 +56,51 @@ public class QuestionQualityService {
         }
         String normalized = normalize(question.getText());
         return CONDITIONAL_FOLLOW_UP_MARKERS.stream().anyMatch(normalized::contains);
+    }
+
+    public SubmitPromptResponse retainVerifiedSuggestions(
+            SubmitPromptResponse response,
+            List<String> attachedContextFileNames) {
+        if (response == null || response.getQuestions() == null) {
+            return response;
+        }
+
+        Map<String, String> actualNames = new LinkedHashMap<>();
+        if (attachedContextFileNames != null) {
+            attachedContextFileNames.stream()
+                    .filter(name -> name != null && !name.isBlank())
+                    .forEach(name -> actualNames.putIfAbsent(normalize(name).strip(), name));
+        }
+
+        response.getQuestions().forEach(question -> {
+            String suggestion = question.getSuggestedAnswer();
+            if (suggestion == null || suggestion.isBlank()) {
+                clearSuggestion(question);
+                return;
+            }
+
+            LinkedHashSet<String> verifiedSources = new LinkedHashSet<>();
+            if (question.getSuggestedAnswerSources() != null) {
+                question.getSuggestedAnswerSources().stream()
+                        .map(source -> source == null ? null : actualNames.get(normalize(source).strip()))
+                        .filter(source -> source != null && !source.isBlank())
+                        .forEach(verifiedSources::add);
+            }
+
+            if (verifiedSources.isEmpty()) {
+                clearSuggestion(question);
+                return;
+            }
+
+            question.setSuggestedAnswer(suggestion.strip());
+            question.setSuggestedAnswerSources(new ArrayList<>(verifiedSources));
+        });
+        return response;
+    }
+
+    private void clearSuggestion(QuestionDto question) {
+        question.setSuggestedAnswer(null);
+        question.setSuggestedAnswerSources(List.of());
     }
 
     private String removeConditionalTail(String text) {

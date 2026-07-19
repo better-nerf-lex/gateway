@@ -14,8 +14,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -136,6 +138,18 @@ public class AccessPermissionService {
 
     public Mono<Boolean> storageFileRead(Authentication authentication, String storageFileId) {
         return fetchTeamIdAndEvaluate(authentication, storageFileId, storageFileRepository, AccessLevel.READ);
+    }
+
+    public Mono<Boolean> storageFilesRead(Authentication authentication, List<String> storageFileIds) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return Mono.just(false);
+        }
+        if (storageFileIds == null || storageFileIds.isEmpty()) {
+            return Mono.just(true);
+        }
+        return Flux.fromIterable(storageFileIds)
+                .concatMap(storageFileId -> storageFileRead(authentication, storageFileId))
+                .all(Boolean.TRUE::equals);
     }
 
     public Mono<Boolean> storageFileWrite(Authentication authentication, String storageFileId) {

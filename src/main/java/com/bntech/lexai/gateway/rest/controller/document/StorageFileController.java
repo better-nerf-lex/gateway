@@ -50,6 +50,7 @@ public class StorageFileController {
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@access.documentGroupWrite(authentication, #documentGroupId)")
     public Mono<StorageFileDto> uploadFile(
             @RequestPart("file") FilePart filePart,
             @RequestParam("documentGroupId") String documentGroupId,

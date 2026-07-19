@@ -225,7 +225,9 @@ public class Prompts {
                             "id": "unique_id_1",
                             "text": "question_text_1",
                             "type": "TEXT | PERSON | COMPANY | COURT | LAW_FIRM | ENTITY",
-                            "followup": true
+                            "followup": true,
+                            "suggestedAnswer": "concise answer extracted from an attached context file, or null",
+                            "suggestedAnswerSources": ["exact-attached-filename.pdf"]
                         },
                         ...
                     ],
@@ -264,6 +266,15 @@ public class Prompts {
                 12. Treat a supplied curated question bank as a coverage checklist, not as a one-to-one list to display. Preserve its required coverage by grouping related items and moving conditional details to follow-up rounds.
                 13. Keep only high-confidence ELI identifiers. Merge seed legal bases and attachment requirements into the returned frame and top-level fields.
 
+                CONTEXT PREFILL POLICY:
+                1. For every question, check whether an attached CONTEXT document directly and unambiguously contains an answer that fits that exact question.
+                2. If it does, put a concise, faithful answer in `suggestedAnswer` and list the exact attached context filename or filenames in `suggestedAnswerSources`.
+                3. Use only current-user context documents for suggestions. Never prefill from template documents, curated question banks, private knowledge examples, general legal knowledge, or an inference.
+                4. If the source is ambiguous, incomplete, contradictory, or does not answer the exact question, return `suggestedAnswer: null` and `suggestedAnswerSources: []`.
+                5. Never resolve a conflict silently. Never invent missing digits, dates, amounts, identifiers, addresses, names, or procedural events.
+                6. A suggestion is editable user input, not a legal conclusion. Keep it short enough for a questionnaire field while preserving the source meaning.
+                7. Do not create a question merely to display a fact already available in a context file. Suggest an answer only when the question is independently necessary for confirmation or completion of the intake.
+
                 Return only the JSON data. Do not include any explanations, comments, or additional content.
             """;
 
@@ -281,7 +292,9 @@ public class Prompts {
                         "id": "unique_follow_up_id",
                         "text": "follow_up_question_in_polish",
                         "type": "TEXT | PERSON | COMPANY | COURT | LAW_FIRM | ENTITY",
-                        "followup": true_or_false
+                        "followup": true_or_false,
+                        "suggestedAnswer": "concise answer extracted from an attached context file, or null",
+                        "suggestedAnswerSources": ["exact-attached-filename.pdf"]
                     }
                 ],
                 "base": ["eli/DU/..."],
@@ -320,6 +333,7 @@ public class Prompts {
             10. Preserve and update the legal frame. Update `requirements` based on all known answers and attachment requirements.
             11. Keep `base` as the best known legal basis. Do not hallucinate ELI URIs; keep existing base if unsure.
             12. If no more follow-ups are needed, return `"questions": []` with updated `base`, `name`, and `requirements`.
+            13. Apply the same conservative context-prefill policy as the first pass: suggest an answer only when an attached CONTEXT document directly answers this exact follow-up, cite exact attached filenames, and return null with an empty source list whenever the evidence is uncertain or conflicting. Never use templates or general knowledge as a prefill source.
 
             Return only JSON. No markdown, no comments, no explanation.
             """;

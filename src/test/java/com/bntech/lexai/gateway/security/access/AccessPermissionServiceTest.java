@@ -1,6 +1,7 @@
 package com.bntech.lexai.gateway.security.access;
 
 import com.bntech.lexai.gateway.data.entity.document.LegalCase;
+import com.bntech.lexai.gateway.data.entity.document.StorageFile;
 import com.bntech.lexai.gateway.data.entity.security.TeamMember;
 import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.repository.document.CaseRepository;
@@ -22,6 +23,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.Mockito.when;
@@ -158,6 +160,38 @@ class AccessPermissionServiceTest {
         when(teamMemberRepository.findByUserIdAndTeamId(userId, teamId)).thenReturn(Mono.just(teamMember));
 
         StepVerifier.create(accessPermissionService.caseWrite(authentication, caseId.toString()))
+                .expectNext(false)
+                .verifyComplete();
+    }
+
+    @Test
+    void storageFilesRead_ShouldReturnTrue_WhenNoFilesWereRequested() {
+        when(authentication.isAuthenticated()).thenReturn(true);
+
+        StepVerifier.create(accessPermissionService.storageFilesRead(authentication, List.of()))
+                .expectNext(true)
+                .verifyComplete();
+    }
+
+    @Test
+    void storageFilesRead_ShouldRequireAccessToEveryFile() {
+        UUID accessibleFileId = UUID.randomUUID();
+        UUID inaccessibleFileId = UUID.randomUUID();
+        UUID teamId = UUID.randomUUID();
+        StorageFile accessibleFile = StorageFile.builder()
+                .id(accessibleFileId)
+                .teamId(teamId)
+                .build();
+
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(authentication.getAuthorities()).thenAnswer(invocation ->
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        when(storageFileRepository.findById(accessibleFileId)).thenReturn(Mono.just(accessibleFile));
+        when(storageFileRepository.findById(inaccessibleFileId)).thenReturn(Mono.empty());
+
+        StepVerifier.create(accessPermissionService.storageFilesRead(
+                        authentication,
+                        List.of(accessibleFileId.toString(), inaccessibleFileId.toString())))
                 .expectNext(false)
                 .verifyComplete();
     }

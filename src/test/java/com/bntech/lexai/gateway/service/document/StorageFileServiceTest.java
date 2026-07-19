@@ -4,6 +4,7 @@ import com.bntech.lexai.gateway.data.entity.document.DocumentGroup;
 import com.bntech.lexai.gateway.data.entity.document.StorageFile;
 import com.bntech.lexai.gateway.data.repository.document.DocumentGroupRepository;
 import com.bntech.lexai.gateway.data.repository.document.StorageFileRepository;
+import com.bntech.lexai.gateway.data.object.StorageFileType;
 import com.bntech.lexai.gateway.mapper.document.StorageFileMapper;
 import com.bntech.lexai.gateway.rest.dto.document.StorageFileDto;
 import org.junit.jupiter.api.BeforeEach;
@@ -123,5 +124,15 @@ public class StorageFileServiceTest {
                 .verifyComplete();
 
         verify(requestHeadersUriSpec).uri(contains(s3Key));
+    }
+
+    @Test
+    void recognizesContextFileTypesUsedByAiGeneration() {
+        org.assertj.core.api.Assertions.assertThat(storageFileService.determineFileType("facts.txt"))
+                .isEqualTo(StorageFileType.TXT);
+        org.assertj.core.api.Assertions.assertThat(storageFileService.determineFileType("scan.PNG"))
+                .isEqualTo(StorageFileType.PNG);
+        org.assertj.core.api.Assertions.assertThat(storageFileService.determineFileType("pleading.docx"))
+                .isEqualTo(StorageFileType.DOCX);
     }
 }

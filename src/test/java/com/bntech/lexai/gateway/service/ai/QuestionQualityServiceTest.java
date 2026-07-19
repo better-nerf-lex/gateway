@@ -122,4 +122,47 @@ class QuestionQualityServiceTest {
                 .extracting(QuestionDto::getId)
                 .containsExactly("facts");
     }
+
+    @Test
+    void retainsOnlySuggestionsBackedByAttachedContextFiles() {
+        SubmitPromptResponse response = SubmitPromptResponse.builder()
+                .questions(List.of(
+                        QuestionDto.builder()
+                                .id("amount")
+                                .text("Jaka jest kwota?")
+                                .suggestedAnswer("12 500 zł")
+                                .suggestedAnswerSources(List.of("UMOWA.PDF", "not-attached.pdf"))
+                                .build(),
+                        QuestionDto.builder()
+                                .id("date")
+                                .text("Kiedy to się wydarzyło?")
+                                .suggestedAnswer("1 maja 2026 r.")
+                                .suggestedAnswerSources(List.of("invented.pdf"))
+                                .build()))
+                .build();
+
+        SubmitPromptResponse cleaned = service.retainVerifiedSuggestions(response, List.of("umowa.pdf"));
+
+        assertThat(cleaned.getQuestions().get(0).getSuggestedAnswer()).isEqualTo("12 500 zł");
+        assertThat(cleaned.getQuestions().get(0).getSuggestedAnswerSources()).containsExactly("umowa.pdf");
+        assertThat(cleaned.getQuestions().get(1).getSuggestedAnswer()).isNull();
+        assertThat(cleaned.getQuestions().get(1).getSuggestedAnswerSources()).isEmpty();
+    }
+
+    @Test
+    void clearsSuggestionsWhenNoContextFileWasAttached() {
+        SubmitPromptResponse response = SubmitPromptResponse.builder()
+                .questions(List.of(QuestionDto.builder()
+                        .id("party")
+                        .text("Kto składa pismo?")
+                        .suggestedAnswer("Jan Kowalski")
+                        .suggestedAnswerSources(List.of("example.pdf"))
+                        .build()))
+                .build();
+
+        SubmitPromptResponse cleaned = service.retainVerifiedSuggestions(response, List.of());
+
+        assertThat(cleaned.getQuestions().getFirst().getSuggestedAnswer()).isNull();
+        assertThat(cleaned.getQuestions().getFirst().getSuggestedAnswerSources()).isEmpty();
+    }
 }

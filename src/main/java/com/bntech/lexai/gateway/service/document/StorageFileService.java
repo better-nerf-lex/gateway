@@ -172,13 +172,9 @@ public class StorageFileService {
                 return filename.substring(filename.lastIndexOf("."));
         }
 
-        private StorageFileType determineFileType(String filename) {
-                if (filename.toLowerCase().endsWith(".pdf")) {
-                        return StorageFileType.PDF;
-                } else if (filename.toLowerCase().endsWith(".docx")) {
-                        return StorageFileType.DOCX;
-                }
-                return StorageFileType.OTHER;
+        StorageFileType determineFileType(String filename) {
+                String extension = getFileExtension(filename);
+                return StorageFileType.fromValue(extension.startsWith(".") ? extension.substring(1) : extension);
         }
 
         public Mono<StorageFileDto> updateDocumentFile(String id, StorageFileDto dto) {

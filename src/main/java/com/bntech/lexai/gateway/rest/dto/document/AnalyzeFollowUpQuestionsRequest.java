@@ -22,6 +22,7 @@ public class AnalyzeFollowUpQuestionsRequest {
     private List<String> base;
     private List<String> requirements;
     private List<TemplateFile> templateFiles;
+    private List<String> contextFileIds;
     private String exampleId;
     private LegalFrame legalFrame;
 }
