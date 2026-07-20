@@ -40,16 +40,21 @@ public class JwtAuthenticationFilter implements WebFilter {
         Mono<String> token = authSessionService.getAccessToken(exchange)
                 .switchIfEmpty(Mono.justOrEmpty(extractBearerToken(exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION))));
 
-        return token
-                .flatMap(value -> authenticate(exchange, chain, method, path, value))
+        Mono<UsernamePasswordAuthenticationToken> authentication = token
+                .flatMap(value -> authenticate(method, path, value));
+
+        return authentication
+                .flatMap(auth -> chain.filter(exchange)
+                        .contextWrite(ReactiveSecurityContextHolder.withAuthentication(auth))
+                        .thenReturn(true))
                 .switchIfEmpty(Mono.defer(() -> {
                     log.debug("No auth token found for {} {}", method, path);
-                    return chain.filter(exchange);
+                    return chain.filter(exchange).thenReturn(false);
                 }))
                 .then();
     }
 
-    private Mono<Void> authenticate(ServerWebExchange exchange, WebFilterChain chain, String method, String path, String token) {
+    private Mono<UsernamePasswordAuthenticationToken> authenticate(String method, String path, String token) {
         log.debug("Validating token for {} {}", method, path);
 
         return jwtService.validateAndGetClaims(token)
@@ -69,18 +74,7 @@ public class JwtAuthenticationFilter implements WebFilter {
                 .onErrorResume(ex -> {
                     log.error("Authentication process failed for {} {}: {}", method, path, ex.getMessage());
                     return Mono.empty();
-                })
-                .flatMap(authToken -> {
-                    log.debug("Authentication successful for {}, proceeding with chain", authToken.getName());
-                    return chain.filter(exchange)
-                            .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authToken))
-                            .then(Mono.just(authToken));
-                })
-                .switchIfEmpty(Mono.defer(() -> {
-                    log.warn("No valid authentication, proceeding without security context for {} {}", method, path);
-                    return chain.filter(exchange).then(Mono.empty());
-                }))
-                .then();
+                });
     }
 
     private String extractBearerToken(String authHeader) {

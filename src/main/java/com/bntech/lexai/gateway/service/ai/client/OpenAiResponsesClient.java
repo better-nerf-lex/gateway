@@ -40,7 +40,10 @@ public class OpenAiResponsesClient implements AiModelClient {
     @Override
     public String complete(AiPromptRequest request) {
         String apiKey = properties.getOpenai().getApiKey();
-        if (apiKey == null || apiKey.isBlank() || "dummy-key".equals(apiKey)) {
+        if (apiKey == null
+                || apiKey.isBlank()
+                || "dummy-key".equals(apiKey)
+                || apiKey.startsWith("${")) {
             throw new ServiceException("OpenAiResponsesClient", "OpenAI API key is not configured");
         }
 

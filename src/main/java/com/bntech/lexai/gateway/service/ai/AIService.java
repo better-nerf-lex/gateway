@@ -66,6 +66,12 @@ public class AIService {
     @Value("${app.knowledge.max-chars-per-conversation:8000}")
     private int knowledgeMaxCharsPerConversation;
 
+    @Value("${app.ai.question-timeout-seconds:50}")
+    private long questionTimeoutSeconds;
+
+    @Value("${app.ai.openai.question-reasoning-effort:low}")
+    private String questionReasoningEffort;
+
     private final ObjectMapper objectMapper;
     private final AiModelRouter aiModelRouter;
     private final EliService eliService;
@@ -102,7 +108,9 @@ public class AIService {
                             legalFrame,
                             List.of(),
                             files);
-                });
+                })
+                .timeout(questionTimeout())
+                .doOnError(error -> log.error("❌ Error analyzing prompt", error));
     }
 
     public Mono<SubmitPromptResponse> prepareTemplateQuestionnaire(
@@ -128,7 +136,9 @@ public class AIService {
                     response.setTemplateFiles(template.getTemplateFiles());
                     response.setExampleId(template.getExampleId());
                     return response;
-                });
+                })
+                .timeout(questionTimeout())
+                .doOnError(error -> log.error("❌ Error preparing template questionnaire", error));
     }
 
     public Mono<LegalBasisResponse> extractLegalBasis(String prompt) {
@@ -181,7 +191,8 @@ public class AIService {
                     systemPrompt,
                     Prompts.EN_USER_MESSAGE + prompt,
                     creativityTemperature,
-                    3500L,
+                    2500L,
+                    questionReasoningEffort,
                     templates,
                     contextFiles);
 
@@ -196,9 +207,7 @@ public class AIService {
             log.info("✅ Parsed response with {} questions", questionCount);
             return cleanedResponse;
         })
-                .subscribeOn(Schedulers.boundedElastic())
-                .timeout(Duration.ofSeconds(45))
-                .doOnError(error -> log.error("❌ Error analyzing prompt", error));
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     public Mono<SubmitPromptResponse> analyzeFollowUpQuestions(AnalyzeFollowUpQuestionsRequest request) {
@@ -212,7 +221,7 @@ public class AIService {
                 .flatMap(contextFiles -> Mono.fromCallable(
                                 () -> generateFollowUpQuestions(request, legalFrame, contextFiles))
                         .subscribeOn(Schedulers.boundedElastic()))
-                .timeout(Duration.ofSeconds(45))
+                .timeout(questionTimeout())
                 .doOnError(error -> log.error("❌ Error analyzing follow-up questions", error));
     }
 
@@ -237,7 +246,8 @@ public class AIService {
                 Prompts.EN_ANALYZE_FOLLOW_UP_QUESTIONS,
                 inputJson,
                 reasoningTemperature,
-                4096L,
+                2200L,
+                questionReasoningEffort,
                 List.of(),
                 contextFiles);
 
@@ -522,6 +532,28 @@ public class AIService {
             long maxTokens,
             List<FileContent> templates,
             List<FileContent> contextFiles) {
+        return completeAi(
+                kind,
+                title,
+                systemPrompt,
+                userMessage,
+                temperature,
+                maxTokens,
+                null,
+                templates,
+                contextFiles);
+    }
+
+    private String completeAi(
+            AiCallKind kind,
+            String title,
+            String systemPrompt,
+            String userMessage,
+            double temperature,
+            long maxTokens,
+            String reasoningEffort,
+            List<FileContent> templates,
+            List<FileContent> contextFiles) {
         String response = aiModelRouter.complete(new AiPromptRequest(
                 kind,
                 title,
@@ -530,10 +562,14 @@ public class AIService {
                 null,
                 temperature,
                 maxTokens,
-                null,
+                reasoningEffort,
                 templates,
                 contextFiles));
         return stripMarkdownCodeBlocks(response);
+    }
+
+    private Duration questionTimeout() {
+        return Duration.ofSeconds(Math.max(1, questionTimeoutSeconds));
     }
 
     private Mono<List<FileContent>> fetchTemplateFiles(List<TemplateFile> templateFiles) {

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OpenAiResponsesClientTest {
     private final AiProviderProperties properties = new AiProviderProperties();
@@ -91,5 +92,24 @@ class OpenAiResponsesClientTest {
                 """;
 
         assertThat(client.extractText(response)).isEqualTo("<p>Gotowe</p>");
+    }
+
+    @Test
+    void rejectsAnUnresolvedApiKeyPlaceholderBeforeCallingOpenAi() {
+        properties.getOpenai().setApiKey("${OPENAI_API_KEY}");
+        AiPromptRequest request = new AiPromptRequest(
+                AiCallKind.QUESTIONS,
+                "questions",
+                "Return JSON",
+                "Create the questionnaire as JSON",
+                null,
+                0.2,
+                2500L,
+                "low",
+                List.of(),
+                List.of());
+
+        assertThatThrownBy(() -> client.complete(request))
+                .hasMessageContaining("OpenAI API key is not configured");
     }
 }

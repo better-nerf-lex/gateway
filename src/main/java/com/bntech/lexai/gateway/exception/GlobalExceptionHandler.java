@@ -11,6 +11,8 @@ import org.springframework.web.bind.support.WebExchangeBindException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.concurrent.TimeoutException;
+
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -143,6 +145,19 @@ public class GlobalExceptionHandler {
                                 ex.getMessage(),
                                 path);
                 return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response));
+        }
+
+        @ExceptionHandler(TimeoutException.class)
+        public Mono<ResponseEntity<ErrorResponse>> handleTimeout(
+                        TimeoutException ex, ServerWebExchange exchange) {
+                log.warn("Upstream request timed out: {}", ex.getMessage());
+                String path = exchange.getRequest().getPath().value();
+                ErrorResponse response = ErrorResponse.of(
+                                HttpStatus.GATEWAY_TIMEOUT.value(),
+                                "Gateway Timeout",
+                                "The AI service did not respond in time. Please try again.",
+                                path);
+                return Mono.just(ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(response));
         }
 
         @ExceptionHandler(AuthenticationException.class)

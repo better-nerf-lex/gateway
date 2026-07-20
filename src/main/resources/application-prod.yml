@@ -60,12 +60,14 @@ app:
     primary-provider: ${AI_PRIMARY_PROVIDER:anthropic}
     fallback-provider: ${AI_FALLBACK_PROVIDER:anthropic}
     openai-rollout-ratio: ${AI_OPENAI_ROLLOUT_RATIO:1.0}
+    question-timeout-seconds: ${AI_QUESTION_TIMEOUT_SECONDS:50}
     openai:
       api-key: ${OPENAI_API_KEY}
       base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
       model: ${OPENAI_MODEL:gpt-5.5}
       chat-model: ${OPENAI_CHAT_MODEL:gpt-5.5}
       reasoning-effort: ${OPENAI_REASONING_EFFORT:medium}
+      question-reasoning-effort: ${OPENAI_QUESTION_REASONING_EFFORT:low}
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:${FRONTEND_URL}}
   auth:

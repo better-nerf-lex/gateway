@@ -4,7 +4,10 @@ import com.bntech.lexai.gateway.security.CookieOAuth2AuthorizationRequestReposit
 import com.bntech.lexai.gateway.security.OAuth2SuccessHandler;
 import com.bntech.lexai.gateway.security.OAuth2FailureHandler;
 import com.bntech.lexai.gateway.security.SessionAuthenticationFilter;
+import com.bntech.lexai.gateway.service.security.AuthSessionService;
+import com.bntech.lexai.gateway.service.security.DatabaseUserDetailsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,7 +31,8 @@ public class ProdSecurityConfig {
         private final OAuth2SuccessHandler oAuth2SuccessHandler;
         private final OAuth2FailureHandler oAuth2FailureHandler;
         private final CookieOAuth2AuthorizationRequestRepository oAuth2AuthorizationRequestRepository;
-        private final SessionAuthenticationFilter sessionAuthenticationFilter;
+        private final ObjectProvider<AuthSessionService> authSessionServiceProvider;
+        private final ObjectProvider<DatabaseUserDetailsService> userDetailsServiceProvider;
 
         @Bean
         @Order(1)
@@ -37,7 +41,7 @@ public class ProdSecurityConfig {
                 return http
                                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                                .addFilterAt(sessionAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+                                .addFilterAt(sessionAuthenticationFilter(), SecurityWebFiltersOrder.AUTHENTICATION)
                                 .authorizeExchange(exchanges -> exchanges
                                                 .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .pathMatchers(HttpMethod.POST, "/auth/login", "/auth/register",
@@ -61,5 +65,9 @@ public class ProdSecurityConfig {
                                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                                 .build();
+        }
+
+        private SessionAuthenticationFilter sessionAuthenticationFilter() {
+                return new SessionAuthenticationFilter(authSessionServiceProvider, userDetailsServiceProvider);
         }
 }

@@ -56,6 +56,19 @@ jobs:
             --task-definition ${{ env.ECS_TASK_DEFINITION }} \
             --query taskDefinition > task-definition.json
 
+      - name: Verify AI runtime configuration
+        run: |
+          if ! jq -e --arg container "$CONTAINER_NAME" '
+            .containerDefinitions[]
+            | select(.name == $container)
+            | (([.secrets[]?.name] | index("OPENAI_API_KEY")) != null)
+              and (([.environment[]? | select(.name == "AI_OPENAI_ROLLOUT_RATIO" and ((try (.value | tonumber) catch 0) > 0))] | length) == 1)
+              and (([.environment[]? | select(.name == "OPENAI_MODEL" and (.value | length) > 0)] | length) == 1)
+          ' task-definition.json > /dev/null; then
+            echo "ECS task definition is missing OpenAI runtime wiring. Apply the dev Terraform configuration before deploying the gateway."
+            exit 1
+          fi
+
       - name: Fill in the new image ID in the Amazon ECS task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
