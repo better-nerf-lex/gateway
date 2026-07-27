@@ -7,6 +7,7 @@ import com.bntech.lexai.gateway.data.entity.document.Document;
 import com.bntech.lexai.gateway.data.entity.document.DocumentHistory;
 import com.bntech.lexai.gateway.data.entity.document.CaseDocument;
 import com.bntech.lexai.gateway.data.entity.security.TeamMember;
+import com.bntech.lexai.gateway.data.entity.security.User;
 import com.bntech.lexai.gateway.data.object.DocumentStatus;
 import com.bntech.lexai.gateway.data.object.ActionType;
 import com.bntech.lexai.gateway.data.object.DocumentGenerationMetadata;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -211,9 +213,21 @@ public class DocumentService {
     }
 
     public Mono<SubmitPromptResponse> submitPrompt(SubmitPromptRequest request) {
+        return resolveQuestionnaireContext(
+                request.getAttachedFileIds(),
+                request.getDocumentGroupId(),
+                request.getCaseId(),
+                request.getTeamId())
+                .flatMap(contextFileIds -> submitPrompt(request, contextFileIds));
+    }
+
+    private Mono<SubmitPromptResponse> submitPrompt(
+            SubmitPromptRequest request,
+            List<String> contextFileIds) {
         boolean hasFiles = request.getAttachedFileIds() != null && !request.getAttachedFileIds().isEmpty();
         boolean hasExampleId = request.getExampleId() != null && !request.getExampleId().isBlank();
-        log.info("Processing prompt submission; hasFiles={}, hasExampleId={}", hasFiles, hasExampleId);
+        log.info("Processing prompt submission; hasFiles={}, resolvedContextFiles={}, hasExampleId={}",
+                hasFiles, contextFileIds.size(), hasExampleId);
 
         Mono<SubmitPromptResponse> selectedTemplate = (hasExampleId && documentExampleService != null)
                 ? documentExampleService.findById(request.getExampleId())
@@ -229,7 +243,7 @@ public class DocumentService {
         return selectedTemplate
                 .flatMap(template -> aiService.prepareTemplateQuestionnaire(
                                 request.getPrompt(),
-                                request.getAttachedFileIds(),
+                                contextFileIds,
                                 template)
                         .onErrorResume(error -> {
                             log.warn("Could not optimize selected template questionnaire; using curated questions: {}",
@@ -238,7 +252,7 @@ public class DocumentService {
                         }))
                 .switchIfEmpty(Mono.defer(() -> aiService.analyzePrompt(
                         request.getPrompt(),
-                        request.getAttachedFileIds())))
+                        contextFileIds)))
                 .doOnSuccess(response -> {
                     log.info("✅ Prompt analysis completed with {} questions",
                             response != null && response.getQuestions() != null ? response.getQuestions().size() : 0);
@@ -251,7 +265,13 @@ public class DocumentService {
     }
 
     public Mono<SubmitPromptResponse> analyzeFollowUpQuestions(AnalyzeFollowUpQuestionsRequest request) {
-        return aiService.analyzeFollowUpQuestions(request)
+        return resolveQuestionnaireContext(
+                request.getContextFileIds(),
+                request.getDocumentGroupId(),
+                request.getCaseId(),
+                request.getTeamId())
+                .doOnNext(request::setContextFileIds)
+                .flatMap(ignored -> aiService.analyzeFollowUpQuestions(request))
                 .doOnSuccess(response -> log.info("✅ Follow-up question analysis completed with {} questions",
                         response.getQuestions() != null ? response.getQuestions().size() : 0))
                 .doOnError(error -> log.error("❌ Error analyzing follow-up questions", error));
@@ -261,79 +281,100 @@ public class DocumentService {
         log.info("Generating document: {}", request.getTitle());
 
         return getCurrentUser()
-                .flatMap(user -> {
-                    String requestedTeamId = request.getTeamId();
-                    Mono<UUID> teamIdMono;
-                    if (requestedTeamId != null && !requestedTeamId.isBlank()
-                            && !requestedTeamId.equals("null") && !requestedTeamId.equals("undefined")) {
-                        teamIdMono = teamMemberRepository
-                                .findByUserIdAndTeamId(user.getId(), UUID.fromString(requestedTeamId))
-                                .switchIfEmpty(
-                                        Mono.error(new AccessDeniedException("Insufficient team access")))
-                                .map(TeamMember::getTeamId);
-                    } else {
-                        teamIdMono = teamMemberRepository.findByUserId(user.getId())
-                                .next()
-                                .map(TeamMember::getTeamId);
-                    }
+                .flatMap(user -> resolveTeamId(user, request.getTeamId())
+                        .flatMap(teamId -> generateDocument(request, user, teamId)));
+    }
 
-                    return teamIdMono.flatMap(teamId -> generationContextService.enrich(request, teamId).flatMap(enrichedRequest -> {
-                        Document document = mapper.toEntity(DocumentDto.builder()
-                                .id(UUID.randomUUID().toString())
-                                .title(enrichedRequest.getTitle())
-                                .type(null)
-                                .status(DocumentStatus.PENDING)
-                                .createdAt(LocalDateTime.now())
-                                .updatedAt(LocalDateTime.now())
-                                .text("")
-                                .build());
-                        document.setOwnerId(user.getId());
-                        if (teamId != null) {
-                            document.setTeamId(teamId);
-                        }
-                        if (enrichedRequest.getDocumentGroupId() != null && !enrichedRequest.getDocumentGroupId().isBlank()) {
-                            document.setDocumentGroupId(UUID.fromString(enrichedRequest.getDocumentGroupId()));
-                        }
-                        document.setGenerationMetadata(DocumentGenerationMetadata.from(
-                                enrichedRequest.getBase(),
-                                enrichedRequest.getRequirements(),
-                                document.getId(),
-                                document.getDocumentGroupId()));
+    private Mono<DocumentDto> generateDocument(GenerateDocumentRequest request, User user, UUID teamId) {
+        return generationContextService.enrich(request, teamId).flatMap(enrichedRequest -> {
+            Document document = mapper.toEntity(DocumentDto.builder()
+                    .id(UUID.randomUUID().toString())
+                    .title(enrichedRequest.getTitle())
+                    .type(null)
+                    .status(DocumentStatus.PENDING)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .text("")
+                    .build());
+            document.setOwnerId(user.getId());
+            document.setTeamId(teamId);
+            if (enrichedRequest.getDocumentGroupId() != null && !enrichedRequest.getDocumentGroupId().isBlank()) {
+                document.setDocumentGroupId(UUID.fromString(enrichedRequest.getDocumentGroupId()));
+            }
+            document.setGenerationMetadata(DocumentGenerationMetadata.from(
+                    enrichedRequest.getBase(),
+                    enrichedRequest.getRequirements(),
+                    document.getId(),
+                    document.getDocumentGroupId()));
 
-                        Mono<GenerateDocumentRequest> requestMono = Mono.just(enrichedRequest);
-                        if (enrichedRequest.getExampleId() != null && !enrichedRequest.getExampleId().isBlank()) {
-                            requestMono = documentExampleService.findById(enrichedRequest.getExampleId())
-                                    .map(example -> {
-                                        if (enrichedRequest.getTemplateFiles() == null
-                                                || enrichedRequest.getTemplateFiles().isEmpty()) {
-                                            enrichedRequest.setTemplateFiles(example.getTemplateFiles());
-                                        }
-                                        return enrichedRequest;
-                                    })
-                                    .defaultIfEmpty(enrichedRequest);
-                        }
+            Mono<GenerateDocumentRequest> requestMono = Mono.just(enrichedRequest);
+            if (enrichedRequest.getExampleId() != null && !enrichedRequest.getExampleId().isBlank()) {
+                requestMono = documentExampleService.findById(enrichedRequest.getExampleId())
+                        .map(example -> {
+                            if (enrichedRequest.getTemplateFiles() == null
+                                    || enrichedRequest.getTemplateFiles().isEmpty()) {
+                                enrichedRequest.setTemplateFiles(example.getTemplateFiles());
+                            }
+                            return enrichedRequest;
+                        })
+                        .defaultIfEmpty(enrichedRequest);
+            }
 
-                        String reservationKey = "document:" + document.getId();
-                        boolean skipBillingReservation = user.isSuperadmin();
-                        Mono<Void> reserveToken = skipBillingReservation
-                                ? Mono.empty()
-                                : subscriptionClientService.reserveDocumentToken(
-                                        teamId.toString(),
-                                        reservationKey,
-                                        document.getId().toString());
-                        return requestMono.flatMap(req -> reserveToken
-                                .then(documents.save(document))
-                                .map(doc -> {
-                                    doc.setNotNew();
-                                    return doc;
-                                })
-                                .flatMap(savedDocument -> processAIGeneration(savedDocument, req, reservationKey,
-                                        skipBillingReservation))
-                                .flatMap(dto -> assignGeneratedDocumentToCase(req, document.getId()).thenReturn(dto))
-                                .onErrorResume(error -> refundBillingReservation(reservationKey, skipBillingReservation)
-                                        .then(Mono.error(error))));
-                    }));
-                });
+            String reservationKey = "document:" + document.getId();
+            boolean skipBillingReservation = user.isSuperadmin();
+            Mono<Void> reserveToken = skipBillingReservation
+                    ? Mono.empty()
+                    : subscriptionClientService.reserveDocumentToken(
+                            teamId.toString(),
+                            reservationKey,
+                            document.getId().toString());
+            return requestMono.flatMap(req -> reserveToken
+                    .then(documents.save(document))
+                    .map(doc -> {
+                        doc.setNotNew();
+                        return doc;
+                    })
+                    .flatMap(savedDocument -> processAIGeneration(savedDocument, req, reservationKey,
+                            skipBillingReservation))
+                    .flatMap(dto -> assignGeneratedDocumentToCase(req, document.getId()).thenReturn(dto))
+                    .onErrorResume(error -> refundBillingReservation(reservationKey, skipBillingReservation)
+                            .then(Mono.error(error))));
+        });
+    }
+
+    private Mono<List<String>> resolveQuestionnaireContext(
+            List<String> explicitFileIds,
+            String documentGroupId,
+            String caseId,
+            String requestedTeamId) {
+        return getCurrentUser()
+                .flatMap(user -> resolveTeamId(user, requestedTeamId))
+                .flatMap(teamId -> generationContextService.resolveContextFileIds(
+                        explicitFileIds,
+                        documentGroupId,
+                        caseId,
+                        teamId));
+    }
+
+    private Mono<UUID> resolveTeamId(
+            User user,
+            String requestedTeamId) {
+        if (requestedTeamId != null && !requestedTeamId.isBlank()
+                && !requestedTeamId.equals("null") && !requestedTeamId.equals("undefined")) {
+            try {
+                UUID teamId = UUID.fromString(requestedTeamId);
+                return teamMemberRepository.findByUserIdAndTeamId(user.getId(), teamId)
+                        .switchIfEmpty(Mono.error(new AccessDeniedException("Insufficient team access")))
+                        .map(TeamMember::getTeamId);
+            } catch (IllegalArgumentException error) {
+                return Mono.error(new AccessDeniedException("Invalid team identifier"));
+            }
+        }
+
+        return teamMemberRepository.findByUserId(user.getId())
+                .next()
+                .switchIfEmpty(Mono.error(new AccessDeniedException("No team membership found")))
+                .map(TeamMember::getTeamId);
     }
 
     private Mono<Void> assignGeneratedDocumentToCase(GenerateDocumentRequest request, UUID documentId) {

@@ -23,6 +23,9 @@ public class AnalyzeFollowUpQuestionsRequest {
     private List<String> requirements;
     private List<TemplateFile> templateFiles;
     private List<String> contextFileIds;
+    private String caseId;
+    private String documentGroupId;
+    private String teamId;
     private String exampleId;
     private LegalFrame legalFrame;
 }

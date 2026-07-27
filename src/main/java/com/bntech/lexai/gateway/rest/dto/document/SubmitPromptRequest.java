@@ -16,4 +16,7 @@ public class SubmitPromptRequest {
     private List<String> attachedFileIds;
     private String exampleId;
     private boolean skipTemplateSearch;
+    private String caseId;
+    private String documentGroupId;
+    private String teamId;
 }

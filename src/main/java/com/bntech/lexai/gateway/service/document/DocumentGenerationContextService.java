@@ -49,23 +49,47 @@ public class DocumentGenerationContextService {
     private final ObjectMapper objectMapper;
 
     public Mono<GenerateDocumentRequest> enrich(GenerateDocumentRequest request, UUID teamId) {
-        Mono<List<String>> explicitFiles = Mono.justOrEmpty(request.getContextFileIds()).defaultIfEmpty(List.of());
-        Mono<List<String>> groupFiles = explicitFiles.flatMap(files -> files.isEmpty()
-                ? resolveGroupFiles(request.getDocumentGroupId(), teamId)
-                : Mono.just(List.of()));
-        Mono<List<String>> caseFiles = resolveCaseFiles(request.getCaseId(), teamId);
-        Mono<String> caseContext = buildCaseContext(request.getCaseId(), teamId);
+        return Mono.zip(
+                resolveContextFileIds(
+                        request.getContextFileIds(),
+                        request.getDocumentGroupId(),
+                        request.getCaseId(),
+                        teamId),
+                buildCaseContext(request.getCaseId(), teamId))
+                .map(tuple -> {
+                    request.setContextFileIds(tuple.getT1());
+                    request.setCaseContext(tuple.getT2());
+                    return request;
+                });
+    }
 
-        return Mono.zip(explicitFiles, groupFiles, caseFiles, caseContext)
+    public Mono<List<String>> resolveContextFileIds(
+            List<String> explicitFileIds,
+            String documentGroupId,
+            String caseId,
+            UUID teamId) {
+        return Mono.zip(
+                Mono.just(normalizeFileIds(explicitFileIds)),
+                resolveGroupFiles(documentGroupId, teamId),
+                resolveCaseFiles(caseId, teamId))
                 .map(tuple -> {
                     LinkedHashSet<String> contextFileIds = new LinkedHashSet<>();
                     contextFileIds.addAll(tuple.getT1());
                     contextFileIds.addAll(tuple.getT2());
                     contextFileIds.addAll(tuple.getT3());
-                    request.setContextFileIds(new ArrayList<>(contextFileIds));
-                    request.setCaseContext(tuple.getT4());
-                    return request;
+                    return new ArrayList<>(contextFileIds);
                 });
+    }
+
+    private List<String> normalizeFileIds(List<String> fileIds) {
+        if (fileIds == null) {
+            return List.of();
+        }
+        return fileIds.stream()
+                .filter(fileId -> fileId != null && !fileId.isBlank())
+                .map(String::strip)
+                .distinct()
+                .toList();
     }
 
     private Mono<List<String>> resolveGroupFiles(String documentGroupId, UUID teamId) {

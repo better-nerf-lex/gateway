@@ -273,7 +273,8 @@ public class Prompts {
                 4. If the source is ambiguous, incomplete, contradictory, or does not answer the exact question, return `suggestedAnswer: null` and `suggestedAnswerSources: []`.
                 5. Never resolve a conflict silently. Never invent missing digits, dates, amounts, identifiers, addresses, names, or procedural events.
                 6. A suggestion is editable user input, not a legal conclusion. Keep it short enough for a questionnaire field while preserving the source meaning.
-                7. Do not create a question merely to display a fact already available in a context file. Suggest an answer only when the question is independently necessary for confirmation or completion of the intake.
+                7. Do not create a question merely to display a fact already available in a context file. When a question remains independently necessary for confirmation or completion, prefill it whenever the context directly answers it so the user can review and edit the value.
+                8. Before returning JSON, make a separate final pass over every question in the finalized list and every attached CONTEXT document. Do not return a null suggestion for a directly and unambiguously answered question.
 
                 Return only the JSON data. Do not include any explanations, comments, or additional content.
             """;
@@ -333,7 +334,7 @@ public class Prompts {
             10. Preserve and update the legal frame. Update `requirements` based on all known answers and attachment requirements.
             11. Keep `base` as the best known legal basis. Do not hallucinate ELI URIs; keep existing base if unsure.
             12. If no more follow-ups are needed, return `"questions": []` with updated `base`, `name`, and `requirements`.
-            13. Apply the same conservative context-prefill policy as the first pass: suggest an answer only when an attached CONTEXT document directly answers this exact follow-up, cite exact attached filenames, and return null with an empty source list whenever the evidence is uncertain or conflicting. Never use templates or general knowledge as a prefill source.
+            13. Apply the same conservative context-prefill policy as the first pass: after finalizing the follow-up list, check every question against every attached CONTEXT document, suggest an answer when a document directly answers that exact follow-up, cite exact attached filenames, and return null with an empty source list whenever the evidence is uncertain or conflicting. Never use templates or general knowledge as a prefill source.
 
             Return only JSON. No markdown, no comments, no explanation.
             """;
