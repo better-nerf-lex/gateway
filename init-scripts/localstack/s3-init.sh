@@ -1,9 +1,6 @@
 #!/bin/bash
 awslocal s3 mb s3://lexai-documents
 
-# Template files for DocumentExamples
-# Path format: knowledge/templates/document-examples/{exampleId}/{fileName}.extension
-
 # Private generation knowledge
 awslocal s3 cp /tmp/knowledge/manifest.json s3://lexai-documents/knowledge/manifest.json
 awslocal s3 sync /tmp/knowledge/conversations s3://lexai-documents/knowledge/conversations --exclude ".gitkeep" --exclude "**/.gitkeep"
